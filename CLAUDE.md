@@ -88,13 +88,37 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - RouteRepository + SyncRepository offline-first
 - Firebase FCM + Crashlytics + Analytics + RutasMessagingService + FcmTokenRepository
 
-### S03+ — PENDIENTE
-- S03: RutasScreen + GPS ForegroundService
-- S04: Formularios de visita con fotos
-- S05: KPIs
-- S06: Calendario
-- S07: Admin panel
-- S08+: Multi-tenancy, roles en UI, FCM push
+### S03 — COMPLETADO ✅
+- RutasScreen: lista de rutas con pull-to-refresh, FAB crear ruta, diálogo crear ruta
+- RouteDetailScreen: detalle de ruta con lista de paradas ordenadas, FAB añadir parada
+- RouteMapScreen: mapa MapLibre con markers de paradas de la ruta
+- GPS: LocationManager + PermissionHandler
+
+### S04 — COMPLETADO ✅
+- GlobalMapScreen: mapa global MapLibre con todas las rutas del día
+- Filtros por estado: PENDING / DONE / NO_GPS
+- GlobalMapViewModel con Flow de stops filtrados
+
+### S05 — COMPLETADO ✅
+- VisitaScreen: formulario de visita con resultado, notas, próxima acción
+- VisitaViewModel: actualiza stop en Room + marca para sync
+
+### S06 — COMPLETADO ✅
+- KpisScreen: estadísticas de visitas, tasa de éxito, tendencia semanal
+- KpisViewModel: cálculos sobre Room local
+
+### S07 — EN PROGRESO 🚧
+- Creador de paradas (CrearParadaScreen) — pendiente
+- Endpoint API stops_create / stops_update — pendiente
+- Routing OSRM en MapLibre — pendiente (TODO en MapLibreProvider)
+
+### S08 — PENDIENTE ⏳
+- CalendarioScreen (PlaceholderScreen activo en nav)
+
+### S09+ — PENDIENTE ⏳
+- AdminScreen (PlaceholderScreen activo en nav)
+- XLS Import
+- Multi-tenancy, roles en UI, FCM push
 
 ---
 

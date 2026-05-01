@@ -55,7 +55,7 @@ fun RutasScreen(
             FloatingActionButton(onClick = vm::onShowCreateDialog) {
                 Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
             }
-        }
+        },
         snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         val pullState = rememberPullToRefreshState()

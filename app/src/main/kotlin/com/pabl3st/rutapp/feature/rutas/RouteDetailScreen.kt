@@ -52,7 +52,7 @@ fun RouteDetailScreen(
             FloatingActionButton(onClick = vm::onShowAddStopDialog) {
                 Icon(Icons.Default.AddLocation, contentDescription = "Añadir parada")
             }
-        }
+        },
         snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         when {

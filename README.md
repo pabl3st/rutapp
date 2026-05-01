@@ -60,16 +60,17 @@ feature/
 
 ## Sprints
 
-| Sprint | Estado | Tag |
-|--------|--------|-----|
-| S01 — Auth + BD | 🚧 En progreso | `sprint-s01` |
-| S02 — Room + Sync | ⏳ Planificado | `sprint-s02` |
-| S03 — Rutas + GPS | ⏳ Planificado | `sprint-s03` |
-| S04 — Maps | ⏳ Planificado | `sprint-s04` |
-| S05 — Visitas | ⏳ Planificado | `sprint-s05` |
-| S06 — KPIs | ⏳ Planificado | `sprint-s06` |
-| S07 — Calendario | ⏳ Planificado | `sprint-s07` |
-| S08 — XLS Import | ⏳ Planificado | `sprint-s08` |
-| S09 — Admin | ⏳ Planificado | `sprint-s09` |
-| S10 — Polish | ⏳ Planificado | `sprint-s10` |
-| S11 — Play Store | ⏳ Planificado | `sprint-s11` |
+| Sprint | Estado | Contenido |
+|--------|--------|-----------|
+| S01 — Auth + BD | ✅ Completado | Auth completo, SessionManager cifrado, CI/CD, API PHP, BD MySQL |
+| S02 — Room + Sync | ✅ Completado | Room (Route/Stop/SyncQueue), SyncWorker offline-first, HomeScreen, Firebase FCM |
+| S03 — Rutas + GPS | ✅ Completado | RutasScreen, RouteDetailScreen, RouteMapScreen (MapLibre), GPS |
+| S04 — Mapa global | ✅ Completado | GlobalMapScreen con MapLibre, filtros por estado |
+| S05 — Visitas | ✅ Completado | VisitaScreen, formulario de resultado de visita |
+| S06 — KPIs | ✅ Completado | KpisScreen con estadísticas y tendencias |
+| S07 — Creador paradas | 🚧 En progreso | CrearParadaScreen + endpoint API stops |
+| S08 — Calendario | ⏳ Planificado | Placeholder activo en nav |
+| S09 — Admin | ⏳ Planificado | Placeholder activo en nav |
+| S10 — XLS Import | ⏳ Planificado | — |
+| S11 — Polish | ⏳ Planificado | — |
+| S12 — Play Store | ⏳ Planificado | — |
