@@ -8,27 +8,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.pabl3st.rutapp.feature.auth.AuthRoot
+import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
-import com.pabl3st.rutapp.feature.rutas.RutasScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
-import com.pabl3st.rutapp.feature.auth.ExitAppDialog
+import com.pabl3st.rutapp.feature.rutas.RutasScreen
 
 @Composable
 fun RutasNavGraph(
     navController: NavHostController = rememberNavController(),
-    onExitApp: () -> Unit,           // viene de MainActivity.finish()
+    onExitApp: () -> Unit,
 ) {
     NavHost(navController = navController, startDestination = Screen.Auth.route) {
 
-        // ── Auth ───────────────────────────────────────────────
         composable(Screen.Auth.route) {
             AuthRoot(
                 onAuthenticated = {
@@ -40,33 +39,19 @@ fun RutasNavGraph(
             )
         }
 
-        // ── Home ───────────────────────────────────────────────
-        // Home es la pantalla raíz post-login. Atrás desde aquí = salir.
         composable(Screen.Home.route) {
             var showExitDialog by remember { mutableStateOf(false) }
             BackHandler { showExitDialog = true }
-
             if (showExitDialog) {
-                ExitAppDialog(
-                    onConfirm = onExitApp,
-                    onDismiss = { showExitDialog = false },
-                )
+                ExitAppDialog(onConfirm = onExitApp, onDismiss = { showExitDialog = false })
             }
             HomeScreen(
-                onRouteClick = { uid ->
-                    navController.navigate(Screen.RouteDetail.createRoute(uid))
-                },
-                onNavigateToRutas = {
-                    navController.navigate(Screen.Rutas.route)
-                },
-                onNavigateToPerfil = {
-                    navController.navigate(Screen.Perfil.route)
-                },
+                onRouteClick       = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                onNavigateToRutas  = { navController.navigate(Screen.Rutas.route) },
+                onNavigateToPerfil = { navController.navigate(Screen.Perfil.route) },
             )
         }
 
-        // ── Resto de pantallas (S02+) ──────────────────────────
-        // Estas pantallas tienen navegación normal: atrás = popBackStack
         composable(Screen.Rutas.route) {
             RutasScreen(
                 onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
@@ -85,9 +70,23 @@ fun RutasNavGraph(
                 onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
             )
         }
-        composable(Screen.Mapa.route)      { PlaceholderScreen("Mapa · S04") }
-        composable(Screen.Kpis.route)      { PlaceholderScreen("KPIs · S06") }
-        composable(Screen.Calendario.route){ PlaceholderScreen("Calendario · S07") }
+
+        composable(
+            route     = Screen.RouteMap.route,
+            arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
+            RouteMapScreen(
+                routeUid = routeUid,
+                onBack   = { navController.popBackStack() },
+            )
+        }
+
+        composable(Screen.Mapa.route)       { PlaceholderScreen("Mapa · S05") }
+        composable(Screen.Kpis.route)       { PlaceholderScreen("KPIs · S08") }
+        composable(Screen.Calendario.route) { PlaceholderScreen("Calendario · S08") }
+        composable(Screen.Admin.route)      { PlaceholderScreen("Admin · S09") }
+
         composable(Screen.Perfil.route) {
             PerfilScreen(
                 onLoggedOut = {
@@ -98,7 +97,6 @@ fun RutasNavGraph(
                 onBack = { navController.popBackStack() },
             )
         }
-        composable(Screen.Admin.route)     { PlaceholderScreen("Admin · S09") }
     }
 }
 
@@ -117,17 +115,6 @@ fun PlaceholderScreen(label: String) {
             Text("Build OK",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.tertiary)
-        }
-    }
-        composable(
-            route     = Screen.RouteMap.route,
-            arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
-            RouteMapScreen(
-                routeUid = routeUid,
-                onBack   = { navController.popBackStack() },
-            )
         }
     }
 }
