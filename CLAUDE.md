@@ -445,3 +445,19 @@ with open("res/font/archivo.ttf", "rb") as f:
 DM Sans variable: `https://github.com/google/fonts/raw/main/ofl/dmsans/DMSans%5Bopsz%2Cwght%5D.ttf`
 
 **Regla:** al añadir fuentes al proyecto, verificar siempre los magic bytes antes de commit.
+
+---
+
+### ERROR 15: MapLibreConfigurationException — getInstance antes de MapView
+**Crash en producción** — `MapLibreConfigurationException: Using MapView requires calling MapLibre.getInstance()`
+
+`LaunchedEffect(Unit) { MapLibre.getInstance(ctx) }` es asíncrono — se ejecuta
+**después** del primer frame, pero `AndroidView.factory` necesita MapLibre inicializado
+**en el mismo frame**. Resultado: crash en el primer compose del MapView.
+
+**Fixes aplicados:**
+1. `RutasApp.onCreate()` — `MapLibre.getInstance(this)` en Application, garantiza init antes de cualquier Activity
+2. `MapLibreProvider.MapView` — `remember(ctx) { MapLibre.getInstance(ctx) }` en lugar de `LaunchedEffect`
+
+**Regla:** Cualquier SDK nativo que requiera init antes de crear una View debe inicializarse
+en `Application.onCreate()`, NO en `LaunchedEffect` dentro de un Composable.

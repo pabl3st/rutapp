@@ -66,7 +66,9 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         val ctx     = LocalContext.current
         val isDark  = androidx.compose.foundation.isSystemInDarkTheme()
 
-        LaunchedEffect(Unit) { MapLibre.getInstance(ctx) }
+        // Inicializar MapLibre síncronamente antes de que AndroidView.factory lo necesite.
+        // LaunchedEffect es asíncrono y llega tarde — causa MapLibreConfigurationException.
+        remember(ctx) { MapLibre.getInstance(ctx) }
 
         var mlMap by remember { mutableStateOf<MapLibreMap?>(null) }
 
