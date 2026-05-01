@@ -1,0 +1,84 @@
+name: Release Sprint APK
+
+on:
+  push:
+    tags:
+      - 'sprint-s*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      sprint:
+        description: 'Sprint tag (ej: sprint-s01)'
+        required: true
+        default: 'sprint-s01'
+
+jobs:
+  release:
+    name: Release Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - run: chmod +x gradlew
+
+      - name: Run tests
+        run: ./gradlew testReleaseUnitTest --stacktrace
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Get tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.sprint }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/release/*.apk artifacts/rutapp-${{ steps.tag.outputs.name }}.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rutapp-${{ steps.tag.outputs.name }}
+          path: artifacts/*.apk
+          retention-days: 90
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.apk
+          name: RutasApp ${{ steps.tag.outputs.name }}
+          body: |
+            ## RutasApp — ${{ steps.tag.outputs.name }}
+
+            APK de distribución interna.
+
+            **Instalación:** Ajustes → Seguridad → Fuentes desconocidas → Instalar APK
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
