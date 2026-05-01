@@ -1,22 +1,17 @@
 -- ============================================================
--- Migration v5.0.0 — stops: columnas faltantes para sync completo
--- Aplicar en: cqvkelal_rutasapp_android
+-- Migration v5.0.0 — OBSOLETA / NO APLICAR
 -- ============================================================
-
--- Campos de identificación de cliente
-ALTER TABLE `stops`
-    ADD COLUMN `external_id`   varchar(100)  DEFAULT NULL AFTER `account_id`,
-    ADD COLUMN `contact_name`  varchar(255)  DEFAULT NULL AFTER `opening_hours`,
-    ADD COLUMN `contact_phone` varchar(50)   DEFAULT NULL AFTER `contact_name`;
-
--- Campos de resultado de visita (VisitaScreen)
-ALTER TABLE `stops`
-    ADD COLUMN `visit_result`  varchar(20)   DEFAULT NULL AFTER `visited_at`,
-    ADD COLUMN `next_action`   text          DEFAULT NULL AFTER `visit_result`;
-
--- Índice para búsqueda por external_id (código de cliente)
-ALTER TABLE `stops`
-    ADD KEY `idx_external_id` (`external_id`);
-
--- Registrar migración
-INSERT INTO `schema_migrations` (`version`) VALUES ('v5.0.0');
+-- Esta migración fue generada por error y duplica columnas
+-- que ya fueron añadidas en migration_v3.sql y migration_v4.sql:
+--   - external_id, contact_name, contact_phone  →  ya en v3
+--   - visit_result, next_action                 →  ya en v3
+--   - visit_frequency, priority, segment,
+--     account_status, opening_hours             →  ya en v4
+--
+-- Aplicar este fichero sobre una BD que ya tiene v3+v4 aplicadas
+-- produce error: "Duplicate column name".
+--
+-- Estado actual del servidor: v4.0.0 aplicada (ver schema_migrations).
+-- La siguiente migración real será v5.0.0 cuando se añadan
+-- nuevas columnas (ej: fotos de visita, coords geocodificadas).
+-- ============================================================

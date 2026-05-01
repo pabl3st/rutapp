@@ -33,7 +33,6 @@ class RutasViewModel @Inject constructor(
 
     init {
         observeRoutes()
-        syncDelta()
     }
 
     private fun observeRoutes() {
@@ -41,14 +40,6 @@ class RutasViewModel @Inject constructor(
             routeRepo.observeAll()
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
                 .collect { routes -> _ui.update { it.copy(routes = routes, isLoading = false) } }
-        }
-    }
-
-    private fun syncDelta() {
-        viewModelScope.launch {
-            _ui.update { it.copy(isSyncing = true) }
-            routeRepo.fetchDelta()
-            _ui.update { it.copy(isSyncing = false) }
         }
     }
 

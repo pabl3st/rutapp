@@ -36,6 +36,7 @@ class VisitaViewModel @Inject constructor(
 
     private fun loadStop() {
         viewModelScope.launch {
+            stopRepo.markVisiting(stopUid)  // marca el stop como en visita al abrir el formulario
             val stop = stopRepo.getByUid(stopUid)
             _ui.update {
                 it.copy(

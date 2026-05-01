@@ -64,6 +64,11 @@ class StopRepository @Inject constructor(
         return stop
     }
 
+    suspend fun markVisiting(uid: String) {
+        stopDao.markVisiting(uid)
+        // No enqueue — status visiting is transient, not synced until saveVisitResult
+    }
+
     suspend fun markVisited(uid: String) {
         val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
