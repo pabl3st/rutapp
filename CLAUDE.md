@@ -345,6 +345,28 @@ Verificar con grep/auditoría antes de commitear.
 
 ---
 
+### ERROR 13: Imports duplicados por edición con scripts replace
+**Build S04** — `Conflicting import: imported name 'Font' is ambiguous`
+Editar imports con scripts `replace` encadenados puede insertar duplicados
+cuando el import ya existe en el fichero.
+
+```kotlin
+// ROMPE — si Font ya existe y el script añade otro:
+import androidx.compose.ui.text.font.Font   // ya estaba
+import androidx.compose.ui.text.font.Font   // añadido por script → conflicto
+```
+
+**Regla:** cuando un fichero necesita cambios en imports Y en el cuerpo,
+reescribirlo COMPLETO desde cero en lugar de aplicar múltiples `replace`.
+Los scripts de replace encadenados acumulan errores invisibles.
+
+**Checklist antes de commit con ficheros editados por script:**
+- Leer el fichero resultante completo
+- `grep "^import" fichero | sort | uniq -d` para detectar duplicados
+- Si hay más de 3 replace sobre el mismo fichero → reescribir completo
+
+---
+
 ## Flujo de commit obligatorio — Git Data API
 
 **NUNCA** `PUT /contents/{file}` en bucle (genera N commits, N builds CI).
@@ -384,5 +406,6 @@ Resultado: 1 commit, 1 build CI.
 3. **Revisión del plan** por el usuario antes de escribir código
 4. **Commits atómicos** por tarea lógica
 5. **Verificar CI verde** antes de dar tarea por terminada
+
 
 
