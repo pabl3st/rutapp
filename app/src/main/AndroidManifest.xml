@@ -51,5 +51,18 @@
             </intent-filter>
         </service>
 
+
+        <!-- Google Maps API Key — sustituir por key real desde Google Cloud Console -->
+        <!-- Sin key real el mapa muestra marca de agua pero NO crashea -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBDummyKeyPlaceholder000000000000000" />
+
+        <!-- Deshabilitar init automático de Maps hasta tener key real -->
+        <meta-data
+            android:name="com.google.android.gms.maps.MapsInitializer.RENDERER"
+            android:value="LEGACY" />
+
     </application>
 </manifest>
+
