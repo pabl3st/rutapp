@@ -19,6 +19,7 @@ import com.pabl3st.rutapp.data.local.entity.StopEntity
 fun RouteDetailScreen(
     routeUid: String,
     onBack: () -> Unit,
+    onNavigateToMap: (String) -> Unit = {},
     vm: RouteDetailViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -33,6 +34,9 @@ fun RouteDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onNavigateToMap(routeUid) }) {
+                        Icon(Icons.Default.Map, contentDescription = "Ver en mapa")
+                    }
                     ui.route?.let { route ->
                         val statusColor = when (route.status) {
                             "active" -> MaterialTheme.colorScheme.primary

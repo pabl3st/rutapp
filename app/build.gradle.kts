@@ -16,8 +16,8 @@ android {
         applicationId = "com.pabl3st.rutapp"
         minSdk        = libs.versions.minSdk.get().toInt()
         targetSdk     = libs.versions.targetSdk.get().toInt()
-        versionCode   = 4
-        versionName   = "1.0.0-s04"
+        versionCode   = 5
+        versionName   = "1.0.0-s05"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "API_BASE_URL",
@@ -98,6 +98,11 @@ dependencies {
     // DataStore — preferencias reactivas
     implementation(libs.datastore)
 
+    // GPS y Mapas
+    implementation(libs.maps.compose)
+    implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
+
     // Firebase — FCM (push) + Crashlytics + Analytics
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.fcm)
@@ -129,6 +134,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
 
 
 

@@ -25,6 +25,13 @@ data class StopEntity(
     val contactName: String?  = null,      // persona de contacto
     val contactPhone: String? = null,      // teléfono directo
 
+    // ── Campos universales (S05) ─────────────────────────────
+    val visitFrequency: Int?    = null,    // días entre visitas (7, 14, 30...)
+    val priority: Int           = 3,       // 1=máxima 5=mínima
+    val segment: String?        = null,    // A/B/C o tier personalizado
+    val accountStatus: String   = "active",// prospect|active|inactive|churned
+    val openingHours: String?   = null,    // JSON {"mon":"9-18","tue":"9-18"...}
+
     // ── Estado y visita ───────────────────────────────────────
     val status: String      = "pending",   // pending|visiting|done|skipped
     val notes: String?      = null,

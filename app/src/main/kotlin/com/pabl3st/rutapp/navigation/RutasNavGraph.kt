@@ -16,6 +16,7 @@ import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
+import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
@@ -79,8 +80,9 @@ fun RutasNavGraph(
         ) { backStackEntry ->
             val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
             RouteDetailScreen(
-                routeUid = routeUid,
-                onBack   = { navController.popBackStack() },
+                routeUid        = routeUid,
+                onBack          = { navController.popBackStack() },
+                onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
             )
         }
         composable(Screen.Mapa.route)      { PlaceholderScreen("Mapa · S04") }
@@ -115,6 +117,17 @@ fun PlaceholderScreen(label: String) {
             Text("Build OK",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.tertiary)
+        }
+    }
+        composable(
+            route     = Screen.RouteMap.route,
+            arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
+            RouteMapScreen(
+                routeUid = routeUid,
+                onBack   = { navController.popBackStack() },
+            )
         }
     }
 }

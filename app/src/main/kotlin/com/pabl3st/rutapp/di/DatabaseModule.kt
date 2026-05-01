@@ -18,7 +18,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): RutasDatabase =
         Room.databaseBuilder(ctx, RutasDatabase::class.java, "rutasapp.db")
-            .addMigrations(RutasDatabase.MIGRATION_1_2)
+            .addMigrations(RutasDatabase.MIGRATION_1_2, RutasDatabase.MIGRATION_2_3)
             .build()
 
     @Provides

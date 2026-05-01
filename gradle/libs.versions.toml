@@ -29,6 +29,9 @@ room           = "2.6.1"
 workManager    = "2.9.1"
 dataStore      = "1.1.1"
 firebaseBom    = "33.7.0"
+mapsCompose          = "4.3.3"
+playServicesMaps     = "19.0.0"
+playServicesLocation = "21.3.0"
 
 [libraries]
 androidx-core-ktx                  = { group = "androidx.core",              name = "core-ktx",                   version.ref = "coreKtx" }
@@ -84,6 +87,10 @@ room-testing        = { group = "androidx.room",                     name = "roo
 hilt-testing        = { group = "com.google.dagger",                 name = "hilt-android-testing",         version.ref = "hilt" }
 hilt-testing-compiler = { group = "com.google.dagger",               name = "hilt-android-compiler",        version.ref = "hilt" }
 
+maps-compose           = { group = "com.google.maps.android", name = "maps-compose",          version.ref = "mapsCompose" }
+play-services-maps     = { group = "com.google.android.gms",  name = "play-services-maps",     version.ref = "playServicesMaps" }
+play-services-location = { group = "com.google.android.gms",  name = "play-services-location",  version.ref = "playServicesLocation" }
+
 [plugins]
 android-application = { id = "com.android.application",             version.ref = "agp" }
 android-library     = { id = "com.android.library",                 version.ref = "agp" }
@@ -97,5 +104,6 @@ crashalytics-plugin = { id = "com.google.firebase.crashlytics",      version = "
 [bundles]
 compose  = ["compose-ui", "compose-ui-graphics", "compose-ui-tooling-preview", "compose-material3", "compose-material-icons"]
 lifecycle= ["androidx-lifecycle-runtime-ktx", "androidx-lifecycle-viewmodel", "androidx-lifecycle-runtime-compose"]
+
 
 
