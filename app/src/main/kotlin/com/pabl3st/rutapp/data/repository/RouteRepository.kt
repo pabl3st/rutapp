@@ -1,10 +1,12 @@
 package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.dao.RouteDao
+import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.network.RouteDto
+import com.pabl3st.rutapp.data.network.toEntity
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
@@ -21,6 +23,7 @@ import javax.inject.Singleton
 @Singleton
 class RouteRepository @Inject constructor(
     private val routeDao:     RouteDao,
+    private val stopDao:      StopDao,
     private val syncQueueDao: SyncQueueDao,
     private val api:          RutasApiService,
     private val session:      SessionManager,
@@ -75,6 +78,8 @@ class RouteRepository @Inject constructor(
         val body = resp.body()!!
         body.routes?.map { it.toEntity(session.userId, session.accountId) }
             ?.let { routeDao.upsertAll(it) }
+        body.stops?.mapNotNull { it.toEntity(session.accountId) }
+            ?.let { if (it.isNotEmpty()) stopDao.upsertAll(it) }
         body.serverTime?.let { session.lastSyncTimestamp = it }
     }
 
@@ -115,4 +120,5 @@ fun RouteDto.toEntity(userId: Int, accountId: Int) = RouteEntity(
     syncStatus   = "synced",
     syncedAt     = updatedAt,
 )
+
 

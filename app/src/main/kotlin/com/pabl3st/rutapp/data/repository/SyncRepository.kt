@@ -3,7 +3,9 @@ package com.pabl3st.rutapp.data.repository
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
+import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.network.BatchSyncRequest
+import com.pabl3st.rutapp.data.network.StopDto
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.network.SyncOperation
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -110,7 +112,10 @@ class SyncRepository @Inject constructor(
         val body = resp.body()!!
         body.routes?.map { it.toEntity(session.userId, session.accountId) }
             ?.let { routeDao.upsertAll(it) }
+        body.stops?.mapNotNull { it.toEntity(session.accountId) }
+            ?.let { if (it.isNotEmpty()) stopDao.upsertAll(it) }
         body.serverTime?.let { session.lastSyncTimestamp = it }
         return true
     }
 }
+

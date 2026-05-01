@@ -639,7 +639,7 @@ if ($action === 'delta_sync') {
     $stR->execute([$uid, $since]);
 
     $stS = db()->prepare(
-        'SELECT s.* FROM stops s
+        'SELECT s.*, r.uid AS route_uid FROM stops s
          JOIN routes r ON r.id = s.route_id
          WHERE r.user_id=? AND s.updated_at > ?
          ORDER BY s.updated_at ASC LIMIT 500'
