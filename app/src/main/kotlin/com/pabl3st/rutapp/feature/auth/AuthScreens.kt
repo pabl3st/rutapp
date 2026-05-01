@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.auth
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,9 +17,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -26,48 +25,72 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 
-// ── Auth Root — gestiona la navegación entre pantallas de auth ──
+// ── Auth Root ──────────────────────────────────────────────────
 @Composable
 fun AuthRoot(
     onAuthenticated: () -> Unit,
+    onExitApp: () -> Unit,           // callback para salir de la app
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
 
+    // Autenticación exitosa → navegar a Home
     LaunchedEffect(ui.isAuthenticated) {
         if (ui.isAuthenticated) onAuthenticated()
     }
 
+    // BackHandler global del flujo auth — intercepta SIEMPRE el botón de sistema
+    // handleBack() decide qué hacer según la pantalla actual
+    BackHandler(enabled = true) {
+        val handled = viewModel.handleBack()
+        if (!handled) onExitApp()
+    }
+
+    // Diálogo: ¿Seguro que quieres salir de la app?
+    if (ui.showExitDialog) {
+        ExitAppDialog(
+            onConfirm = {
+                viewModel.onExitConfirmed()
+                onExitApp()
+            },
+            onDismiss = viewModel::onExitDismissed,
+        )
+    }
+
+    // Diálogo: ¿Descartar cambios del formulario?
+    if (ui.showDiscardDialog) {
+        DiscardChangesDialog(
+            onConfirm = viewModel::onDiscardConfirmed,
+            onDismiss = viewModel::onDiscardDismissed,
+        )
+    }
+
     AnimatedContent(
-        targetState = ui.screen,
+        targetState   = ui.screen,
         transitionSpec = { fadeIn() togetherWith fadeOut() },
-        label = "auth_screen"
+        label          = "auth_screen",
     ) { screen ->
         when (screen) {
-            AuthScreen.SPLASH             -> SplashScreen()
-            AuthScreen.CHOOSE_TYPE        -> ChooseTypeScreen(
+            AuthScreen.SPLASH              -> SplashScreen()
+            AuthScreen.CHOOSE_TYPE         -> ChooseTypeScreen(
                 onIndividual = viewModel::onChooseIndividual,
                 onCompany    = viewModel::onChooseCompany,
                 onLogin      = viewModel::onGoToLogin,
             )
-            AuthScreen.LOGIN              -> LoginScreen(
-                ui          = ui,
+            AuthScreen.LOGIN               -> LoginScreen(
+                ui               = ui,
                 onUsernameChange = viewModel::onUsernameChange,
                 onPasswordChange = viewModel::onPasswordChange,
                 onTogglePassword = viewModel::onTogglePassword,
                 onLogin          = viewModel::login,
-                onBack           = viewModel::onBackToChoose,
+                onBack           = { viewModel.handleBack() },
             )
             AuthScreen.REGISTER_INDIVIDUAL -> RegisterIndividualScreen(
                 ui               = ui,
@@ -77,10 +100,10 @@ fun AuthRoot(
                 onPasswordChange = viewModel::onPasswordChange,
                 onTogglePassword = viewModel::onTogglePassword,
                 onRegister       = viewModel::registerIndividual,
-                onBack           = viewModel::onBackToChoose,
+                onBack           = { viewModel.handleBack() },
                 onGoToLogin      = viewModel::onGoToLogin,
             )
-            AuthScreen.REGISTER_COMPANY   -> RegisterCompanyScreen(
+            AuthScreen.REGISTER_COMPANY    -> RegisterCompanyScreen(
                 ui                  = ui,
                 onCompanyNameChange = viewModel::onCompanyNameChange,
                 onNameChange        = viewModel::onNameChange,
@@ -89,14 +112,51 @@ fun AuthRoot(
                 onPasswordChange    = viewModel::onPasswordChange,
                 onTogglePassword    = viewModel::onTogglePassword,
                 onRegister          = viewModel::registerCompany,
-                onBack              = viewModel::onBackToChoose,
+                onBack              = { viewModel.handleBack() },
                 onGoToLogin         = viewModel::onGoToLogin,
             )
         }
     }
 }
 
-// ── Splash ─────────────────────────────────────────────────────
+// ── Diálogos ────────────────────────────────────────────────────
+
+@Composable
+fun ExitAppDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon    = null,
+        title   = { Text("¿Salir de RutasApp?") },
+        text    = { Text("¿Seguro que quieres cerrar la aplicación?") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Salir", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
+}
+
+@Composable
+fun DiscardChangesDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title   = { Text("¿Descartar cambios?") },
+        text    = { Text("Los datos introducidos se perderán.") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Descartar", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Continuar editando") }
+        },
+    )
+}
+
+// ── Splash ──────────────────────────────────────────────────────
 @Composable
 private fun SplashScreen() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -126,9 +186,9 @@ private fun ChooseTypeScreen(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text  = "Gestión profesional de rutas de campo",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text      = "Gestión profesional de rutas de campo",
+            style     = MaterialTheme.typography.bodyLarge,
+            color     = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(56.dp))
@@ -140,7 +200,6 @@ private fun ChooseTypeScreen(
         )
         Spacer(Modifier.height(Spacing.lg))
 
-        // Tarjeta individual
         TypeCard(
             icon        = Icons.Outlined.Person,
             title       = "Uso personal",
@@ -148,8 +207,6 @@ private fun ChooseTypeScreen(
             onClick     = onIndividual,
         )
         Spacer(Modifier.height(Spacing.md))
-
-        // Tarjeta empresa
         TypeCard(
             icon        = Icons.Outlined.Business,
             title       = "Para mi empresa",
@@ -172,39 +229,30 @@ private fun TypeCard(
     onClick: () -> Unit,
 ) {
     Card(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = title },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
+        onClick  = onClick,
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = title },
+        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Row(
-            modifier = Modifier.padding(Spacing.md),
+            modifier          = Modifier.padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector        = icon,
-                contentDescription = null,
-                tint               = MaterialTheme.colorScheme.primary,
-                modifier           = Modifier.size(32.dp),
-            )
+            Icon(icon, contentDescription = null,
+                tint     = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp))
             Spacer(Modifier.width(Spacing.md))
             Column {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    description,
+                Text(description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
 }
 
-// ── Login ──────────────────────────────────────────────────────
+// ── Login ────────────────────────────────────────────────────────
 @Composable
 private fun LoginScreen(
     ui: AuthUiState,
@@ -217,9 +265,14 @@ private fun LoginScreen(
     val focus = LocalFocusManager.current
     Scaffold(
         topBar = {
-            IconButton(onClick = onBack, modifier = Modifier.padding(Spacing.sm)) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver")
-            }
+            TopAppBar(
+                title = { Text("Iniciar sesión") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver")
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -231,43 +284,40 @@ private fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(Spacing.xl))
-            Text("Iniciar sesión", style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(Spacing.xl))
 
             AuthTextField(
-                value          = ui.username,
-                onValueChange  = onUsernameChange,
-                label          = "Usuario o email",
-                keyboardType   = KeyboardType.Email,
-                imeAction      = ImeAction.Next,
-                onNext         = { focus.moveFocus(FocusDirection.Down) },
+                value         = ui.username,
+                onValueChange = onUsernameChange,
+                label         = "Usuario o email",
+                keyboardType  = KeyboardType.Email,
+                imeAction     = ImeAction.Next,
+                onNext        = { focus.moveFocus(FocusDirection.Down) },
             )
             Spacer(Modifier.height(Spacing.md))
             PasswordField(
-                value          = ui.password,
-                onValueChange  = onPasswordChange,
-                visible        = ui.passwordVisible,
-                onToggle       = onTogglePassword,
-                imeAction      = ImeAction.Done,
-                onDone         = onLogin,
+                value         = ui.password,
+                onValueChange = onPasswordChange,
+                visible       = ui.passwordVisible,
+                onToggle      = onTogglePassword,
+                imeAction     = ImeAction.Done,
+                onDone        = onLogin,
             )
 
             ErrorText(ui.error)
             Spacer(Modifier.height(Spacing.lg))
 
             LoadingButton(
-                text      = "Entrar",
-                loading   = ui.isLoading,
-                onClick   = onLogin,
-                modifier  = Modifier.fillMaxWidth(),
+                text     = "Entrar",
+                loading  = ui.isLoading,
+                onClick  = onLogin,
+                modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(Spacing.xl))
         }
     }
 }
 
-// ── Register Individual ─────────────────────────────────────────
+// ── Register Individual ──────────────────────────────────────────
 @Composable
 private fun RegisterIndividualScreen(
     ui: AuthUiState,
@@ -283,9 +333,14 @@ private fun RegisterIndividualScreen(
     val focus = LocalFocusManager.current
     Scaffold(
         topBar = {
-            IconButton(onClick = onBack, modifier = Modifier.padding(Spacing.sm)) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver")
-            }
+            TopAppBar(
+                title = { Text("Cuenta personal") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver")
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -296,11 +351,9 @@ private fun RegisterIndividualScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(Spacing.lg))
-            Text("Crear cuenta personal", style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(4.dp))
-            Text("Para comerciales independientes", style = MaterialTheme.typography.bodyMedium,
+            Spacer(Modifier.height(Spacing.sm))
+            Text("Para comerciales independientes",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(Spacing.xl))
 
@@ -309,8 +362,8 @@ private fun RegisterIndividualScreen(
                 imeAction = ImeAction.Next, onNext = { focus.moveFocus(FocusDirection.Down) })
             Spacer(Modifier.height(Spacing.md))
             AuthTextField(value = ui.username, onValueChange = onUsernameChange,
-                label = "Nombre de usuario", imeAction = ImeAction.Next,
-                onNext = { focus.moveFocus(FocusDirection.Down) })
+                label = "Nombre de usuario",
+                imeAction = ImeAction.Next, onNext = { focus.moveFocus(FocusDirection.Down) })
             Spacer(Modifier.height(Spacing.md))
             AuthTextField(value = ui.email, onValueChange = onEmailChange,
                 label = "Email", keyboardType = KeyboardType.Email,
@@ -349,9 +402,14 @@ private fun RegisterCompanyScreen(
     val focus = LocalFocusManager.current
     Scaffold(
         topBar = {
-            IconButton(onClick = onBack, modifier = Modifier.padding(Spacing.sm)) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver")
-            }
+            TopAppBar(
+                title = { Text("Cuenta de empresa") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Volver")
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -362,11 +420,9 @@ private fun RegisterCompanyScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(Spacing.lg))
-            Text("Crear cuenta de empresa", style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(4.dp))
-            Text("Para gestores de equipos comerciales", style = MaterialTheme.typography.bodyMedium,
+            Spacer(Modifier.height(Spacing.sm))
+            Text("Para gestores de equipos comerciales",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(Spacing.xl))
 
@@ -377,8 +433,9 @@ private fun RegisterCompanyScreen(
 
             HorizontalDivider()
             Spacer(Modifier.height(Spacing.sm))
-            Text("Tu cuenta de administrador", style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text("Tu cuenta de administrador",
+                style    = MaterialTheme.typography.labelLarge,
+                color    = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(Spacing.sm))
 
@@ -387,8 +444,8 @@ private fun RegisterCompanyScreen(
                 imeAction = ImeAction.Next, onNext = { focus.moveFocus(FocusDirection.Down) })
             Spacer(Modifier.height(Spacing.md))
             AuthTextField(value = ui.username, onValueChange = onUsernameChange,
-                label = "Nombre de usuario", imeAction = ImeAction.Next,
-                onNext = { focus.moveFocus(FocusDirection.Down) })
+                label = "Nombre de usuario",
+                imeAction = ImeAction.Next, onNext = { focus.moveFocus(FocusDirection.Down) })
             Spacer(Modifier.height(Spacing.md))
             AuthTextField(value = ui.email, onValueChange = onEmailChange,
                 label = "Email", keyboardType = KeyboardType.Email,
@@ -410,7 +467,7 @@ private fun RegisterCompanyScreen(
     }
 }
 
-// ── Componentes compartidos ─────────────────────────────────────
+// ── Componentes compartidos ──────────────────────────────────────
 
 @Composable
 private fun AuthTextField(
@@ -423,11 +480,11 @@ private fun AuthTextField(
     onNext: () -> Unit = {},
 ) {
     OutlinedTextField(
-        value         = value,
-        onValueChange = onValueChange,
-        label         = { Text(label) },
-        singleLine    = true,
-        modifier      = Modifier.fillMaxWidth(),
+        value           = value,
+        onValueChange   = onValueChange,
+        label           = { Text(label) },
+        singleLine      = true,
+        modifier        = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(
             keyboardType   = keyboardType,
             capitalization = capitalization,
@@ -447,13 +504,13 @@ private fun PasswordField(
     onDone: () -> Unit = {},
 ) {
     OutlinedTextField(
-        value               = value,
-        onValueChange       = onValueChange,
-        label               = { Text("Contraseña") },
-        singleLine          = true,
-        modifier            = Modifier.fillMaxWidth(),
+        value                = value,
+        onValueChange        = onValueChange,
+        label                = { Text("Contraseña") },
+        singleLine           = true,
+        modifier             = Modifier.fillMaxWidth(),
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        trailingIcon        = {
+        trailingIcon         = {
             IconButton(
                 onClick  = onToggle,
                 modifier = Modifier.semantics {
@@ -461,15 +518,12 @@ private fun PasswordField(
                 }
             ) {
                 Icon(
-                    imageVector        = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                     contentDescription = null,
                 )
             }
         },
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Password,
-            imeAction    = imeAction,
-        ),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
     )
 }
@@ -479,12 +533,10 @@ private fun ErrorText(error: String?) {
     if (error != null) {
         Spacer(Modifier.height(Spacing.sm))
         Text(
-            text  = error,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = "Error: $error" },
+            text     = error,
+            color    = MaterialTheme.colorScheme.error,
+            style    = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Error: $error" },
         )
     }
 }
@@ -503,8 +555,8 @@ private fun LoadingButton(
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
-                color    = MaterialTheme.colorScheme.onPrimary,
+                modifier    = Modifier.size(20.dp),
+                color       = MaterialTheme.colorScheme.onPrimary,
                 strokeWidth = 2.dp,
             )
         } else {

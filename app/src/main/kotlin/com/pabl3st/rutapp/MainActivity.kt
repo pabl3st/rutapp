@@ -19,7 +19,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             RutasAppTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    RutasNavGraph()
+                    RutasNavGraph(
+                        // finish() cierra la Activity limpiamente
+                        // BackHandler en Compose ya gestiona el gesto de sistema
+                        onExitApp = { finish() }
+                    )
                 }
             }
         }
