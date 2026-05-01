@@ -18,7 +18,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): RutasDatabase =
         Room.databaseBuilder(ctx, RutasDatabase::class.java, "rutasapp.db")
-            .fallbackToDestructiveMigration()   // dev — S03+ usar migraciones explícitas
+            .addMigrations(RutasDatabase.MIGRATION_1_2)
             .build()
 
     @Provides
@@ -30,3 +30,4 @@ object DatabaseModule {
     @Provides
     fun provideSyncQueueDao(db: RutasDatabase) = db.syncQueueDao()
 }
+
