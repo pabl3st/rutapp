@@ -180,7 +180,8 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
                 )
                 stop.address?.let { addr ->
                     Text(addr, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
             if (!isDone) {

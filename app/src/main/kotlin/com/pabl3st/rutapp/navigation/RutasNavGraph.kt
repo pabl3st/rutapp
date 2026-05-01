@@ -107,7 +107,7 @@ fun RutasNavGraph(
                 )
             }
 
-            composable(Screen.Mapa.route)       { PlaceholderScreen("Mapa", "S06") }
+            composable(Screen.Mapa.route)       { PlaceholderScreen("Mapa", "S07") }
             composable(Screen.Kpis.route)       { PlaceholderScreen("KPIs", "S07") }
             composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S08") }
             composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S09") }

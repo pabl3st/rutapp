@@ -32,15 +32,14 @@ class MapLibreProvider(private val context: Context) : MapProvider {
     override val supportsSatellite = true
 
     private fun styleUrl(style: MapStyle, darkMode: Boolean): String = when (style) {
-        MapStyle.DARK       -> "https://tiles.openfreemap.org/styles/dark"
+        MapStyle.DARK       -> "https://demotiles.maplibre.org/style.json"
         MapStyle.LIGHT,
-        MapStyle.STANDARD   -> if (darkMode) "https://tiles.openfreemap.org/styles/dark"
-                               else "https://tiles.openfreemap.org/styles/bright"
+        MapStyle.STANDARD   -> "https://demotiles.maplibre.org/style.json"
         MapStyle.SATELLITE,
-        MapStyle.HYBRID     -> "https://demotiles.maplibre.org/satellite-style.json"
+        MapStyle.HYBRID     -> "https://demotiles.maplibre.org/style.json"
         MapStyle.TERRAIN    -> "https://demotiles.maplibre.org/style.json"
         MapStyle.TRAFFIC,
-        MapStyle.NAVIGATION -> "https://tiles.openfreemap.org/styles/bright"
+        MapStyle.NAVIGATION -> "https://demotiles.maplibre.org/style.json"
     }
 
     // Convierte Long de color (0xFF2563EB) a string hex "#2563eb"
@@ -80,7 +79,23 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                     getMapAsync { map ->
                         mlMap = map
 
-                        map.setStyle(styleUrl(config.style, isDark))
+                        map.setStyle(styleUrl(config.style, isDark)) {
+                            // Estilo cargado — ahora es seguro mover cámara y añadir markers
+                            val target = userLocation?.let { MLLatLng(it.lat, it.lng) }
+                                ?: stops.firstOrNull { it.status != "done" && it.latLng.lat != 0.0 }
+                                    ?.let { MLLatLng(it.latLng.lat, it.latLng.lng) }
+                                ?: MLLatLng(40.4168, -3.7038)  // Madrid como fallback
+
+                            map.moveCamera(
+                                CameraUpdateFactory.newCameraPosition(
+                                    CameraPosition.Builder()
+                                        .target(target)
+                                        .zoom(config.camera.initialZoom.toDouble())
+                                        .build()
+                                )
+                            )
+                            addStopMarkers(map, stops, config.markers)
+                        }
 
                         map.uiSettings.apply {
                             isCompassEnabled          = config.layers.showCompass
@@ -116,23 +131,7 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                             true
                         }
 
-                        // Centrar cámara en usuario o primer stop pendiente
-                        val target = userLocation?.let { MLLatLng(it.lat, it.lng) }
-                            ?: stops.firstOrNull { it.status != "done" && it.latLng.lat != 0.0 }
-                                ?.let { MLLatLng(it.latLng.lat, it.latLng.lng) }
-
-                        if (target != null) {
-                            map.moveCamera(
-                                CameraUpdateFactory.newCameraPosition(
-                                    CameraPosition.Builder()
-                                        .target(target)
-                                        .zoom(config.camera.initialZoom.toDouble())
-                                        .build()
-                                )
-                            )
-                        }
-
-                        addStopMarkers(map, stops, config.markers)
+                        // Cámara y markers se inicializan en el callback de setStyle (arriba)
                     }
                 }
             },
