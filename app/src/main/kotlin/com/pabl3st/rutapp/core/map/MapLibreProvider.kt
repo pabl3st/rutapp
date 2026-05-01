@@ -139,6 +139,25 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                 mlMap?.let { map ->
                     map.clear()
                     addStopMarkers(map, stops, config.markers)
+                    // Si la cámara sigue en el fallback (0,0 o Madrid) y ahora hay stops con GPS,
+                    // centrar en el primer stop pendiente
+                    val camPos = map.cameraPosition.target
+                    val atFallback = camPos == null ||
+                        (camPos.latitude > 40.3 && camPos.latitude < 40.5 &&
+                         camPos.longitude > -3.8 && camPos.longitude < -3.6)
+                    val firstWithGps = stops.firstOrNull {
+                        it.status != "done" && it.latLng.lat != 0.0 && it.latLng.lng != 0.0
+                    }
+                    if (atFallback && firstWithGps != null) {
+                        map.animateCamera(
+                            CameraUpdateFactory.newCameraPosition(
+                                CameraPosition.Builder()
+                                    .target(MLLatLng(firstWithGps.latLng.lat, firstWithGps.latLng.lng))
+                                    .zoom(config.camera.initialZoom.toDouble())
+                                    .build()
+                            ), 800
+                        )
+                    }
                 }
             }
         )

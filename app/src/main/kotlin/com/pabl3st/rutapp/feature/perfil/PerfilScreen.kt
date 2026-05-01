@@ -96,11 +96,9 @@ fun PerfilScreen(
             // ── Ajustes ───────────────────────────────────────
             SectionTitle("Ajustes")
             InfoCard {
-                InfoRowAction(
-                    icon    = Icons.Default.Palette,
-                    label   = "Apariencia",
-                    detail  = "Dark mode",
-                    onClick = { /* S08 */ },
+                ThemePickerRow(
+                    currentMode = themeMode,
+                    onSelect    = themeVm::setTheme,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 InfoRowAction(

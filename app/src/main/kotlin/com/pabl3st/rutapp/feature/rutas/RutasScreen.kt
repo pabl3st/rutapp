@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun RutasScreen(
@@ -180,7 +183,17 @@ private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(route.name, style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(2.dp))
-                Text(route.dateAssigned,
+                val today = LocalDate.now().toString()
+                val dateLabel = runCatching {
+                    val d = LocalDate.parse(route.dateAssigned)
+                    when (route.dateAssigned) {
+                        today -> "Hoy"
+                        LocalDate.now().minusDays(1).toString() -> "Ayer"
+                        LocalDate.now().plusDays(1).toString()  -> "Mañana"
+                        else  -> d.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es")))
+                    }
+                }.getOrDefault(route.dateAssigned)
+                Text(dateLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 route.notes?.let {
