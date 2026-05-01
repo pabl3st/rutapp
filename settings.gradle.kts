@@ -21,7 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "rutapp"
-
-// S01: solo el módulo :app. Los módulos feature:* y core:* se añaden
-// en cada sprint cuando se crea su build.gradle.kts.
 include(":app")

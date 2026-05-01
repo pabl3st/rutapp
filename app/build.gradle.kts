@@ -20,8 +20,6 @@ android {
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "API_BASE_URL",
             "\"https://mejoresiagratis.com/rutasproapk/api.php\"")
-        // MAPS_API_KEY: añadir en GitHub Secrets o local.properties
-        manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("MAPS_API_KEY") ?: ""
     }
 
     buildTypes {
@@ -51,40 +49,26 @@ android {
 }
 
 dependencies {
-    // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.bundles.lifecycle)
 
-    // Compose BOM — todas las versiones de Compose vienen del BOM
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
-
-    // Navigation
     implementation(libs.navigation.compose)
 
-    // Hilt (DI)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.android.compiler)
 
-    // Desugaring — java.time para minSdk 26
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
 
-    // Debug tools
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
-    // Unit tests
     testImplementation(libs.junit)
-
-    // Instrumented tests
     androidTestImplementation(libs.junit.ext)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
-
-    // S02: añadir Room, WorkManager, Retrofit
-    // S03: añadir Maps, Location
-    // S05: añadir CameraX, MLKit
 }
