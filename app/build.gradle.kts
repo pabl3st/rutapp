@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.crashalytics.plugin)
 }
 
 android {
@@ -87,6 +89,12 @@ dependencies {
 
     // DataStore — preferencias reactivas
     implementation(libs.datastore)
+
+    // Firebase — FCM (push) + Crashlytics + Analytics
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.fcm)
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.analytics)
 
     // Desugaring
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")

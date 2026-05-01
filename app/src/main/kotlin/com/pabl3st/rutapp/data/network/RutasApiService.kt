@@ -61,6 +61,11 @@ data class LoginRequest(
 )
 
 @JsonClass(generateAdapter = true)
+data class TokenRefreshRequest(
+    @Json(name = "fcm_token") val fcmToken: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
 data class LogoutRequest(
     @Json(name = "clear_fcm") val clearFcm: Boolean = true,
 )
@@ -249,6 +254,13 @@ interface RutasApiService {
         @Header("X-Auth-Token") token: String,
     ): Response<MeResponse>
 
+    @POST(API_PATH)
+    suspend fun tokenRefresh(
+        @Query("action") action: String = "token_refresh",
+        @Header("X-Auth-Token") token: String,
+        @Body body: TokenRefreshRequest = TokenRefreshRequest(),
+    ): Response<MeResponse>
+
     @GET(API_PATH)
     suspend fun health(
         @Query("action") action: String = "health",
@@ -277,3 +289,4 @@ interface RutasApiService {
     ): Response<BatchSyncResponse>
 
 }
+

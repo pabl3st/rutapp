@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "119214152151",
+    "project_id": "rutapp-android",
+    "storage_bucket": "rutapp-android.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119214152151:android:478516aceebe97651fd392",
+        "android_client_info": {
+          "package_name": "com.pabl3st.rutapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKSUZznGLjlnBN448c63I0Fo3lJU-tG6w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

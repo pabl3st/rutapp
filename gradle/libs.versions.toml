@@ -22,6 +22,7 @@ espresso          = "3.6.1"
 room           = "2.6.1"
 workManager    = "2.9.1"
 dataStore      = "1.1.1"
+firebaseBom    = "33.7.0"
 
 [libraries]
 androidx-core-ktx                  = { group = "androidx.core",              name = "core-ktx",                   version.ref = "coreKtx" }
@@ -61,6 +62,11 @@ hilt-work      = { group = "androidx.hilt",      name = "hilt-work",            
 hilt-compiler  = { group = "androidx.hilt",      name = "hilt-compiler",           version.ref = "hiltNav" }
 datastore      = { group = "androidx.datastore", name = "datastore-preferences",   version.ref = "dataStore" }
 
+firebase-bom        = { group = "com.google.firebase", name = "firebase-bom",              version.ref = "firebaseBom" }
+firebase-fcm        = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
+firebase-crashlytics= { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
+firebase-analytics  = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
+
 [plugins]
 android-application = { id = "com.android.application",             version.ref = "agp" }
 android-library     = { id = "com.android.library",                 version.ref = "agp" }
@@ -72,4 +78,5 @@ ksp                 = { id = "com.google.devtools.ksp",             version.ref 
 [bundles]
 compose  = ["compose-ui", "compose-ui-graphics", "compose-ui-tooling-preview", "compose-material3", "compose-material-icons"]
 lifecycle= ["androidx-lifecycle-runtime-ktx", "androidx-lifecycle-viewmodel", "androidx-lifecycle-runtime-compose"]
-
+google-services    = { id = "com.google.gms.google-services",            version = "4.4.2" }
+crashalytics-plugin= { id = "com.google.firebase.crashlytics",               version = "3.0.2" }
