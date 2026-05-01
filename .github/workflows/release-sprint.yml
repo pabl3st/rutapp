@@ -8,9 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       sprint:
-        description: 'Sprint tag (ej: sprint-s01)'
+        description: 'Sprint tag (ej: sprint-s05)'
         required: true
-        default: 'sprint-s01'
+        default: 'sprint-s05'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   release:
@@ -26,37 +29,50 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: wrapper
+          cache-read-only: false
+          add-job-summary: on-failure
 
-      - name: Run tests
-        run: gradle testReleaseUnitTest --stacktrace --no-daemon
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/' | tr -d ' ')
+          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | sed 's/[^0-9]*//g' | tr -d ' ')
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.sprint }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "name=${VERSION_NAME}" >> $GITHUB_OUTPUT
+          echo "code=${VERSION_CODE}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "apk_name=RutasApp-${VERSION_NAME}-${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon --build-cache --parallel
         continue-on-error: true
 
       - name: Build Release APK
-        run: gradle assembleRelease --stacktrace --no-daemon
-
-      - name: Get tag name
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "name=${{ github.event.inputs.sprint }}" >> $GITHUB_OUTPUT
-          else
-            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+        run: ./gradlew assembleRelease --no-daemon --build-cache --parallel
 
       - name: Rename APK
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/release/*.apk artifacts/rutapp-${{ steps.tag.outputs.name }}.apk
+          cp app/build/outputs/apk/release/*.apk \
+             artifacts/${{ steps.ver.outputs.apk_name }}.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rutapp-${{ steps.tag.outputs.name }}
+          name: ${{ steps.ver.outputs.apk_name }}
           path: artifacts/*.apk
           retention-days: 90
 
@@ -65,12 +81,26 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*.apk
-          name: RutasApp ${{ steps.tag.outputs.name }}
+          name: RutasApp ${{ steps.ver.outputs.name }} — ${{ steps.ver.outputs.tag }}
           body: |
-            ## RutasApp — ${{ steps.tag.outputs.name }}
-            APK de distribución interna.
-            **Instalación:** Ajustes → Seguridad → Fuentes desconocidas → Instalar APK
+            ## RutasApp ${{ steps.ver.outputs.name }} (`${{ steps.ver.outputs.tag }}`)
+            Build `${{ steps.ver.outputs.code }}` · Commit `${{ github.sha }}`
+
+            **Instalación sobre versión anterior:** descarga el APK e instálalo directamente.
+            Android actualizará la app existente sin desinstalar (mismo `applicationId`).
+
+            > Ajustes → Seguridad → Instalar apps desconocidas → activar para tu gestor de archivos
           draft: false
-          prerelease: true
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build summary
+        if: success()
+        run: |
+          echo "### ✅ Release OK" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| APK | \`${{ steps.ver.outputs.apk_name }}.apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ steps.ver.outputs.name }} (build ${{ steps.ver.outputs.code }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | ${{ steps.ver.outputs.tag }} |" >> $GITHUB_STEP_SUMMARY
