@@ -16,6 +16,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -68,7 +69,13 @@ class RouteRepository @Inject constructor(
     }
 
     // ── Delta sync desde servidor ──────────────────────────────
+    // Evitar llamadas duplicadas en menos de 10 segundos (doble init ViewModel + SyncWorker)
+    private val lastFetchMs = AtomicLong(0L)
+
     suspend fun fetchDelta(): Result<Unit> = runCatching {
+        val now = System.currentTimeMillis()
+        if (now - lastFetchMs.get() < 10_000L) return@runCatching  // cooldown 10s
+        lastFetchMs.set(now)
         val token = session.token ?: return@runCatching
         val since = session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" }
         val resp  = api.deltaSync(token = token, since = since)

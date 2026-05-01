@@ -289,7 +289,7 @@ if ($action === 'health') {
     echo json_encode([
         'ok'          => $dbOk,
         'db'          => $dbOk,
-        'version'     => '1.0.0',
+        'version'     => '1.1.0',
         'server_time' => date('c'),
     ]);
     exit;
@@ -639,7 +639,13 @@ if ($action === 'delta_sync') {
     $stR->execute([$uid, $since]);
 
     $stS = db()->prepare(
-        'SELECT s.*, r.uid AS route_uid FROM stops s
+        'SELECT s.id, s.uid, s.route_id, r.uid AS route_uid, s.account_id,
+                s.name, s.address, s.lat, s.lng, s.order_index,
+                s.external_id, s.contact_name, s.contact_phone,
+                s.visit_frequency, s.priority, s.segment, s.account_status, s.opening_hours,
+                s.status, s.notes, s.visited_at, s.visit_result, s.next_action,
+                s.created_at, s.updated_at, s.deleted_at
+         FROM stops s
          JOIN routes r ON r.id = s.route_id
          WHERE r.user_id=? AND s.updated_at > ?
          ORDER BY s.updated_at ASC LIMIT 500'
@@ -718,13 +724,21 @@ if ($action === 'batch_sync') {
                         db()->prepare(
                             'INSERT INTO stops
                                 (uid, route_id, account_id, name, address, lat, lng,
-                                 order_index, status, notes, visited_at, created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                 order_index, status, notes, visited_at,
+                                 external_id, contact_name, contact_phone,
+                                 visit_result, next_action,
+                                 created_at, updated_at)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                              ON DUPLICATE KEY UPDATE
                                 name=VALUES(name), address=VALUES(address),
                                 lat=VALUES(lat), lng=VALUES(lng),
                                 order_index=VALUES(order_index), status=VALUES(status),
                                 notes=VALUES(notes), visited_at=VALUES(visited_at),
+                                external_id=VALUES(external_id),
+                                contact_name=VALUES(contact_name),
+                                contact_phone=VALUES(contact_phone),
+                                visit_result=VALUES(visit_result),
+                                next_action=VALUES(next_action),
                                 updated_at=VALUES(updated_at)'
                         )->execute([
                             $clientUid, $routeId, $aid,
@@ -736,9 +750,19 @@ if ($action === 'batch_sync') {
                             san($data['status'] ?? 'pending', 20),
                             san($data['notes'] ?? '', 5000) ?: null,
                             $data['visited_at'] ?? null,
+                            san($data['external_id'] ?? '', 100) ?: null,
+                            san($data['contact_name'] ?? '', 255) ?: null,
+                            san($data['contact_phone'] ?? '', 50) ?: null,
+                            san($data['visit_result'] ?? '', 20) ?: null,
+                            san($data['next_action'] ?? '', 5000) ?: null,
                             san($data['created_at'] ?? date('c'), 30),
                             date('c'),
                         ]);
+                        // Registrar en sync_log
+                        db()->prepare(
+                            'INSERT INTO sync_log (account_id, user_id, entity, entity_uid, operation)
+                             VALUES (?,?,?,?,?)'
+                        )->execute([$aid, $uid, 'stop', $clientUid, $operation]);
                         $synced[] = ['uid' => $clientUid, 'entity' => 'stop'];
 
                     } elseif ($operation === 'delete') {
