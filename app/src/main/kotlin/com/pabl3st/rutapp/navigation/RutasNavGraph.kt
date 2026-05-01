@@ -12,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.pabl3st.rutapp.feature.auth.AuthRoot
+import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 
 @Composable
@@ -45,7 +46,7 @@ fun RutasNavGraph(
                     onDismiss = { showExitDialog = false },
                 )
             }
-            PlaceholderScreen("Home · S02")
+            HomeScreen()
         }
 
         // ── Resto de pantallas (S02+) ──────────────────────────

@@ -19,6 +19,9 @@ securityCrypto    = "1.1.0"
 junit             = "4.13.2"
 junitExt          = "1.2.1"
 espresso          = "3.6.1"
+room           = "2.6.1"
+workManager    = "2.9.1"
+dataStore      = "1.1.1"
 
 [libraries]
 androidx-core-ktx                  = { group = "androidx.core",              name = "core-ktx",                   version.ref = "coreKtx" }
@@ -50,6 +53,14 @@ junit                              = { group = "junit",                      nam
 junit-ext                          = { group = "androidx.test.ext",          name = "junit",                       version.ref = "junitExt" }
 espresso-core                      = { group = "androidx.test.espresso",     name = "espresso-core",               version.ref = "espresso" }
 
+room-runtime   = { group = "androidx.room",      name = "room-runtime",            version.ref = "room" }
+room-ktx       = { group = "androidx.room",      name = "room-ktx",                version.ref = "room" }
+room-compiler  = { group = "androidx.room",      name = "room-compiler",           version.ref = "room" }
+work-runtime   = { group = "androidx.work",      name = "work-runtime-ktx",        version.ref = "workManager" }
+hilt-work      = { group = "androidx.hilt",      name = "hilt-work",               version.ref = "hiltNav" }
+hilt-compiler  = { group = "androidx.hilt",      name = "hilt-compiler",           version.ref = "hiltNav" }
+datastore      = { group = "androidx.datastore", name = "datastore-preferences",   version.ref = "dataStore" }
+
 [plugins]
 android-application = { id = "com.android.application",             version.ref = "agp" }
 android-library     = { id = "com.android.library",                 version.ref = "agp" }
@@ -61,3 +72,4 @@ ksp                 = { id = "com.google.devtools.ksp",             version.ref 
 [bundles]
 compose  = ["compose-ui", "compose-ui-graphics", "compose-ui-tooling-preview", "compose-material3", "compose-material-icons"]
 lifecycle= ["androidx-lifecycle-runtime-ktx", "androidx-lifecycle-viewmodel", "androidx-lifecycle-runtime-compose"]
+

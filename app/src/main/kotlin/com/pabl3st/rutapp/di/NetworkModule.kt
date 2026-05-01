@@ -3,8 +3,11 @@ package com.pabl3st.rutapp.di
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import android.content.Context
+import androidx.work.WorkManager
 import dagger.Module
 import dagger.Provides
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
@@ -54,4 +57,9 @@ object NetworkModule {
     @Singleton
     fun provideApiService(retrofit: Retrofit): RutasApiService =
         retrofit.create(RutasApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext ctx: Context): WorkManager =
+        WorkManager.getInstance(ctx)
 }

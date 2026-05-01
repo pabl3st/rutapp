@@ -124,6 +124,90 @@ data class HealthResponse(
     @Json(name = "server_time") val serverTime: String?,
 )
 
+
+// ── S02 DTOs ─────────────────────────────────────────────────
+
+@JsonClass(generateAdapter = true)
+data class RouteDto(
+    val id: Int?,
+    val uid: String,
+    val name: String,
+    @Json(name = "date_assigned") val dateAssigned: String,
+    val status: String,
+    val notes: String?,
+    @Json(name = "stop_count")  val stopCount: Int = 0,
+    @Json(name = "done_count")  val doneCount: Int = 0,
+    @Json(name = "created_at")  val createdAt: String,
+    @Json(name = "updated_at")  val updatedAt: String,
+    @Json(name = "deleted_at")  val deletedAt: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class StopDto(
+    val id: Int?,
+    val uid: String,
+    @Json(name = "route_uid") val routeUid: String?,
+    val name: String,
+    val address: String?,
+    val lat: Double?,
+    val lng: Double?,
+    @Json(name = "order_index") val orderIndex: Int = 0,
+    val status: String,
+    val notes: String?,
+    @Json(name = "visited_at") val visitedAt: String?,
+    @Json(name = "created_at") val createdAt: String,
+    @Json(name = "updated_at") val updatedAt: String,
+    @Json(name = "deleted_at") val deletedAt: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class RoutesListResponse(
+    val ok: Boolean,
+    val routes: List<RouteDto>?,
+    @Json(name = "server_time") val serverTime: String?,
+    val error: String?,
+)
+
+@JsonClass(generateAdapter = true)
+data class DeltaSyncResponse(
+    val ok: Boolean,
+    val routes: List<RouteDto>?,
+    val stops: List<StopDto>?,
+    @Json(name = "server_time") val serverTime: String?,
+    val error: String?,
+)
+
+@JsonClass(generateAdapter = true)
+data class SyncOperation(
+    val entity: String,
+    val uid: String,
+    val operation: String,
+    val data: Map<String, Any?>,
+)
+
+@JsonClass(generateAdapter = true)
+data class BatchSyncRequest(
+    val operations: List<SyncOperation>,
+)
+
+@JsonClass(generateAdapter = true)
+data class BatchSyncResult(
+    val uid: String,
+    val entity: String,
+    @Json(name = "server_id") val serverId: Int? = null,
+    val deleted: Boolean = false,
+    val error: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class BatchSyncResponse(
+    val ok: Boolean,
+    val synced: List<BatchSyncResult>?,
+    val errors: List<BatchSyncResult>?,
+    @Json(name = "server_time") val serverTime: String?,
+    val error: String?,
+)
+
 // ── Retrofit interface ───────────────────────────────────────
 
 interface RutasApiService {
@@ -169,4 +253,27 @@ interface RutasApiService {
     suspend fun health(
         @Query("action") action: String = "health",
     ): Response<HealthResponse>
+
+    @GET(API_PATH)
+    suspend fun routesList(
+        @Query("action") action: String = "routes_list",
+        @Header("X-Auth-Token") token: String,
+        @Query("date")  date: String?  = null,
+        @Query("since") since: String? = null,
+    ): Response<RoutesListResponse>
+
+    @GET(API_PATH)
+    suspend fun deltaSync(
+        @Query("action") action: String = "delta_sync",
+        @Header("X-Auth-Token") token: String,
+        @Query("since") since: String,
+    ): Response<DeltaSyncResponse>
+
+    @POST(API_PATH)
+    suspend fun batchSync(
+        @Query("action") action: String = "batch_sync",
+        @Header("X-Auth-Token") token: String,
+        @Body body: BatchSyncRequest,
+    ): Response<BatchSyncResponse>
+
 }

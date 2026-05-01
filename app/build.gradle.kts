@@ -15,7 +15,7 @@ android {
         minSdk        = libs.versions.minSdk.get().toInt()
         targetSdk     = libs.versions.targetSdk.get().toInt()
         versionCode   = 1
-        versionName   = "1.0.0-s01"
+        versionName   = "1.0.0-s02"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "API_BASE_URL",
@@ -75,6 +75,19 @@ dependencies {
     // Security — token cifrado en Keystore
     implementation(libs.security.crypto)
 
+    // Room — BD local offline-first
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // WorkManager + Hilt integration
+    implementation(libs.work.runtime)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.compiler)
+
+    // DataStore — preferencias reactivas
+    implementation(libs.datastore)
+
     // Desugaring
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
 
@@ -89,3 +102,4 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+

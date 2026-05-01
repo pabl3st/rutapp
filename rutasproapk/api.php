@@ -1,26 +1,26 @@
 <?php
 /**
- * RutasApp Android · API v1.0.0
+ * RutasApp Android · API v1.1.0
  * ─────────────────────────────
  * Ruta:  /rutasproapk/api.php
  * BD:    cqvkelal_rutasapp_android
  * Auth:  header X-Auth-Token (64 hex chars)
  *
  * Endpoints S01:
- *   POST register_individual  — cuenta personal + owner
- *   POST register_company     — cuenta empresa + owner
- *   POST register_with_invite — nuevo miembro con invite_code
- *   POST login                — username|email + password + device
- *   POST logout               — invalida token
- *   GET  me                   — estado completo del usuario
- *   POST token_refresh        — renueva token próximo a expirar
- *   GET  health               — healthcheck público
+ *   POST register_individual  -- cuenta personal + owner
+ *   POST register_company     -- cuenta empresa + owner
+ *   POST register_with_invite -- nuevo miembro con invite_code
+ *   POST login                -- username|email + password + device
+ *   POST logout               -- invalida token
+ *   GET  me                   -- estado completo del usuario
+ *   POST token_refresh        -- renueva token próximo a expirar
+ *   GET  health               -- healthcheck público
  */
 
 declare(strict_types=1);
 define('RA_START', microtime(true));
 
-// ── Manejo global de errores — nunca devolver HTML ──────────
+// ── Manejo global de errores -- nunca devolver HTML ──────────
 set_exception_handler(function (\Throwable $e) {
     if (!headers_sent()) {
         http_response_code(500);
@@ -47,10 +47,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ── Config ──────────────────────────────────────────────────
-define('DB_HOST',      'localhost');
-define('DB_NAME',      'cqvkelal_rutasapp_android');
-define('DB_USER',      'cqvkelal_raa');   // usuario MySQL con permisos solo en esta BD
-define('DB_PASS',      'CAMBIAR_ESTE_PASSWORD');
+define('DB_HOST', 'localhost');
+define('DB_NAME',
+       'cqvkelal_rutasapp_android');
+define('DB_USER','cqvkelal_raprousr');
+// usuario MySQL con permisos solo en esta BD
+define('DB_PASS',      'qd>$.L{!.J');
 define('SESSION_DAYS', 30);
 define('RATE_WIN',     60);  // ventana en segundos
 define('RATE_LOGIN',   10);  // máx intentos de login por ventana
@@ -204,7 +206,7 @@ function createSession(int $userId, array $body): string {
     $appVer    = san($body['app_version'] ?? null, 30);
     $fcmToken  = isset($body['fcm_token']) ? san($body['fcm_token'], 4096) : null;
 
-    // Upsert — un solo token por (user, device)
+    // Upsert -- un solo token por (user, device)
     db()->prepare(
         'INSERT INTO sessions (user_id, token, device_id, device_name, platform,
                                app_version, fcm_token, expires_at)
@@ -259,7 +261,7 @@ function userResponse(int $userId): array {
             'form_config'  => $row['form_config']  ? json_decode($row['form_config'],  true) : null,
             'ai_settings'  => $row['ai_settings']  ? json_decode($row['ai_settings'],  true) : null,
         ],
-        'prefs' => $row['prefs'] ? json_decode($row['prefs'], true) : (object)[],
+        'prefs' => $row['prefs'] ? (object)json_decode($row['prefs'], true) : (object)[],
     ];
 }
 
@@ -578,4 +580,191 @@ if ($action === 'token_refresh') {
 }
 
 // ── Acción desconocida ────────────────────────────────────────
+
+// ── routes_list ──────────────────────────────────────────────
+if ($action === 'routes_list') {
+    $sess  = requireAuth();
+    $date  = san($_GET['date']  ?? '', 10);
+    $since = san($_GET['since'] ?? '', 30);
+
+    $where  = 'r.user_id = ? AND r.deleted_at IS NULL';
+    $params = [(int)$sess['uid']];
+
+    if ($date)  { $where .= ' AND r.date_assigned = ?'; $params[] = $date; }
+    if ($since) { $where .= ' AND r.updated_at > ?';    $params[] = $since; }
+
+    $st = db()->prepare(
+        "SELECT r.*,
+                COUNT(s.id) as stop_count,
+                SUM(CASE WHEN s.status='done' THEN 1 ELSE 0 END) as done_count
+         FROM routes r
+         LEFT JOIN stops s ON s.route_id = r.id AND s.deleted_at IS NULL
+         WHERE {$where}
+         GROUP BY r.id
+         ORDER BY r.date_assigned DESC, r.name ASC
+         LIMIT 100"
+    );
+    $st->execute($params);
+
+    $routes = array_map(fn($r) => [
+        'id'            => (int)$r['id'],
+        'uid'           => $r['uid'],
+        'name'          => $r['name'],
+        'date_assigned' => $r['date_assigned'],
+        'status'        => $r['status'],
+        'notes'         => $r['notes'],
+        'stop_count'    => (int)$r['stop_count'],
+        'done_count'    => (int)$r['done_count'],
+        'created_at'    => $r['created_at'],
+        'updated_at'    => $r['updated_at'],
+        'deleted_at'    => $r['deleted_at'],
+    ], $st->fetchAll());
+
+    apiLog($action, (int)$sess['uid'], (int)$sess['account_id']);
+    ok(['routes' => $routes, 'server_time' => date('c')]);
+}
+
+// ── delta_sync ───────────────────────────────────────────────
+if ($action === 'delta_sync') {
+    $sess  = requireAuth();
+    $since = san($_GET['since'] ?? '', 30);
+    if (!$since) err('Parámetro since es obligatorio', 400, $action);
+
+    $uid = (int)$sess['uid'];
+    $aid = (int)$sess['account_id'];
+
+    $stR = db()->prepare(
+        'SELECT * FROM routes WHERE user_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
+    );
+    $stR->execute([$uid, $since]);
+
+    $stS = db()->prepare(
+        'SELECT s.* FROM stops s
+         JOIN routes r ON r.id = s.route_id
+         WHERE r.user_id=? AND s.updated_at > ?
+         ORDER BY s.updated_at ASC LIMIT 500'
+    );
+    $stS->execute([$uid, $since]);
+
+    apiLog($action, $uid, $aid);
+    ok([
+        'routes'      => $stR->fetchAll(),
+        'stops'       => $stS->fetchAll(),
+        'server_time' => date('c'),
+    ]);
+}
+
+// ── batch_sync ───────────────────────────────────────────────
+if ($action === 'batch_sync') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    $ops  = $body['operations'] ?? [];
+
+    $synced = [];
+    $errors = [];
+
+    db()->beginTransaction();
+    try {
+        foreach ($ops as $op) {
+            $entity    = san($op['entity']    ?? '', 20);
+            $operation = san($op['operation'] ?? '', 10);
+            $data      = $op['data'] ?? [];
+            $clientUid = san($op['uid'] ?? '', 36);
+
+            try {
+                if ($entity === 'route') {
+                    if ($operation === 'create' || $operation === 'update') {
+                        $db = db();
+                        $db->prepare(
+                            'INSERT INTO routes
+                                (uid, account_id, user_id, name, date_assigned, status, notes, created_at, updated_at)
+                             VALUES (?,?,?,?,?,?,?,?,?)
+                             ON DUPLICATE KEY UPDATE
+                                name=VALUES(name), status=VALUES(status),
+                                notes=VALUES(notes), updated_at=VALUES(updated_at)'
+                        )->execute([
+                            $clientUid, $aid, $uid,
+                            san($data['name'] ?? '', 255),
+                            san($data['date_assigned'] ?? date('Y-m-d'), 10),
+                            san($data['status'] ?? 'pending', 20),
+                            san($data['notes'] ?? '', 5000) ?: null,
+                            san($data['created_at'] ?? date('c'), 30),
+                            date('c'),
+                        ]);
+                        $serverId = (int)$db->lastInsertId() ?: null;
+                        $db->prepare(
+                            'INSERT INTO sync_log (account_id, user_id, entity, entity_uid, operation)
+                             VALUES (?,?,?,?,?)'
+                        )->execute([$aid, $uid, 'route', $clientUid, $operation]);
+                        $synced[] = ['uid' => $clientUid, 'server_id' => $serverId, 'entity' => 'route'];
+
+                    } elseif ($operation === 'delete') {
+                        db()->prepare(
+                            'UPDATE routes SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND user_id=?'
+                        )->execute([$clientUid, $uid]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'route', 'deleted' => true];
+                    }
+
+                } elseif ($entity === 'stop') {
+                    if ($operation === 'create' || $operation === 'update') {
+                        $st = db()->prepare('SELECT id FROM routes WHERE uid=? AND user_id=? LIMIT 1');
+                        $st->execute([san($data['route_uid'] ?? '', 36), $uid]);
+                        $routeId = $st->fetchColumn();
+                        if (!$routeId) {
+                            $errors[] = ['uid' => $clientUid, 'entity' => 'stop', 'error' => 'route_uid no encontrado'];
+                            continue;
+                        }
+                        db()->prepare(
+                            'INSERT INTO stops
+                                (uid, route_id, account_id, name, address, lat, lng,
+                                 order_index, status, notes, visited_at, created_at, updated_at)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                             ON DUPLICATE KEY UPDATE
+                                name=VALUES(name), address=VALUES(address),
+                                lat=VALUES(lat), lng=VALUES(lng),
+                                order_index=VALUES(order_index), status=VALUES(status),
+                                notes=VALUES(notes), visited_at=VALUES(visited_at),
+                                updated_at=VALUES(updated_at)'
+                        )->execute([
+                            $clientUid, $routeId, $aid,
+                            san($data['name'] ?? '', 255),
+                            san($data['address'] ?? '', 500) ?: null,
+                            isset($data['lat']) ? (float)$data['lat'] : null,
+                            isset($data['lng']) ? (float)$data['lng'] : null,
+                            (int)($data['order_index'] ?? 0),
+                            san($data['status'] ?? 'pending', 20),
+                            san($data['notes'] ?? '', 5000) ?: null,
+                            $data['visited_at'] ?? null,
+                            san($data['created_at'] ?? date('c'), 30),
+                            date('c'),
+                        ]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'stop'];
+
+                    } elseif ($operation === 'delete') {
+                        db()->prepare(
+                            'UPDATE stops SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND account_id=?'
+                        )->execute([$clientUid, $aid]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'stop', 'deleted' => true];
+                    }
+                }
+            } catch (\Throwable $e) {
+                $errors[] = ['uid' => $clientUid, 'entity' => $entity, 'error' => $e->getMessage()];
+            }
+        }
+        db()->commit();
+    } catch (\Throwable $e) {
+        db()->rollBack();
+        throw $e;
+    }
+
+    apiLog($action, $uid, $aid);
+    ok([
+        'synced'      => $synced,
+        'errors'      => $errors,
+        'server_time' => date('c'),
+    ]);
+}
+
+
 err("Acción desconocida: {$action}", 404);
