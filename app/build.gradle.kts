@@ -26,7 +26,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            // applicationIdSuffix removido — google-services.json requiere package exacto
             versionNameSuffix   = "-debug"
             isDebuggable        = true
         }
@@ -110,4 +110,5 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
 
