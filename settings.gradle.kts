@@ -2,8 +2,8 @@ pluginManagement {
     repositories {
         google {
             content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("com\.android.*")
+                includeGroupByRegex("com\.google.*")
                 includeGroupByRegex("androidx.*")
             }
         }
@@ -21,18 +21,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "rutapp"
+
+// S01: solo el módulo :app. Los módulos feature:* y core:* se añaden
+// en cada sprint cuando se crea su build.gradle.kts.
 include(":app")
-include(":core:domain")
-include(":core:data")
-include(":core:ui")
-include(":core:common")
-include(":feature:auth")
-include(":feature:home")
-include(":feature:rutas")
-include(":feature:mapa")
-include(":feature:visita")
-include(":feature:kpis")
-include(":feature:calendario")
-include(":feature:importar")
-include(":feature:admin")
-include(":feature:perfil")
