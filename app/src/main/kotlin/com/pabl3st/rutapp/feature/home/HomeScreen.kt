@@ -139,14 +139,14 @@ private fun SyncStatusBar(
 }
 
 @Composable
-private fun RouteCard(route: RouteEntity) {
+private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
     val statusColor = when (route.status) {
         "active"    -> MaterialTheme.colorScheme.primary
         "done"      -> MaterialTheme.colorScheme.tertiary
         "cancelled" -> MaterialTheme.colorScheme.error
         else        -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Card(modifier = Modifier.fillMaxWidth().clickable { onRouteClick(route.uid) }) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier            = Modifier.padding(16.dp),
             verticalAlignment   = Alignment.CenterVertically,
@@ -205,3 +205,4 @@ private fun EmptyRoutesMessage(modifier: Modifier = Modifier) {
         }
     }
 }
+
