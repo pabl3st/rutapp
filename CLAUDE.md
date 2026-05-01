@@ -409,3 +409,18 @@ Resultado: 1 commit, 1 build CI.
 
 
 
+
+---
+
+### ERROR 14: isZoomControlsEnabled / isZoomButtonsEnabled no existen en MapLibre 11.x
+**Build S05** — `Unresolved reference 'isZoomControlsEnabled'` / `isZoomButtonsEnabled`
+MapLibre Android 11.x **no tiene botones de zoom** en `UiSettings`. Ni `isZoomControlsEnabled`
+ni `isZoomButtonsEnabled` son propiedades válidas.
+
+El control de zoom del usuario se hace exclusivamente con:
+```kotlin
+map.uiSettings.isZoomGesturesEnabled = true   // pinch, doble tap
+```
+
+Si se necesitan botones +/- visuales, deben implementarse como Composables propios
+sobre el mapa, llamando a `map.animateCamera(CameraUpdateFactory.zoomIn())`.
