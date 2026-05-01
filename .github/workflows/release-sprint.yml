@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       sprint:
-        description: 'Sprint tag (ej: sprint-s05)'
+        description: 'Sprint tag (ej: sprint-s06)'
         required: true
-        default: 'sprint-s05'
+        default: 'sprint-s06'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -44,8 +44,8 @@ jobs:
       - name: Read version
         id: ver
         run: |
-          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/' | tr -d ' ')
-          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | sed 's/[^0-9]*//g' | tr -d ' ')
+          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle.kts | grep -v 'Suffix' | sed 's/.*"\(.*\)".*/\1/' | tr -d ' ')
+          VERSION_CODE=$(grep -m1 'versionCode' app/build.gradle.kts | sed 's/[^0-9]*//g' | tr -d ' ')
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.sprint }}"
           else

@@ -37,8 +37,8 @@ jobs:
       - name: Read version
         id: ver
         run: |
-          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/' | tr -d ' ')
-          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | sed 's/[^0-9]*//g' | tr -d ' ')
+          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle.kts | grep -v 'Suffix' | sed 's/.*"\(.*\)".*/\1/' | tr -d ' ')
+          VERSION_CODE=$(grep -m1 'versionCode' app/build.gradle.kts | sed 's/[^0-9]*//g' | tr -d ' ')
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "name=${VERSION_NAME}" >> $GITHUB_OUTPUT
           echo "code=${VERSION_CODE}" >> $GITHUB_OUTPUT
