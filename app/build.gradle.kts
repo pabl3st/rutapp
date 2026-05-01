@@ -18,68 +18,73 @@ android {
         versionName   = "1.0.0-s01"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
-        buildConfigField("String", "API_BASE_URL", "\"https://mejoresiagratis.com/rutasproapk/api.php\"")
+        buildConfigField("String", "API_BASE_URL",
+            "\"https://mejoresiagratis.com/rutasproapk/api.php\"")
+        // MAPS_API_KEY: añadir en GitHub Secrets o local.properties
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("MAPS_API_KEY") ?: ""
     }
 
     buildTypes {
         debug {
-            applicationIdSuffix  = ".debug"
-            versionNameSuffix    = "-debug"
-            isDebuggable         = true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix   = "-debug"
+            isDebuggable        = true
         }
         release {
-            isMinifyEnabled      = true
-            isShrinkResources    = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            isMinifyEnabled   = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
     compileOptions {
-        sourceCompatibility           = JavaVersion.VERSION_17
-        targetCompatibility           = JavaVersion.VERSION_17
+        sourceCompatibility            = JavaVersion.VERSION_17
+        targetCompatibility            = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
-    kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true; buildConfig = true }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+    kotlinOptions  { jvmTarget = "17" }
+    buildFeatures  { compose = true; buildConfig = true }
+    packaging      { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
-    // Core Android
+    // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.bundles.lifecycle)
 
-    // Compose
+    // Compose BOM — todas las versiones de Compose vienen del BOM
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
 
     // Navigation
     implementation(libs.navigation.compose)
 
-    // Hilt
+    // Hilt (DI)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.android.compiler)
 
-    // WorkManager + Hilt
-    implementation(libs.work.runtime.ktx)
-    implementation(libs.hilt.work)
-    ksp(libs.hilt.compiler.work)
-
-    // Security
-    implementation(libs.biometric)
-    implementation(libs.security.crypto)
-
-    // Desugaring (java.time en API < 26)
+    // Desugaring — java.time para minSdk 26
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
 
-    // Debug
+    // Debug tools
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
-    // Testing
-    testImplementation(libs.bundles.testing.unit)
-    androidTestImplementation(libs.bundles.testing.android)
+    // Unit tests
+    testImplementation(libs.junit)
+
+    // Instrumented tests
+    androidTestImplementation(libs.junit.ext)
+    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+
+    // S02: añadir Room, WorkManager, Retrofit
+    // S03: añadir Maps, Location
+    // S05: añadir CameraX, MLKit
 }
