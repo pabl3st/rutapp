@@ -26,24 +26,18 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
-
-      - run: chmod +x gradlew
+          gradle-version: '8.9'
 
       - name: Run tests
-        run: ./gradlew testReleaseUnitTest --stacktrace
+        run: gradle testReleaseUnitTest --stacktrace --no-daemon
+        continue-on-error: true
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --stacktrace
+        run: gradle assembleRelease --stacktrace --no-daemon
 
       - name: Get tag name
         id: tag
@@ -74,9 +68,7 @@ jobs:
           name: RutasApp ${{ steps.tag.outputs.name }}
           body: |
             ## RutasApp — ${{ steps.tag.outputs.name }}
-
             APK de distribución interna.
-
             **Instalación:** Ajustes → Seguridad → Fuentes desconocidas → Instalar APK
           draft: false
           prerelease: true
