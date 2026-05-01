@@ -2,6 +2,9 @@
 package com.pabl3st.rutapp.feature.rutas
 
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -50,6 +53,13 @@ fun RutasScreen(
             }
         }
     ) { padding ->
+        val pullState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            isRefreshing = ui.isSyncing,
+            onRefresh    = vm::syncNow,
+            state        = pullState,
+            modifier     = Modifier.fillMaxSize().padding(padding),
+        ) {
         when {
             ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -84,6 +94,7 @@ fun RutasScreen(
                 }
             }
         }
+        } // PullToRefreshBox
     }
 
     // ── Diálogo crear ruta ────────────────────────────────────
@@ -123,14 +134,44 @@ fun RutasScreen(
     }
 }
 
+
+@Composable
+private fun StatusChip(status: String) {
+    val (color, icon, label) = when (status) {
+        "active"    -> Triple(
+            MaterialTheme.colorScheme.primary,
+            Icons.Default.PlayCircle,
+            "Activa",
+        )
+        "done"      -> Triple(
+            MaterialTheme.colorScheme.secondary,
+            Icons.Default.CheckCircle,
+            "Completada",
+        )
+        "cancelled" -> Triple(
+            MaterialTheme.colorScheme.error,
+            Icons.Default.Cancel,
+            "Cancelada",
+        )
+        else        -> Triple(
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            Icons.Default.Schedule,
+            "Pendiente",
+        )
+    }
+    SuggestionChip(
+        onClick = {},
+        label   = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        icon    = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
+        colors  = SuggestionChipDefaults.suggestionChipColors(
+            labelColor         = color,
+            iconContentColor   = color,
+        ),
+    )
+}
 @Composable
 private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
-    val statusColor = when (route.status) {
-        "active"    -> MaterialTheme.colorScheme.primary
-        "done"      -> MaterialTheme.colorScheme.tertiary
-        "cancelled" -> MaterialTheme.colorScheme.error
-        else        -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier          = Modifier.padding(16.dp),
@@ -149,11 +190,7 @@ private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                SuggestionChip(
-                    onClick = {},
-                    label = { Text(route.status, style = MaterialTheme.typography.labelSmall) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(labelColor = statusColor),
-                )
+                StatusChip(status = route.status)
                 if (route.syncStatus == "pending") {
                     Icon(Icons.Default.CloudOff, null, Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))

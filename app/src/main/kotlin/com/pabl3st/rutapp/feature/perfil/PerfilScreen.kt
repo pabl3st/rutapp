@@ -2,6 +2,8 @@
 package com.pabl3st.rutapp.feature.perfil
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,6 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pabl3st.rutapp.core.ui.theme.ThemeMode
+import com.pabl3st.rutapp.core.ui.theme.ThemeViewModel
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 
 @Composable
@@ -21,8 +25,10 @@ fun PerfilScreen(
     onLoggedOut: () -> Unit,
     onBack: () -> Unit,
     vm: PerfilViewModel = hiltViewModel(),
+    themeVm: ThemeViewModel = hiltViewModel(),
 ) {
-    val ui by vm.ui.collectAsStateWithLifecycle()
+    val ui       by vm.ui.collectAsStateWithLifecycle()
+    val themeMode by themeVm.themeMode.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -213,6 +219,53 @@ private fun InfoRowAction(
         }
         Icon(Icons.Default.ChevronRight, contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+
+@Composable
+private fun ThemePickerRow(
+    currentMode: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+) {
+    val options = listOf(
+        Triple(ThemeMode.SYSTEM, "Sistema",  Icons.Default.PhoneAndroid),
+        Triple(ThemeMode.LIGHT,  "Claro",    Icons.Default.LightMode),
+        Triple(ThemeMode.DARK,   "Oscuro",   Icons.Default.DarkMode),
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Palette, contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(Spacing.md))
+            Text("Apariencia", style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.sm)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            options.forEach { (mode, label, icon) ->
+                val selected = currentMode == mode
+                FilterChip(
+                    selected  = selected,
+                    onClick   = { onSelect(mode) },
+                    label     = { Text(label, style = MaterialTheme.typography.labelMedium) },
+                    leadingIcon = {
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 

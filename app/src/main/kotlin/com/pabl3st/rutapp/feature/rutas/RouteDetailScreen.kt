@@ -39,15 +39,8 @@ fun RouteDetailScreen(
                         Icon(Icons.Default.Map, contentDescription = "Ver en mapa")
                     }
                     ui.route?.let { route ->
-                        val statusColor = when (route.status) {
-                            "active" -> MaterialTheme.colorScheme.primary
-                            "done"   -> MaterialTheme.colorScheme.tertiary
-                            else     -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                        SuggestionChip(
-                            onClick  = {},
-                            label    = { Text(route.status, style = MaterialTheme.typography.labelSmall) },
-                            colors   = SuggestionChipDefaults.suggestionChipColors(labelColor = statusColor),
+                        StatusChip(
+                            status   = route.status,
                             modifier = Modifier.padding(end = 8.dp),
                         )
                     }
@@ -135,6 +128,27 @@ fun RouteDetailScreen(
             dismissButton  = { TextButton(onClick = vm::onDismissAddStopDialog) { Text("Cancelar") } },
         )
     }
+}
+
+
+@Composable
+private fun StatusChip(status: String, modifier: Modifier = Modifier) {
+    val (color, icon, label) = when (status) {
+        "active"    -> Triple(MaterialTheme.colorScheme.primary,          Icons.Default.PlayCircle, "Activa")
+        "done"      -> Triple(MaterialTheme.colorScheme.secondary,        Icons.Default.CheckCircle, "Completada")
+        "cancelled" -> Triple(MaterialTheme.colorScheme.error,            Icons.Default.Cancel, "Cancelada")
+        else        -> Triple(MaterialTheme.colorScheme.onSurfaceVariant, Icons.Default.Schedule, "Pendiente")
+    }
+    SuggestionChip(
+        onClick  = {},
+        modifier = modifier,
+        label    = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        icon     = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
+        colors   = SuggestionChipDefaults.suggestionChipColors(
+            labelColor       = color,
+            iconContentColor = color,
+        ),
+    )
 }
 
 @Composable

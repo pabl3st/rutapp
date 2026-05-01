@@ -2,6 +2,9 @@
 package com.pabl3st.rutapp.feature.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +22,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onRouteClick: (String) -> Unit = {},
@@ -51,11 +55,14 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+        val pullState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            isRefreshing = ui.isSyncing,
+            onRefresh    = vm::syncNow,
+            state        = pullState,
+            modifier     = Modifier.fillMaxSize().padding(padding),
         ) {
+        Column(modifier = Modifier.fillMaxSize()) {
 
             // ── Estado de sincronización ──────────────────────
             SyncStatusBar(
@@ -79,7 +86,8 @@ fun HomeScreen(
                 ui.routes.isEmpty() -> EmptyRoutesMessage(Modifier.fillMaxSize())
                 else -> RoutesList(routes = ui.routes, onRouteClick = onRouteClick)
             }
-        }
+        } // Column
+        } // PullToRefreshBox
     }
 
     // ── Error snackbar ──────────────────────────────────────
@@ -161,22 +169,46 @@ private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
                 }
             }
             Spacer(Modifier.width(8.dp))
-            SuggestionChip(
-                onClick = {},
-                label   = {
-                    Text(
-                        text  = route.status,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                },
-                colors = SuggestionChipDefaults.suggestionChipColors(
-                    labelColor = statusColor
-                ),
-            )
+            StatusChip(status = route.status)
         }
     }
 }
 
+
+@Composable
+private fun StatusChip(status: String) {
+    val (color, icon, label) = when (status) {
+        "active"    -> Triple(
+            MaterialTheme.colorScheme.primary,
+            Icons.Default.PlayCircle,
+            "Activa",
+        )
+        "done"      -> Triple(
+            MaterialTheme.colorScheme.secondary,
+            Icons.Default.CheckCircle,
+            "Completada",
+        )
+        "cancelled" -> Triple(
+            MaterialTheme.colorScheme.error,
+            Icons.Default.Cancel,
+            "Cancelada",
+        )
+        else        -> Triple(
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            Icons.Default.Schedule,
+            "Pendiente",
+        )
+    }
+    SuggestionChip(
+        onClick = {},
+        label   = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        icon    = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
+        colors  = SuggestionChipDefaults.suggestionChipColors(
+            labelColor         = color,
+            iconContentColor   = color,
+        ),
+    )
+}
 @Composable
 private fun EmptyRoutesMessage(modifier: Modifier = Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {

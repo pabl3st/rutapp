@@ -61,5 +61,14 @@ class RutasViewModel @Inject constructor(
         }
     }
 
+    fun syncNow() {
+        if (_ui.value.isSyncing) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isSyncing = true) }
+            routeRepo.fetchDelta()
+            _ui.update { it.copy(isSyncing = false) }
+        }
+    }
+
     fun clearError() = _ui.update { it.copy(error = null) }
 }

@@ -14,6 +14,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import com.pabl3st.rutapp.feature.auth.AuthRoot
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 import com.pabl3st.rutapp.feature.home.HomeScreen
@@ -22,6 +27,14 @@ import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
+
+// ── Transiciones de navegación ───────────────────────────
+private val enterPush   = slideInHorizontally(tween(280)) { it / 4 } + fadeIn(tween(280))
+private val exitPush    = slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut(tween(200))
+private val enterPop    = slideInHorizontally(tween(280)) { -it / 4 } + fadeIn(tween(280))
+private val exitPop     = slideOutHorizontally(tween(280)) { it / 4 } + fadeOut(tween(200))
+private val enterFade   = fadeIn(tween(220))
+private val exitFade    = fadeOut(tween(180))
 
 @Composable
 fun RutasNavGraph(
@@ -38,9 +51,13 @@ fun RutasNavGraph(
         }
     ) { scaffoldPadding ->
         NavHost(
-            navController    = navController,
-            startDestination = Screen.Auth.route,
-            modifier         = Modifier.padding(scaffoldPadding),
+            navController       = navController,
+            startDestination    = Screen.Auth.route,
+            modifier            = Modifier.padding(scaffoldPadding),
+            enterTransition     = { enterFade },
+            exitTransition      = { exitFade },
+            popEnterTransition  = { enterFade },
+            popExitTransition   = { exitFade },
         ) {
 
             composable(Screen.Auth.route) {
@@ -73,8 +90,12 @@ fun RutasNavGraph(
             }
 
             composable(
-                route     = Screen.RouteDetail.route,
-                arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                route               = Screen.RouteDetail.route,
+                arguments           = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteDetailScreen(
@@ -86,8 +107,12 @@ fun RutasNavGraph(
             }
 
             composable(
-                route     = Screen.RouteMap.route,
-                arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                route               = Screen.RouteMap.route,
+                arguments           = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteMapScreen(
@@ -97,8 +122,12 @@ fun RutasNavGraph(
             }
 
             composable(
-                route     = Screen.Visita.route,
-                arguments = listOf(navArgument("stopUid") { type = NavType.StringType }),
+                route               = Screen.Visita.route,
+                arguments           = listOf(navArgument("stopUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 val stopUid = backStackEntry.arguments?.getString("stopUid") ?: return@composable
                 VisitaScreen(
