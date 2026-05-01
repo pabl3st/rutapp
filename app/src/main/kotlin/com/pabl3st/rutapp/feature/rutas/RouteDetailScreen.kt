@@ -109,6 +109,14 @@ fun RouteDetailScreen(
                         },
                     )
                     OutlinedTextField(
+                        value         = ui.newStopExternalId,
+                        onValueChange = vm::onNewStopExternalIdChange,
+                        label         = { Text("Código cliente (opcional)") },
+                        placeholder   = { Text("Ej: LCC00237", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                        singleLine    = true,
+                        modifier      = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
                         value         = ui.newStopAddress,
                         onValueChange = vm::onNewStopAddressChange,
                         label         = { Text("Dirección (opcional)") },
@@ -149,6 +157,15 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
+                // Mostrar external_id si existe (ej: LCC00237)
+                stop.externalId?.let { extId ->
+                    Text(
+                        text  = extId,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    )
+                }
                 Text(
                     text  = stop.name,
                     style = MaterialTheme.typography.titleSmall,

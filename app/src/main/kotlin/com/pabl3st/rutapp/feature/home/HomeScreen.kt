@@ -21,8 +21,9 @@ import java.util.Locale
 
 @Composable
 fun HomeScreen(
-    onRouteClick: (String) -> Unit = {},
-    onNavigateToRutas: () -> Unit  = {},
+    onRouteClick: (String) -> Unit      = {},
+    onNavigateToRutas: () -> Unit        = {},
+    onNavigateToPerfil: () -> Unit       = {},
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val ui    by vm.ui.collectAsStateWithLifecycle()
@@ -40,11 +41,14 @@ fun HomeScreen(
                             modifier    = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
                         )
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(8.dp))
                     } else {
                         IconButton(onClick = vm::syncNow) {
                             Icon(Icons.Default.Sync, contentDescription = "Sincronizar")
                         }
+                    }
+                    IconButton(onClick = onNavigateToPerfil) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                     }
                 }
             )

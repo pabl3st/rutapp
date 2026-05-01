@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.data.local
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.pabl3st.rutapp.data.local.dao.RouteDao
@@ -10,12 +11,16 @@ import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 
 @Database(
-    entities     = [RouteEntity::class, StopEntity::class, SyncQueueEntity::class],
-    version      = 1,
-    exportSchema = false,
+    entities      = [RouteEntity::class, StopEntity::class, SyncQueueEntity::class],
+    version       = 2,
+    exportSchema  = true,       // necesario para AutoMigration
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),  // añade external_id, contact_name, etc.
+    ],
 )
 abstract class RutasDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun stopDao(): StopDao
     abstract fun syncQueueDao(): SyncQueueDao
 }
+

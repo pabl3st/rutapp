@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.pabl3st.rutapp.feature.auth.AuthRoot
 import com.pabl3st.rutapp.feature.home.HomeScreen
+import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import androidx.navigation.NavType
@@ -57,6 +58,9 @@ fun RutasNavGraph(
                 onNavigateToRutas = {
                     navController.navigate(Screen.Rutas.route)
                 },
+                onNavigateToPerfil = {
+                    navController.navigate(Screen.Perfil.route)
+                },
             )
         }
 
@@ -82,7 +86,16 @@ fun RutasNavGraph(
         composable(Screen.Mapa.route)      { PlaceholderScreen("Mapa · S04") }
         composable(Screen.Kpis.route)      { PlaceholderScreen("KPIs · S06") }
         composable(Screen.Calendario.route){ PlaceholderScreen("Calendario · S07") }
-        composable(Screen.Perfil.route)    { PlaceholderScreen("Perfil · S01") }
+        composable(Screen.Perfil.route) {
+            PerfilScreen(
+                onLoggedOut = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable(Screen.Admin.route)     { PlaceholderScreen("Admin · S09") }
     }
 }

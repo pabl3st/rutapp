@@ -16,8 +16,8 @@ android {
         applicationId = "com.pabl3st.rutapp"
         minSdk        = libs.versions.minSdk.get().toInt()
         targetSdk     = libs.versions.targetSdk.get().toInt()
-        versionCode   = 1
-        versionName   = "1.0.0-s02"
+        versionCode   = 4
+        versionName   = "1.0.0-s04"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "API_BASE_URL",
@@ -53,7 +53,13 @@ android {
         }
     }
     buildFeatures  { compose = true; buildConfig = true }
+
     packaging      { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+
+    // Room AutoMigration — KSP necesita conocer dónde exportar el schema
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -127,6 +133,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
 
 
 

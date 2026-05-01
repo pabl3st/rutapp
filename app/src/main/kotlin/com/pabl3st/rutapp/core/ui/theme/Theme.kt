@@ -10,8 +10,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pabl3st.rutapp.R
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
@@ -141,8 +144,18 @@ private val DarkColors = darkColorScheme(
     scrim               = Color(0x99000000),
 )
 
-// ── Tipografía — DM Sans (system fallback hasta importar la font) ─
-// DM Sans se añadirá como font asset en S04. Por ahora usa system-ui.
+// ── Tipografía — DM Sans + JetBrains Mono ────────────────────
+val DmSans = FontFamily(
+    Font(R.font.dm_sans,          FontWeight.Normal),
+    Font(R.font.dm_sans_medium,   FontWeight.Medium),
+    Font(R.font.dm_sans_semibold, FontWeight.SemiBold),
+    Font(R.font.dm_sans_bold,     FontWeight.Bold),
+)
+
+val JetBrainsMono = FontFamily(
+    Font(R.font.jetbrains_mono, FontWeight.Normal),
+)
+// ── Typography con DM Sans ───────────────────────────────────
 private val AppTypography = Typography(
     // Títulos de pantalla
     headlineLarge  = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp, letterSpacing = (-0.3).sp),

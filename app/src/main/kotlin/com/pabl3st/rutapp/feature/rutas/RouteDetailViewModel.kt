@@ -16,10 +16,11 @@ data class RouteDetailUiState(
     val route: RouteEntity?        = null,
     val stops: List<StopEntity>    = emptyList(),
     val isLoading: Boolean         = true,
-    val showAddStopDialog: Boolean = false,
-    val newStopName: String        = "",
-    val newStopAddress: String     = "",
-    val error: String?             = null,
+    val showAddStopDialog: Boolean  = false,
+    val newStopName: String         = "",
+    val newStopExternalId: String   = "",
+    val newStopAddress: String      = "",
+    val error: String?              = null,
 )
 
 @HiltViewModel
@@ -57,8 +58,9 @@ class RouteDetailViewModel @Inject constructor(
 
     // ── Añadir stop ───────────────────────────────────────────
     fun onShowAddStopDialog()             = _ui.update { it.copy(showAddStopDialog = true) }
-    fun onDismissAddStopDialog()          = _ui.update { it.copy(showAddStopDialog = false, newStopName = "", newStopAddress = "", error = null) }
-    fun onNewStopNameChange(v: String)    = _ui.update { it.copy(newStopName = v) }
+    fun onDismissAddStopDialog()          = _ui.update { it.copy(showAddStopDialog = false, newStopName = "", newStopExternalId = "", newStopAddress = "", error = null) }
+    fun onNewStopNameChange(v: String)       = _ui.update { it.copy(newStopName = v) }
+    fun onNewStopExternalIdChange(v: String) = _ui.update { it.copy(newStopExternalId = v) }
     fun onNewStopAddressChange(v: String) = _ui.update { it.copy(newStopAddress = v) }
 
     fun addStop() {
@@ -71,10 +73,11 @@ class RouteDetailViewModel @Inject constructor(
             stopRepo.createStop(
                 routeUid   = routeUid,
                 name       = name,
+                externalId = _ui.value.newStopExternalId.trim().ifEmpty { null },
                 address    = _ui.value.newStopAddress.trim().ifEmpty { null },
                 orderIndex = _ui.value.stops.size,
             )
-            _ui.update { it.copy(showAddStopDialog = false, newStopName = "", newStopAddress = "") }
+            _ui.update { it.copy(showAddStopDialog = false, newStopName = "", newStopExternalId = "", newStopAddress = "") }
         }
     }
 

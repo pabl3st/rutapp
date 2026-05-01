@@ -29,29 +29,35 @@ class StopRepository @Inject constructor(
         stopDao.observeByRoute(routeUid)
 
     suspend fun createStop(
-        routeUid:   String,
-        name:       String,
-        address:    String? = null,
-        lat:        Double? = null,
-        lng:        Double? = null,
-        orderIndex: Int     = 0,
-        notes:      String? = null,
+        routeUid:     String,
+        name:         String,
+        externalId:   String? = null,
+        address:      String? = null,
+        lat:          Double? = null,
+        lng:          Double? = null,
+        orderIndex:   Int     = 0,
+        notes:        String? = null,
+        contactName:  String? = null,
+        contactPhone: String? = null,
     ): StopEntity {
         val now  = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         val stop = StopEntity(
-            uid        = UUID.randomUUID().toString(),
-            routeUid   = routeUid,
-            accountId  = session.accountId,
-            name       = name,
-            address    = address,
-            lat        = lat,
-            lng        = lng,
-            orderIndex = orderIndex,
-            notes      = notes,
-            createdAt  = now,
-            updatedAt  = now,
-            syncStatus = "pending",
+            uid          = UUID.randomUUID().toString(),
+            routeUid     = routeUid,
+            accountId    = session.accountId,
+            name         = name,
+            externalId   = externalId,
+            address      = address,
+            lat          = lat,
+            lng          = lng,
+            orderIndex   = orderIndex,
+            notes        = notes,
+            contactName  = contactName,
+            contactPhone = contactPhone,
+            createdAt    = now,
+            updatedAt    = now,
+            syncStatus   = "pending",
         )
         stopDao.upsert(stop)
         enqueue("stop", stop.uid, "create", stopToMap(stop))
@@ -67,16 +73,21 @@ class StopRepository @Inject constructor(
     }
 
     private fun stopToMap(s: StopEntity): Map<String, Any?> = mapOf(
-        "route_uid"   to s.routeUid,
-        "name"        to s.name,
-        "address"     to s.address,
-        "lat"         to s.lat,
-        "lng"         to s.lng,
-        "order_index" to s.orderIndex,
-        "status"      to s.status,
-        "notes"       to s.notes,
-        "visited_at"  to s.visitedAt,
-        "created_at"  to s.createdAt,
+        "route_uid"    to s.routeUid,
+        "name"         to s.name,
+        "external_id"  to s.externalId,
+        "address"      to s.address,
+        "lat"          to s.lat,
+        "lng"          to s.lng,
+        "order_index"  to s.orderIndex,
+        "status"       to s.status,
+        "notes"        to s.notes,
+        "contact_name"  to s.contactName,
+        "contact_phone" to s.contactPhone,
+        "visited_at"   to s.visitedAt,
+        "visit_result" to s.visitResult,
+        "next_action"  to s.nextAction,
+        "created_at"   to s.createdAt,
     )
 
     private suspend fun enqueue(entity: String, uid: String, op: String, data: Map<String, Any?>) {
