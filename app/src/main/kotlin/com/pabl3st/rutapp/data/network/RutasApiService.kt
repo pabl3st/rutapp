@@ -1,8 +1,6 @@
 package com.pabl3st.rutapp.data.network
 
-import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.squareup.moshi.Json
-import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.squareup.moshi.JsonClass
 import retrofit2.Response
 import retrofit2.http.Body
@@ -290,28 +288,4 @@ interface RutasApiService {
         @Body body: BatchSyncRequest,
     ): Response<BatchSyncResponse>
 
-}
-
-// ── Extension: StopDto → StopEntity ──────────────────────────
-fun StopDto.toEntity(accountId: Int): StopEntity? {
-    val routeUid = routeUid ?: return null  // sin route_uid no podemos linkarlo
-    return StopEntity(
-        uid        = uid,
-        serverId   = id,
-        routeUid   = routeUid,
-        accountId  = accountId,
-        name       = name,
-        address    = address,
-        lat        = lat,
-        lng        = lng,
-        orderIndex = orderIndex,
-        status     = status,
-        notes      = notes,
-        visitedAt  = visitedAt,
-        createdAt  = createdAt,
-        updatedAt  = updatedAt,
-        deletedAt  = deletedAt,
-        syncStatus = "synced",
-        syncedAt   = updatedAt,
-    )
 }

@@ -6,7 +6,6 @@ import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.network.RouteDto
-import com.pabl3st.rutapp.data.network.toEntity
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
@@ -104,21 +103,5 @@ class RouteRepository @Inject constructor(
     }
 }
 
-// ── Extension: RouteDto → RouteEntity ────────────────────────
-fun RouteDto.toEntity(userId: Int, accountId: Int) = RouteEntity(
-    uid          = uid,
-    serverId     = id,
-    accountId    = accountId,
-    userId       = userId,
-    name         = name,
-    dateAssigned = dateAssigned,
-    status       = status,
-    notes        = notes,
-    createdAt    = createdAt,
-    updatedAt    = updatedAt,
-    deletedAt    = deletedAt,
-    syncStatus   = "synced",
-    syncedAt     = updatedAt,
-)
 
 

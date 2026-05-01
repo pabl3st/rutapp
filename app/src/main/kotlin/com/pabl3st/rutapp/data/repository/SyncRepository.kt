@@ -3,10 +3,9 @@ package com.pabl3st.rutapp.data.repository
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
-import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.network.BatchSyncRequest
-import com.pabl3st.rutapp.data.network.StopDto
 import com.pabl3st.rutapp.data.network.RutasApiService
+import com.pabl3st.rutapp.data.network.StopDto
 import com.pabl3st.rutapp.data.network.SyncOperation
 import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
