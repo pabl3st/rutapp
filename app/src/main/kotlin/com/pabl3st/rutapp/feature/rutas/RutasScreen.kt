@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +56,7 @@ fun RutasScreen(
                 Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
             }
         }
+        snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         val pullState = rememberPullToRefreshState()
         PullToRefreshBox(
@@ -199,7 +201,7 @@ private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
                 route.notes?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        overflow = TextOverflow.Ellipsis)
                 }
             }
             Column(horizontalAlignment = Alignment.End) {

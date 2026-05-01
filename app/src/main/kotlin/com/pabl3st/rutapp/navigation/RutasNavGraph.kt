@@ -26,6 +26,8 @@ import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
+import com.pabl3st.rutapp.feature.kpis.KpisScreen
+import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
 
 // ── Transiciones de navegación ───────────────────────────
@@ -136,8 +138,12 @@ fun RutasNavGraph(
                 )
             }
 
-            composable(Screen.Mapa.route)       { PlaceholderScreen("Mapa", "S07") }
-            composable(Screen.Kpis.route)       { PlaceholderScreen("KPIs", "S07") }
+            composable(Screen.Mapa.route) {
+                GlobalMapScreen(
+                    onNavigateToStop = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                )
+            }
+            composable(Screen.Kpis.route) { KpisScreen() }
             composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S08") }
             composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S09") }
 

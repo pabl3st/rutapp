@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +53,7 @@ fun RouteDetailScreen(
                 Icon(Icons.Default.AddLocation, contentDescription = "Añadir parada")
             }
         }
+        snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         when {
             ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -195,7 +197,7 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
                 stop.address?.let { addr ->
                     Text(addr, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        overflow = TextOverflow.Ellipsis)
                 }
             }
             if (!isDone) {

@@ -8,6 +8,7 @@ import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -84,6 +85,19 @@ class StopRepository @Inject constructor(
         val stop = stopDao.getByUid(uid) ?: return
         enqueue("stop", uid, "update", stopToMap(stop))
     }
+
+
+    // ── Mapa global ───────────────────────────────────────────
+
+    /** Todos los stops de las rutas dadas — para mapa global del día */
+    fun observeByRouteUids(routeUids: List<String>): Flow<List<StopEntity>> =
+        if (routeUids.isEmpty()) flowOf(emptyList())
+        else stopDao.observeByRouteUids(routeUids)
+
+    /** Solo los stops con GPS válido — para markers en mapa global */
+    fun observeWithGpsByRouteUids(routeUids: List<String>): Flow<List<StopEntity>> =
+        if (routeUids.isEmpty()) flowOf(emptyList())
+        else stopDao.observeWithGpsByRouteUids(routeUids)
 
     suspend fun getByUid(uid: String): StopEntity? = stopDao.getByUid(uid)
 
