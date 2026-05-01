@@ -2,21 +2,34 @@ package com.pabl3st.rutapp.navigation
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.pabl3st.rutapp.feature.auth.AuthRoot
+import com.pabl3st.rutapp.feature.auth.AuthViewModel
 
 @Composable
 fun RutasNavGraph(navController: NavHostController = rememberNavController()) {
-    NavHost(navController = navController, startDestination = Screen.Home.route) {
+    NavHost(navController = navController, startDestination = Screen.Auth.route) {
+
+        composable(Screen.Auth.route) {
+            AuthRoot(
+                onAuthenticated = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Screen.Home.route)      { PlaceholderScreen("Home · S02") }
-        composable(Screen.Login.route)     { PlaceholderScreen("Login · S01") }
-        composable(Screen.Register.route)  { PlaceholderScreen("Registro · S01") }
         composable(Screen.Rutas.route)     { PlaceholderScreen("Rutas · S03") }
         composable(Screen.Mapa.route)      { PlaceholderScreen("Mapa · S04") }
         composable(Screen.Kpis.route)      { PlaceholderScreen("KPIs · S06") }

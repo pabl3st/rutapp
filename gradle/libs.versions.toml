@@ -12,6 +12,10 @@ composeBom        = "2024.10.00"
 navigationCompose = "2.8.3"
 hilt              = "2.52"
 hiltNav           = "1.2.0"
+retrofit          = "2.11.0"
+okhttp            = "4.12.0"
+moshi             = "1.15.1"
+securityCrypto    = "1.0.0"
 junit             = "4.13.2"
 junitExt          = "1.2.1"
 espresso          = "3.6.1"
@@ -35,6 +39,13 @@ navigation-compose                 = { group = "androidx.navigation",        nam
 hilt-android                       = { group = "com.google.dagger",          name = "hilt-android",                version.ref = "hilt" }
 hilt-android-compiler              = { group = "com.google.dagger",          name = "hilt-android-compiler",       version.ref = "hilt" }
 hilt-navigation-compose            = { group = "androidx.hilt",              name = "hilt-navigation-compose",     version.ref = "hiltNav" }
+retrofit                           = { group = "com.squareup.retrofit2",     name = "retrofit",                    version.ref = "retrofit" }
+retrofit-moshi                     = { group = "com.squareup.retrofit2",     name = "converter-moshi",             version.ref = "retrofit" }
+okhttp                             = { group = "com.squareup.okhttp3",       name = "okhttp",                      version.ref = "okhttp" }
+okhttp-logging                     = { group = "com.squareup.okhttp3",       name = "logging-interceptor",         version.ref = "okhttp" }
+moshi                              = { group = "com.squareup.moshi",         name = "moshi-kotlin",                version.ref = "moshi" }
+moshi-codegen                      = { group = "com.squareup.moshi",         name = "moshi-kotlin-codegen",        version.ref = "moshi" }
+security-crypto                    = { group = "androidx.security",          name = "security-crypto",             version.ref = "securityCrypto" }
 junit                              = { group = "junit",                      name = "junit",                       version.ref = "junit" }
 junit-ext                          = { group = "androidx.test.ext",          name = "junit",                       version.ref = "junitExt" }
 espresso-core                      = { group = "androidx.test.espresso",     name = "espresso-core",               version.ref = "espresso" }
