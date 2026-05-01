@@ -80,12 +80,13 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - API PHP en servidor operativa, BD `cqvkelal_rutasapp_android` creada y migrada
 - Usuarios en BD: `Pablo` (id=1, owner) y `god` (id=2, owner, para testing)
 
-### S02 — EN PROGRESO 🔄
-- Room schema: Route, Stop, Visit, SyncQueue
-- SyncWorker (WorkManager)
-- Endpoints API: batch_sync, delta_sync, routes_list, route_detail
-- HomeScreen con datos reales
+### S02 — COMPLETADO ✅
+- Room: RouteEntity, StopEntity, SyncQueueEntity + DAOs + RutasDatabase
+- SyncWorker (WorkManager + HiltWorker) + SyncRepository
+- Endpoints API: routes_list, delta_sync, batch_sync + migration_v2.sql
+- HomeScreen real con lista de rutas del día + estado sync
 - RouteRepository + SyncRepository offline-first
+- Firebase FCM + Crashlytics + Analytics + RutasMessagingService + FcmTokenRepository
 
 ### S03+ — PENDIENTE
 - S03: RutasScreen + GPS ForegroundService
@@ -252,6 +253,28 @@ Moshi en Kotlin espera `Map<String,Any>` (objeto JSON `{}`).
 
 ---
 
+### ERROR 11: Plugins TOML fuera de su sección
+**Build Firebase** — `Invalid TOML catalog definition: Unexpected type for bundle`
+Al añadir entries al final de `libs.versions.toml` con scripts, pueden acabar
+fuera de `[plugins]` si el script concatena después de `[bundles]`.
+
+```toml
+# ROMPE — si esto queda en [bundles]:
+google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+
+# CORRECTO — siempre dentro de [plugins], antes de [bundles]:
+[plugins]
+...
+google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+
+[bundles]
+...
+```
+Regla: al modificar el TOML con scripts, verificar siempre la posición relativa
+a las secciones `[versions]`, `[libraries]`, `[plugins]`, `[bundles]`.
+
+---
+
 ## Flujo de commit obligatorio — Git Data API
 
 **NUNCA** `PUT /contents/{file}` en bucle (genera N commits, N builds CI).
@@ -291,3 +314,4 @@ Resultado: 1 commit, 1 build CI.
 3. **Revisión del plan** por el usuario antes de escribir código
 4. **Commits atómicos** por tarea lógica
 5. **Verificar CI verde** antes de dar tarea por terminada
+
