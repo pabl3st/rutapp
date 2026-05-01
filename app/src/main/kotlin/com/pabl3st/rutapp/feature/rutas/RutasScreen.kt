@@ -144,7 +144,8 @@ private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 route.notes?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
             Column(horizontalAlignment = Alignment.End) {

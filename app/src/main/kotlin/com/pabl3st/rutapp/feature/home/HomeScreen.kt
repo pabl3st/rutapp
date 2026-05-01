@@ -156,6 +156,7 @@ private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
                         style    = MaterialTheme.typography.bodySmall,
                         color    = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
             }
