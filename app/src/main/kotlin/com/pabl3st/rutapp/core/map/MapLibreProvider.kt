@@ -82,8 +82,7 @@ class MapLibreProvider(private val context: Context) : MapProvider {
 
                         map.uiSettings.apply {
                             isCompassEnabled          = config.layers.showCompass
-                            // MapLibre 11.x usa isZoomButtonsEnabled (no isZoomControlsEnabled)
-                            isZoomButtonsEnabled      = config.layers.showZoomControls
+                            isZoomControlsEnabled     = config.layers.showZoomControls
                             isRotateGesturesEnabled   = config.camera.rotationEnabled
                             isTiltGesturesEnabled     = config.camera.tiltEnabled
                             isScrollGesturesEnabled   = config.camera.scrollEnabled
