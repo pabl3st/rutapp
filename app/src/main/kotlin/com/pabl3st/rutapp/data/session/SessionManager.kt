@@ -3,47 +3,43 @@ package com.pabl3st.rutapp.data.session
 import android.content.Context
 import android.provider.Settings
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Gestiona el token de sesión y datos del usuario autenticado.
- * Almacena el token en EncryptedSharedPreferences (Android Keystore).
- * Todo lo demás (account, prefs) en SharedPreferences normales.
+ * Token en EncryptedSharedPreferences (Android Keystore AES-256).
+ * Datos no sensibles en SharedPreferences normales.
  */
 @Singleton
 class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    // Prefs cifradas — solo para el token
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    // MasterKeys.getOrCreate — API estable en security-crypto 1.1.0
+    private val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
 
     private val securePrefs = EncryptedSharedPreferences.create(
-        context,
         "rutasapp_secure",
-        masterKey,
+        masterKeyAlias,
+        context,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
 
-    // Prefs normales — para datos no sensibles
     private val prefs = context.getSharedPreferences("rutasapp_session", Context.MODE_PRIVATE)
 
     // ── Token ────────────────────────────────────────────────
     var token: String?
         get()      = securePrefs.getString(KEY_TOKEN, null)
         set(value) = securePrefs.edit().apply {
-            if (value != null) putString(KEY_TOKEN, value)
-            else remove(KEY_TOKEN)
+            if (value != null) putString(KEY_TOKEN, value) else remove(KEY_TOKEN)
         }.apply()
 
     val isLoggedIn: Boolean get() = !token.isNullOrEmpty()
 
-    // ── User data ────────────────────────────────────────────
+    // ── User ─────────────────────────────────────────────────
     var userId: Int
         get()      = prefs.getInt(KEY_USER_ID, 0)
         set(value) = prefs.edit().putInt(KEY_USER_ID, value).apply()
@@ -64,7 +60,7 @@ class SessionManager @Inject constructor(
         get()      = prefs.getString(KEY_USER_DISPLAY_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_USER_DISPLAY_NAME, value).apply()
 
-    // ── Account data ─────────────────────────────────────────
+    // ── Account ──────────────────────────────────────────────
     var accountId: Int
         get()      = prefs.getInt(KEY_ACCOUNT_ID, 0)
         set(value) = prefs.edit().putInt(KEY_ACCOUNT_ID, value).apply()
@@ -79,17 +75,18 @@ class SessionManager @Inject constructor(
 
     val isCompany: Boolean get() = accountType == "company"
 
-    // ── Last sync cursor ──────────────────────────────────────
+    // ── Sync cursor ──────────────────────────────────────────
     var lastSyncTimestamp: String
         get()      = prefs.getString(KEY_LAST_SYNC, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LAST_SYNC, value).apply()
 
     // ── Device ID estable ────────────────────────────────────
     val deviceId: String
-        get() = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-            ?: "unknown"
+        get() = Settings.Secure.getString(
+            context.contentResolver, Settings.Secure.ANDROID_ID
+        ) ?: "unknown"
 
-    // ── Save auth response ────────────────────────────────────
+    // ── Save full auth response ───────────────────────────────
     fun saveAuth(
         token: String,
         userId: Int,
@@ -112,7 +109,6 @@ class SessionManager @Inject constructor(
         this.accountName     = accountName
     }
 
-    // ── Logout ───────────────────────────────────────────────
     fun clear() {
         securePrefs.edit().clear().apply()
         prefs.edit().clear().apply()
