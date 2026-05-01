@@ -81,7 +81,7 @@ fun HomeScreen(
             when {
                 ui.isLoading -> LoadingContent()
                 ui.routes.isEmpty() -> EmptyRoutesMessage(Modifier.fillMaxSize())
-                else -> RoutesList(routes = ui.routes)
+                else -> RoutesList(routes = ui.routes, onRouteClick = onRouteClick)
             }
         }
     }
@@ -103,13 +103,13 @@ private fun LoadingContent() {
 }
 
 @Composable
-private fun RoutesList(routes: List<RouteEntity>) {
+private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit) {
     LazyColumn(
         contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(routes, key = { it.uid }) { route ->
-            RouteCard(route = route)
+            RouteCard(route = route, onClick = { onRouteClick(route.uid) })
         }
     }
 }
