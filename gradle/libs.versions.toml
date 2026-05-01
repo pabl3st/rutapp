@@ -74,9 +74,10 @@ kotlin-android      = { id = "org.jetbrains.kotlin.android",        version.ref 
 kotlin-compose      = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt                = { id = "com.google.dagger.hilt.android",      version.ref = "hilt" }
 ksp                 = { id = "com.google.devtools.ksp",             version.ref = "ksp" }
+google-services     = { id = "com.google.gms.google-services",       version = "4.4.2" }
+crashalytics-plugin = { id = "com.google.firebase.crashlytics",      version = "3.0.2" }
 
 [bundles]
 compose  = ["compose-ui", "compose-ui-graphics", "compose-ui-tooling-preview", "compose-material3", "compose-material-icons"]
 lifecycle= ["androidx-lifecycle-runtime-ktx", "androidx-lifecycle-viewmodel", "androidx-lifecycle-runtime-compose"]
-google-services    = { id = "com.google.gms.google-services",            version = "4.4.2" }
-crashalytics-plugin= { id = "com.google.firebase.crashlytics",               version = "3.0.2" }
+
