@@ -19,6 +19,12 @@ securityCrypto    = "1.1.0"
 junit             = "4.13.2"
 junitExt          = "1.2.1"
 espresso          = "3.6.1"
+mockk              = "1.13.12"
+coroutinesTest     = "1.8.1"
+turbine            = "1.1.0"
+truth              = "1.4.4"
+robolectric        = "4.13"
+archCoreTesting    = "2.2.0"
 room           = "2.6.1"
 workManager    = "2.9.1"
 dataStore      = "1.1.1"
@@ -67,6 +73,17 @@ firebase-fcm        = { group = "com.google.firebase", name = "firebase-messagin
 firebase-crashlytics= { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
 firebase-analytics  = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
 
+mockk               = { group = "io.mockk",                          name = "mockk",                        version.ref = "mockk" }
+mockk-android       = { group = "io.mockk",                          name = "mockk-android",                version.ref = "mockk" }
+coroutines-test     = { group = "org.jetbrains.kotlinx",             name = "kotlinx-coroutines-test",      version.ref = "coroutinesTest" }
+turbine             = { group = "app.cash.turbine",                  name = "turbine",                      version.ref = "turbine" }
+truth               = { group = "com.google.truth",                  name = "truth",                        version.ref = "truth" }
+robolectric         = { group = "org.robolectric",                   name = "robolectric",                  version.ref = "robolectric" }
+arch-core-testing   = { group = "androidx.arch.core",                name = "core-testing",                 version.ref = "archCoreTesting" }
+room-testing        = { group = "androidx.room",                     name = "room-testing",                 version.ref = "room" }
+hilt-testing        = { group = "com.google.dagger",                 name = "hilt-android-testing",         version.ref = "hilt" }
+hilt-testing-compiler = { group = "com.google.dagger",               name = "hilt-android-compiler",        version.ref = "hilt" }
+
 [plugins]
 android-application = { id = "com.android.application",             version.ref = "agp" }
 android-library     = { id = "com.android.library",                 version.ref = "agp" }
@@ -80,4 +97,5 @@ crashalytics-plugin = { id = "com.google.firebase.crashlytics",      version = "
 [bundles]
 compose  = ["compose-ui", "compose-ui-graphics", "compose-ui-tooling-preview", "compose-material3", "compose-material-icons"]
 lifecycle= ["androidx-lifecycle-runtime-ktx", "androidx-lifecycle-viewmodel", "androidx-lifecycle-runtime-compose"]
+
 

@@ -46,6 +46,12 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions  { jvmTarget = "17" }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues    = true
+        }
+    }
     buildFeatures  { compose = true; buildConfig = true }
     packaging      { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
@@ -103,12 +109,24 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
-    // Tests
+    // ── Unit Tests ──────────────────────────────────────────
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(libs.truth)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.arch.core.testing)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.hilt.testing)
+    kspTest(libs.hilt.testing.compiler)
+
+    // ── Android Instrumented Tests ───────────────────────────
     androidTestImplementation(libs.junit.ext)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
 
 
