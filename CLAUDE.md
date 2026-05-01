@@ -275,6 +275,76 @@ a las secciones `[versions]`, `[libraries]`, `[plugins]`, `[bundles]`.
 
 ---
 
+### ERROR 12: Composables privados no pueden capturar lambdas del scope exterior
+**Build S03** — `Unresolved reference 'onRouteClick'`
+Una función `@Composable private fun` es un scope cerrado. No puede capturar
+variables o lambdas del composable padre. Toda dependencia debe declararse como parámetro.
+
+```kotlin
+// ROMPE — RouteCard captura onRouteClick del padre sin recibirlo:
+@Composable
+fun HomeScreen(onRouteClick: (String) -> Unit) {
+    RoutesList(routes)
+}
+@Composable
+private fun RoutesList(routes: List<RouteEntity>) {
+    RouteCard(route)           // RouteCard usa onRouteClick — ERROR
+}
+@Composable
+private fun RouteCard(route: RouteEntity) {
+    Card(modifier = Modifier.clickable { onRouteClick(route.uid) })  // FALLA
+}
+
+// CORRECTO — propagar el lambda por toda la cadena:
+@Composable
+fun HomeScreen(onRouteClick: (String) -> Unit) {
+    RoutesList(routes, onRouteClick)
+}
+@Composable
+private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit) {
+    RouteCard(route, onClick = { onRouteClick(route.uid) })
+}
+@Composable
+private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
+    Card(modifier = Modifier.clickable(onClick = onClick))  // OK
+}
+```
+
+Regla: al añadir un lambda a una función, buscar TODOS los composables privados
+que la llaman en la cadena y propagar el parámetro hasta el último que lo use.
+
+---
+
+## Protocolo de diagnóstico ante errores de build
+
+Cuando se recibe un log con errores de compilación o runtime:
+
+**1. Leer TODOS los errores del log, no solo el primero.**
+Un log puede contener N errores. Leer el fichero completo antes de aplicar cualquier fix.
+
+**2. Antes de fixear, auditar el patrón en todos los ficheros afectados.**
+Si el error es "Unresolved reference X en FileA.kt", buscar el mismo patrón en
+FileB.kt, FileC.kt y todos los ficheros modificados en el mismo commit.
+
+**3. Propagar fixes derivados.**
+Si un fix cambia la firma de una función (añade parámetro, cambia tipo), buscar
+TODAS las llamadas a esa función en el proyecto y actualizarlas en el mismo commit.
+No hacer commits parciales que rompan otros ficheros.
+
+**4. Un solo commit con todos los fixes.**
+Nunca subir un fix que resuelve el error reportado pero deja otros errores latentes.
+Verificar con grep/auditoría antes de commitear.
+
+**Checklist de auditoría ante error de compilación:**
+- [ ] Leer log completo (no solo primera línea de error)
+- [ ] Grep del patrón roto en todos los .kt del proyecto
+- [ ] Si se cambia firma de función: grep de todas sus llamadas
+- [ ] Si es error de scope en Composable: auditar toda la cadena padre→hijo
+- [ ] Verificar balance de llaves `{` vs `}` en ficheros modificados
+- [ ] Un commit con TODOS los fixes, no uno por error
+
+---
+
 ## Flujo de commit obligatorio — Git Data API
 
 **NUNCA** `PUT /contents/{file}` en bucle (genera N commits, N builds CI).
@@ -314,4 +384,5 @@ Resultado: 1 commit, 1 build CI.
 3. **Revisión del plan** por el usuario antes de escribir código
 4. **Commits atómicos** por tarea lógica
 5. **Verificar CI verde** antes de dar tarea por terminada
+
 
