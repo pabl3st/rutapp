@@ -11,6 +11,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.pabl3st.rutapp.feature.auth.AuthRoot
@@ -20,101 +21,132 @@ import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
+import com.pabl3st.rutapp.feature.visita.VisitaScreen
 
 @Composable
 fun RutasNavGraph(
     navController: NavHostController = rememberNavController(),
     onExitApp: () -> Unit,
 ) {
-    NavHost(navController = navController, startDestination = Screen.Auth.route) {
+    val backStack by navController.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    val showBottomBar = currentRoute in BOTTOM_BAR_ROUTES
 
-        composable(Screen.Auth.route) {
-            AuthRoot(
-                onAuthenticated = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Auth.route) { inclusive = true }
-                    }
-                },
-                onExitApp = onExitApp,
-            )
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) RutasBottomBar(navController)
         }
+    ) { scaffoldPadding ->
+        NavHost(
+            navController    = navController,
+            startDestination = Screen.Auth.route,
+            modifier         = Modifier.padding(scaffoldPadding),
+        ) {
 
-        composable(Screen.Home.route) {
-            var showExitDialog by remember { mutableStateOf(false) }
-            BackHandler { showExitDialog = true }
-            if (showExitDialog) {
-                ExitAppDialog(onConfirm = onExitApp, onDismiss = { showExitDialog = false })
+            composable(Screen.Auth.route) {
+                AuthRoot(
+                    onAuthenticated = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        }
+                    },
+                    onExitApp = onExitApp,
+                )
             }
-            HomeScreen(
-                onRouteClick       = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
-                onNavigateToRutas  = { navController.navigate(Screen.Rutas.route) },
-                onNavigateToPerfil = { navController.navigate(Screen.Perfil.route) },
-            )
-        }
 
-        composable(Screen.Rutas.route) {
-            RutasScreen(
-                onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
-                onBack       = { navController.popBackStack() },
-            )
-        }
+            composable(Screen.Home.route) {
+                var showExitDialog by remember { mutableStateOf(false) }
+                BackHandler { showExitDialog = true }
+                if (showExitDialog) {
+                    ExitAppDialog(onConfirm = onExitApp, onDismiss = { showExitDialog = false })
+                }
+                HomeScreen(
+                    onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                )
+            }
 
-        composable(
-            route     = Screen.RouteDetail.route,
-            arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
-            RouteDetailScreen(
-                routeUid        = routeUid,
-                onBack          = { navController.popBackStack() },
-                onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
-            )
-        }
+            composable(Screen.Rutas.route) {
+                RutasScreen(
+                    onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                    onBack       = { navController.popBackStack() },
+                )
+            }
 
-        composable(
-            route     = Screen.RouteMap.route,
-            arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
-            RouteMapScreen(
-                routeUid = routeUid,
-                onBack   = { navController.popBackStack() },
-            )
-        }
+            composable(
+                route     = Screen.RouteDetail.route,
+                arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
+                RouteDetailScreen(
+                    routeUid        = routeUid,
+                    onBack          = { navController.popBackStack() },
+                    onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
+                    onStopClick     = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                )
+            }
 
-        composable(Screen.Mapa.route)       { PlaceholderScreen("Mapa · S05") }
-        composable(Screen.Kpis.route)       { PlaceholderScreen("KPIs · S08") }
-        composable(Screen.Calendario.route) { PlaceholderScreen("Calendario · S08") }
-        composable(Screen.Admin.route)      { PlaceholderScreen("Admin · S09") }
+            composable(
+                route     = Screen.RouteMap.route,
+                arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
+                RouteMapScreen(
+                    routeUid = routeUid,
+                    onBack   = { navController.popBackStack() },
+                )
+            }
 
-        composable(Screen.Perfil.route) {
-            PerfilScreen(
-                onLoggedOut = {
-                    navController.navigate(Screen.Auth.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onBack = { navController.popBackStack() },
-            )
+            composable(
+                route     = Screen.Visita.route,
+                arguments = listOf(navArgument("stopUid") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val stopUid = backStackEntry.arguments?.getString("stopUid") ?: return@composable
+                VisitaScreen(
+                    stopUid = stopUid,
+                    onBack  = { navController.popBackStack() },
+                )
+            }
+
+            composable(Screen.Mapa.route)       { PlaceholderScreen("Mapa", "S06") }
+            composable(Screen.Kpis.route)       { PlaceholderScreen("KPIs", "S07") }
+            composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S08") }
+            composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S09") }
+
+            composable(Screen.Perfil.route) {
+                PerfilScreen(
+                    onLoggedOut = {
+                        navController.navigate(Screen.Auth.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
     }
 }
 
 @Composable
-fun PlaceholderScreen(label: String) {
+fun PlaceholderScreen(label: String, sprint: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("RutasApp",
+            Text(
+                label,
                 style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary)
+                color = MaterialTheme.colorScheme.primary,
+            )
             Spacer(Modifier.height(8.dp))
-            Text(label,
+            Text(
+                "Disponible en $sprint",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(12.dp))
-            Text("Build OK",
+            Text(
+                "Build OK",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.tertiary)
+                color = MaterialTheme.colorScheme.tertiary,
+            )
         }
     }
 }

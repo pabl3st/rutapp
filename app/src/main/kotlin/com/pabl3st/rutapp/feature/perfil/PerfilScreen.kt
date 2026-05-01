@@ -123,7 +123,7 @@ fun PerfilScreen(
 
             // ── Versión ───────────────────────────────────────
             Text(
-                text  = "RutasApp S04",
+                text  = "RutasApp S06",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = Spacing.sm),

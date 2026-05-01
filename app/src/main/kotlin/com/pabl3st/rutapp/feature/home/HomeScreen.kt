@@ -21,17 +21,17 @@ import java.util.Locale
 
 @Composable
 fun HomeScreen(
-    onRouteClick: (String) -> Unit      = {},
-    onNavigateToRutas: () -> Unit        = {},
-    onNavigateToPerfil: () -> Unit       = {},
+    onRouteClick: (String) -> Unit = {},
     vm: HomeViewModel = hiltViewModel(),
 ) {
-    val ui    by vm.ui.collectAsStateWithLifecycle()
+    val ui              by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     val today  = LocalDate.now()
         .format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es")))
         .replaceFirstChar { it.uppercase() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Hola, ${ui.userName}") },
@@ -46,9 +46,6 @@ fun HomeScreen(
                         IconButton(onClick = vm::syncNow) {
                             Icon(Icons.Default.Sync, contentDescription = "Sincronizar")
                         }
-                    }
-                    IconButton(onClick = onNavigateToPerfil) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Perfil")
                     }
                 }
             )
@@ -69,17 +66,12 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
-            // ── Fecha del día + "Ver todas" ───────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(today, style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = onNavigateToRutas) {
-                    Text("Ver todas", style = MaterialTheme.typography.labelMedium)
-                }
-            }
+            // ── Fecha del día ─────────────────────────────────
+            Text(
+                text     = today,
+                style    = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
 
             // ── Contenido ─────────────────────────────────────
             when {
@@ -90,10 +82,10 @@ fun HomeScreen(
         }
     }
 
-    // ── Error snackbar ────────────────────────────────────────
-    ui.error?.let { msg ->
-        LaunchedEffect(msg) {
-            // TODO S03: usar SnackbarHostState
+    // ── Error snackbar ──────────────────────────────────────
+    LaunchedEffect(ui.error) {
+        ui.error?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
             vm.clearError()
         }
     }

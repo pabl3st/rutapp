@@ -20,6 +20,7 @@ fun RouteDetailScreen(
     routeUid: String,
     onBack: () -> Unit,
     onNavigateToMap: (String) -> Unit = {},
+    onStopClick: (String) -> Unit = {},
     vm: RouteDetailViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -86,8 +87,9 @@ fun RouteDetailScreen(
             ) {
                 items(ui.stops, key = { it.uid }) { stop ->
                     StopCard(
-                        stop           = stop,
-                        onMarkVisited  = { vm.markStopVisited(stop.uid) },
+                        stop          = stop,
+                        onMarkVisited = { vm.markStopVisited(stop.uid) },
+                        onOpenVisita  = { onStopClick(stop.uid) },
                     )
                 }
             }
@@ -136,7 +138,7 @@ fun RouteDetailScreen(
 }
 
 @Composable
-private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit) {
+private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: () -> Unit = {}) {
     val isDone = stop.status == "done"
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -182,10 +184,17 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit) {
                 }
             }
             if (!isDone) {
+                // Abrir formulario de visita completo
+                IconButton(onClick = onOpenVisita) {
+                    Icon(Icons.Default.Edit,
+                        contentDescription = "Registrar visita",
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+                // Marcar visitado rápido sin abrir formulario
                 IconButton(onClick = onMarkVisited) {
                     Icon(Icons.Default.CheckCircleOutline,
                         contentDescription = "Marcar visitado",
-                        tint = MaterialTheme.colorScheme.primary)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 Icon(Icons.Default.CheckCircle, contentDescription = null,

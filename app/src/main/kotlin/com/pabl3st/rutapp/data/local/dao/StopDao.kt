@@ -27,4 +27,9 @@ interface StopDao {
 
     @Query("UPDATE stops SET status = :status, visitedAt = :at, updatedAt = :updatedAt, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateStatus(uid: String, status: String, at: String?, updatedAt: String)
+
+    @Query("""UPDATE stops SET status = 'done', visitedAt = :at, visitResult = :result,
+        notes = :notes, nextAction = :nextAction, updatedAt = :at, syncStatus = 'pending'
+        WHERE uid = :uid""")
+    suspend fun updateVisitResult(uid: String, result: String, notes: String?, nextAction: String?, at: String)
 }

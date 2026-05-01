@@ -72,6 +72,16 @@ class StopRepository @Inject constructor(
         enqueue("stop", uid, "update", stopToMap(stop))
     }
 
+    suspend fun saveVisitResult(uid: String, result: String, notes: String?, nextAction: String?) {
+        val now = Instant.now().atOffset(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        stopDao.updateVisitResult(uid, result, notes, nextAction, now)
+        val stop = stopDao.getByUid(uid) ?: return
+        enqueue("stop", uid, "update", stopToMap(stop))
+    }
+
+    suspend fun getByUid(uid: String): StopEntity? = stopDao.getByUid(uid)
+
     private fun stopToMap(s: StopEntity): Map<String, Any?> = mapOf(
         "route_uid"    to s.routeUid,
         "name"         to s.name,
