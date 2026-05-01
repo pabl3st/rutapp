@@ -3,8 +3,12 @@ package com.pabl3st.rutapp.feature.rutas
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.maps.model.LatLng
 import com.pabl3st.rutapp.core.location.LocationManager
+import com.pabl3st.rutapp.core.map.MapConfig
+import com.pabl3st.rutapp.core.map.MapLatLng
+import com.pabl3st.rutapp.core.map.MapProvider
+import com.pabl3st.rutapp.core.map.RouteOptions
+import com.pabl3st.rutapp.core.map.StopMapMarker
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
@@ -13,19 +17,14 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class StopWithDistance(
-    val stop: StopEntity,
-    val distanceMeters: Float?,    // null si stop sin coords o sin GPS
-    val distanceLabel: String,     // "120 m" / "2.3 km" / "Sin GPS"
-)
-
 data class RouteMapUiState(
-    val stops: List<StopWithDistance>      = emptyList(),
+    val stops: List<StopMapMarker>         = emptyList(),
     val routeName: String                  = "",
-    val userLocation: LatLng?              = null,
+    val userLocation: MapLatLng?           = null,
     val isLocating: Boolean                = false,
     val locationPermissionGranted: Boolean = false,
     val showPermissionRationale: Boolean   = false,
+    val isOptimizing: Boolean              = false,
     val error: String?                     = null,
 )
 
@@ -35,9 +34,10 @@ class RouteMapViewModel @Inject constructor(
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
     private val locationMgr: LocationManager,
+    val mapProvider: MapProvider,     // expuesto para que Screen lo use directamente
+    val mapConfig: MapConfig,
 ) : ViewModel() {
 
-    // Nombre del navArgument debe coincidir exactamente con Screen.RouteMap.route
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 
     private val _ui = MutableStateFlow(RouteMapUiState())
@@ -60,7 +60,7 @@ class RouteMapViewModel @Inject constructor(
         viewModelScope.launch {
             stopRepo.observeByRoute(routeUid)
                 .catch { e -> _ui.update { it.copy(error = e.message) } }
-                .collect { stops -> recalculateDistances(stops) }
+                .collect { stops -> recalculate(stops) }
         }
     }
 
@@ -78,48 +78,69 @@ class RouteMapViewModel @Inject constructor(
         _ui.update { it.copy(showPermissionRationale = false) }
     }
 
-    // ── Localización ──────────────────────────────────────────
+    // ── GPS ───────────────────────────────────────────────────
     private fun startLocationUpdates() {
         viewModelScope.launch {
             _ui.update { it.copy(isLocating = true) }
-
-            // Posición inmediata desde caché (sin esperar fix GPS)
             locationMgr.getLastLocation()?.let { loc ->
-                val ll = LatLng(loc.latitude, loc.longitude)
+                val ll = MapLatLng(loc.latitude, loc.longitude)
                 _ui.update { it.copy(userLocation = ll, isLocating = false) }
-                recalculateDistances(_ui.value.stops.map { it.stop })
+                recalculate(_ui.value.stops.map { it.toStopEntity() })
             }
-
-            // Actualizaciones continuas mientras el mapa esté abierto
             locationMgr.locationUpdates().collect { loc ->
-                val ll = LatLng(loc.latitude, loc.longitude)
+                val ll = MapLatLng(loc.latitude, loc.longitude)
                 _ui.update { it.copy(userLocation = ll, isLocating = false) }
-                recalculateDistances(_ui.value.stops.map { it.stop })
+                recalculate(_ui.value.stops.map { it.toStopEntity() })
             }
         }
     }
 
-    // ── Distancias ────────────────────────────────────────────
-    private fun recalculateDistances(stops: List<StopEntity>) {
-        val userLoc = _ui.value.userLocation
-        val withDist = stops.map { stop ->
-            val dist = if (userLoc != null && stop.lat != null && stop.lng != null)
-                locationMgr.distanceBetween(userLoc.latitude, userLoc.longitude, stop.lat, stop.lng)
-            else null
+    // ── Ordenar por cercanía (nearest neighbor) ───────────────
+    fun optimizeOrder() {
+        val userLoc = _ui.value.userLocation ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(isOptimizing = true) }
+            val optimized = mapProvider.optimizeStopOrder(
+                origin  = userLoc,
+                stops   = _ui.value.stops,
+                options = mapConfig.route,
+            )
+            _ui.update { it.copy(stops = optimized, isOptimizing = false) }
+        }
+    }
 
-            StopWithDistance(
-                stop           = stop,
-                distanceMeters = dist,
-                distanceLabel  = dist?.let { formatDistance(it) } ?: "Sin GPS",
+    // ── Recalcular distancias y reconstruir markers ───────────
+    private fun recalculate(stops: List<StopEntity>) {
+        val userLoc = _ui.value.userLocation
+        val markers = stops
+            .filter { it.lat != null && it.lng != null || true }
+            .mapIndexed { index, stop ->
+                val dist = if (userLoc != null && stop.lat != null && stop.lng != null)
+                    locationMgr.distanceBetween(userLoc.lat, userLoc.lng, stop.lat, stop.lng)
+                else null
+
+                StopMapMarker(
+                    uid           = stop.uid,
+                    name          = stop.name,
+                    externalId    = stop.externalId,
+                    latLng        = MapLatLng(stop.lat ?: 0.0, stop.lng ?: 0.0),
+                    status        = stop.status,
+                    distanceLabel = dist?.let { formatDistance(it) } ?: "Sin GPS",
+                    orderIndex    = stop.orderIndex,
+                )
+            }
+            .sortedWith(
+                compareBy(
+                    { if (it.status == "done") 1 else 0 },
+                    { stops.find { s -> s.uid == it.uid }?.let { s ->
+                        if (userLoc != null && s.lat != null && s.lng != null)
+                            locationMgr.distanceBetween(userLoc.lat, userLoc.lng, s.lat, s.lng).toDouble()
+                        else Double.MAX_VALUE
+                    } ?: Double.MAX_VALUE }
+                )
             )
-        }.sortedWith(
-            // Pendientes primero ordenados por distancia, después los completados
-            compareBy(
-                { if (it.stop.status == "done") 1 else 0 },
-                { it.distanceMeters ?: Float.MAX_VALUE },
-            )
-        )
-        _ui.update { it.copy(stops = withDist) }
+
+        _ui.update { it.copy(stops = markers) }
     }
 
     private fun formatDistance(meters: Float): String = when {
@@ -129,3 +150,18 @@ class RouteMapViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 }
+
+// Extensión inversa para pasar entidades cuando sea necesario
+private fun StopMapMarker.toStopEntity() = com.pabl3st.rutapp.data.local.entity.StopEntity(
+    uid        = uid,
+    routeUid   = "",   // no necesario para recalcular
+    accountId  = 0,
+    name       = name,
+    externalId = externalId,
+    lat        = latLng.lat,
+    lng        = latLng.lng,
+    status     = status,
+    orderIndex = orderIndex,
+    createdAt  = "",
+    updatedAt  = "",
+)

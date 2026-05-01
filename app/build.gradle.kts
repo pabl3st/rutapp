@@ -98,9 +98,8 @@ dependencies {
     // DataStore — preferencias reactivas
     implementation(libs.datastore)
 
-    // GPS y Mapas
-    implementation(libs.maps.compose)
-    implementation(libs.play.services.maps)
+    // GPS y Mapas — MapLibre OSM (sin key, sin cuenta, offline-capable)
+    implementation(libs.maplibre)
     implementation(libs.play.services.location)
 
     // Firebase — FCM (push) + Crashlytics + Analytics
@@ -134,6 +133,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
 
 
 
