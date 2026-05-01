@@ -424,3 +424,24 @@ map.uiSettings.isZoomGesturesEnabled = true   // pinch, doble tap
 
 Si se necesitan botones +/- visuales, deben implementarse como Composables propios
 sobre el mapa, llamando a `map.animateCamera(CameraUpdateFactory.zoomIn())`.
+
+---
+
+### ERROR 15: Archivos de fuente corruptos en res/font/ → crash "Could not load font"
+**Runtime crash al inicio** — `IllegalStateException: Could not load font`
+Los archivos `dm_sans_medium.ttf`, `dm_sans_semibold.ttf`, `dm_sans_bold.ttf` eran stubs
+con bytes `0a0a0a0a` (newlines), no TTFs reales. Android los carga síncronamente en el
+primer frame de Compose y crashea inmediatamente.
+
+**Diagnóstico:**
+```python
+with open("res/font/archivo.ttf", "rb") as f:
+    magic = f.read(4).hex()
+# TTF válido: 00010000 o 74727565 (true) o 4f54544f (OTF)
+# Corrupto:   0a0a0a0a (newlines/stub) → CRASH
+```
+
+**Fix:** sustituir por el variable font real con eje `wght`.
+DM Sans variable: `https://github.com/google/fonts/raw/main/ofl/dmsans/DMSans%5Bopsz%2Cwght%5D.ttf`
+
+**Regla:** al añadir fuentes al proyecto, verificar siempre los magic bytes antes de commit.

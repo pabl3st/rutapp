@@ -68,7 +68,9 @@ object RutasShapes {
     val lg = 14.dp
 }
 
-// ── Tipografía — DM Sans + JetBrains Mono ────────────────────
+// ── Tipografía — DM Sans (bundled TTF) ───────────────────────
+// Cargadas como recursos estáticos; en dispositivos con API < 29
+// el sistema las carga síncronamente en el primer frame.
 val DmSans = FontFamily(
     Font(R.font.dm_sans,          FontWeight.Normal),
     Font(R.font.dm_sans_medium,   FontWeight.Medium),
@@ -161,7 +163,7 @@ private val AppShapes = Shapes(
 
 @Composable
 fun RutasAppTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
     val colorScheme = if (darkTheme) DarkColors else LightColors
