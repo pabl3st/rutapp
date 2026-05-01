@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +20,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun HomeScreen(vm: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    onRouteClick: (String) -> Unit = {},
+    onNavigateToRutas: () -> Unit  = {},
+    vm: HomeViewModel = hiltViewModel(),
+) {
     val ui    by vm.ui.collectAsStateWithLifecycle()
     val today  = LocalDate.now()
         .format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es")))
@@ -60,12 +65,17 @@ fun HomeScreen(vm: HomeViewModel = hiltViewModel()) {
                     .padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
-            // ── Fecha del día ─────────────────────────────────
-            Text(
-                text     = today,
-                style    = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            // ── Fecha del día + "Ver todas" ───────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(today, style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = onNavigateToRutas) {
+                    Text("Ver todas", style = MaterialTheme.typography.labelMedium)
+                }
+            }
 
             // ── Contenido ─────────────────────────────────────
             when {
@@ -136,7 +146,7 @@ private fun RouteCard(route: RouteEntity) {
         "cancelled" -> MaterialTheme.colorScheme.error
         else        -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth().clickable { onRouteClick(route.uid) }) {
         Row(
             modifier            = Modifier.padding(16.dp),
             verticalAlignment   = Alignment.CenterVertically,

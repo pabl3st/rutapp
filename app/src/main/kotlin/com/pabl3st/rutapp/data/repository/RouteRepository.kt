@@ -38,6 +38,9 @@ class RouteRepository @Inject constructor(
     fun observeAll(): Flow<List<RouteEntity>> =
         routeDao.observeByUser(session.userId)
 
+    suspend fun getByUid(uid: String): RouteEntity? =
+        routeDao.getByUid(uid)
+
     // ── Crear ruta localmente + encolar sync ──────────────────
     suspend fun createRoute(
         name: String,
@@ -112,3 +115,4 @@ fun RouteDto.toEntity(userId: Int, accountId: Int) = RouteEntity(
     syncStatus   = "synced",
     syncedAt     = updatedAt,
 )
+

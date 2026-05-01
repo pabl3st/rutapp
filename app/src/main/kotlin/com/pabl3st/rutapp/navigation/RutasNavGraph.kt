@@ -13,6 +13,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.pabl3st.rutapp.feature.auth.AuthRoot
 import com.pabl3st.rutapp.feature.home.HomeScreen
+import com.pabl3st.rutapp.feature.rutas.RutasScreen
+import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 
 @Composable
@@ -46,12 +50,35 @@ fun RutasNavGraph(
                     onDismiss = { showExitDialog = false },
                 )
             }
-            HomeScreen()
+            HomeScreen(
+                onRouteClick = { uid ->
+                    navController.navigate(Screen.RouteDetail.createRoute(uid))
+                },
+                onNavigateToRutas = {
+                    navController.navigate(Screen.Rutas.route)
+                },
+            )
         }
 
         // ── Resto de pantallas (S02+) ──────────────────────────
         // Estas pantallas tienen navegación normal: atrás = popBackStack
-        composable(Screen.Rutas.route)     { PlaceholderScreen("Rutas · S03") }
+        composable(Screen.Rutas.route) {
+            RutasScreen(
+                onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                onBack       = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route     = Screen.RouteDetail.route,
+            arguments = listOf(navArgument("routeUid") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
+            RouteDetailScreen(
+                routeUid = routeUid,
+                onBack   = { navController.popBackStack() },
+            )
+        }
         composable(Screen.Mapa.route)      { PlaceholderScreen("Mapa · S04") }
         composable(Screen.Kpis.route)      { PlaceholderScreen("KPIs · S06") }
         composable(Screen.Calendario.route){ PlaceholderScreen("Calendario · S07") }
