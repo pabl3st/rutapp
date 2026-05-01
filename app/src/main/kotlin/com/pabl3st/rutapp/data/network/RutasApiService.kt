@@ -9,6 +9,8 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Query
 
+const val API_PATH = "rutasproapk/api.php"
+
 // ── Request bodies ───────────────────────────────────────────
 
 @JsonClass(generateAdapter = true)
@@ -66,10 +68,7 @@ data class LogoutRequest(
 // ── Response models ──────────────────────────────────────────
 
 @JsonClass(generateAdapter = true)
-data class ApiError(
-    val ok: Boolean,
-    val error: String?,
-)
+data class ApiError(val ok: Boolean, val error: String?)
 
 @JsonClass(generateAdapter = true)
 data class AuthResponse(
@@ -129,44 +128,44 @@ data class HealthResponse(
 
 interface RutasApiService {
 
-    @POST(".")
+    @POST(API_PATH)
     suspend fun registerIndividual(
         @Query("action") action: String = "register_individual",
         @Body body: RegisterIndividualRequest,
     ): Response<AuthResponse>
 
-    @POST(".")
+    @POST(API_PATH)
     suspend fun registerCompany(
         @Query("action") action: String = "register_company",
         @Body body: RegisterCompanyRequest,
     ): Response<AuthResponse>
 
-    @POST(".")
+    @POST(API_PATH)
     suspend fun registerWithInvite(
         @Query("action") action: String = "register_with_invite",
         @Body body: RegisterWithInviteRequest,
     ): Response<AuthResponse>
 
-    @POST(".")
+    @POST(API_PATH)
     suspend fun login(
         @Query("action") action: String = "login",
         @Body body: LoginRequest,
     ): Response<AuthResponse>
 
-    @POST(".")
+    @POST(API_PATH)
     suspend fun logout(
         @Query("action") action: String = "logout",
         @Header("X-Auth-Token") token: String,
         @Body body: LogoutRequest = LogoutRequest(),
     ): Response<ApiError>
 
-    @GET(".")
+    @GET(API_PATH)
     suspend fun me(
         @Query("action") action: String = "me",
         @Header("X-Auth-Token") token: String,
     ): Response<MeResponse>
 
-    @GET(".")
+    @GET(API_PATH)
     suspend fun health(
         @Query("action") action: String = "health",
     ): Response<HealthResponse>

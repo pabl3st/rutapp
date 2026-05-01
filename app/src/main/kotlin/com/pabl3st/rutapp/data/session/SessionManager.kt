@@ -1,34 +1,41 @@
 package com.pabl3st.rutapp.data.session
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.provider.Settings
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Gestiona el token de sesión y datos del usuario autenticado.
- * Token en EncryptedSharedPreferences (Android Keystore AES-256).
- * Datos no sensibles en SharedPreferences normales.
- */
 @Singleton
 class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    // MasterKeys.getOrCreate — API estable en security-crypto 1.1.0
-    private val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+    // Lazy — NO se inicializa en el constructor (hilo principal de Hilt)
+    // Se inicializa la primera vez que se accede, desde una coroutine
+    private val securePrefs: SharedPreferences by lazy {
+        try {
+            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            EncryptedSharedPreferences.create(
+                "rutasapp_secure",
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        } catch (e: Exception) {
+            // Fallback: prefs normales si Keystore no disponible (emuladores sin PIN)
+            Log.w("SessionManager", "EncryptedSharedPreferences no disponible, usando fallback: ${e.message}")
+            context.getSharedPreferences("rutasapp_secure_fallback", Context.MODE_PRIVATE)
+        }
+    }
 
-    private val securePrefs = EncryptedSharedPreferences.create(
-        "rutasapp_secure",
-        masterKeyAlias,
-        context,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
-
-    private val prefs = context.getSharedPreferences("rutasapp_session", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences("rutasapp_session", Context.MODE_PRIVATE)
+    }
 
     // ── Token ────────────────────────────────────────────────
     var token: String?
@@ -75,18 +82,15 @@ class SessionManager @Inject constructor(
 
     val isCompany: Boolean get() = accountType == "company"
 
-    // ── Sync cursor ──────────────────────────────────────────
     var lastSyncTimestamp: String
         get()      = prefs.getString(KEY_LAST_SYNC, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LAST_SYNC, value).apply()
 
-    // ── Device ID estable ────────────────────────────────────
     val deviceId: String
         get() = Settings.Secure.getString(
             context.contentResolver, Settings.Secure.ANDROID_ID
         ) ?: "unknown"
 
-    // ── Save full auth response ───────────────────────────────
     fun saveAuth(
         token: String,
         userId: Int,
@@ -110,7 +114,7 @@ class SessionManager @Inject constructor(
     }
 
     fun clear() {
-        securePrefs.edit().clear().apply()
+        try { securePrefs.edit().clear().apply() } catch (_: Exception) {}
         prefs.edit().clear().apply()
     }
 

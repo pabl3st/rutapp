@@ -1,6 +1,5 @@
 package com.pabl3st.rutapp.di
 
-import com.pabl3st.rutapp.BuildConfig
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -19,6 +18,9 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
+    // Base URL debe terminar en "/" — Retrofit lanza IllegalArgumentException si no
+    private const val BASE_URL = "https://mejoresiagratis.com/"
+
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
@@ -29,10 +31,7 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG)
-                HttpLoggingInterceptor.Level.BODY
-            else
-                HttpLoggingInterceptor.Level.NONE
+            level = HttpLoggingInterceptor.Level.BODY
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
@@ -46,7 +45,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
         Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL)
+            .baseUrl(BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
