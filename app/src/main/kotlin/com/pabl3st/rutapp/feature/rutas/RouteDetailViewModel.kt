@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.core.map.MapProvider
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,8 +27,9 @@ data class RouteDetailUiState(
 @HiltViewModel
 class RouteDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val routeRepo: RouteRepository,
-    private val stopRepo:  StopRepository,
+    private val routeRepo:   RouteRepository,
+    private val stopRepo:    StopRepository,
+    private val mapProvider: MapProvider,
 ) : ViewModel() {
 
     // El nombre "routeUid" debe coincidir exactamente con el navArgument en RutasNavGraph
@@ -70,14 +72,21 @@ class RouteDetailViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            stopRepo.createStop(
+            val address = _ui.value.newStopAddress.trim().ifEmpty { null }
+            val stop = stopRepo.createStop(
                 routeUid   = routeUid,
                 name       = name,
                 externalId = _ui.value.newStopExternalId.trim().ifEmpty { null },
-                address    = _ui.value.newStopAddress.trim().ifEmpty { null },
+                address    = address,
                 orderIndex = _ui.value.stops.size,
             )
             _ui.update { it.copy(showAddStopDialog = false, newStopName = "", newStopExternalId = "", newStopAddress = "") }
+            // Geocodificar en background — no bloquea el cierre del diálogo
+            if (!address.isNullOrBlank()) {
+                viewModelScope.launch {
+                    stopRepo.geocodeAddress(stop.uid, address, mapProvider::geocode)
+                }
+            }
         }
     }
 

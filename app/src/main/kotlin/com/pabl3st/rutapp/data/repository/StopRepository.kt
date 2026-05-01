@@ -87,6 +87,20 @@ class StopRepository @Inject constructor(
 
     suspend fun getByUid(uid: String): StopEntity? = stopDao.getByUid(uid)
 
+    /**
+     * Geocodifica la dirección del stop y guarda las coordenadas en Room.
+     * Llamar en background tras createStop si el stop tiene dirección.
+     * No bloquea — si Nominatim falla, el stop queda sin coords (sin crash).
+     */
+    suspend fun geocodeAddress(uid: String, address: String, geocoder: suspend (String) -> com.pabl3st.rutapp.core.map.MapLatLng?) {
+        val coords = geocoder(address) ?: return
+        val now = java.time.Instant.now().atOffset(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        stopDao.updateCoords(uid, coords.lat, coords.lng, now)
+        val stop = stopDao.getByUid(uid) ?: return
+        enqueue("stop", uid, "update", stopToMap(stop))
+    }
+
     private fun stopToMap(s: StopEntity): Map<String, Any?> = mapOf(
         "route_uid"    to s.routeUid,
         "name"         to s.name,

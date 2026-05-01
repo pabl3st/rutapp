@@ -31,6 +31,9 @@ interface StopDao {
     @Query("UPDATE stops SET status = 'visiting', syncStatus = 'pending' WHERE uid = :uid AND status = 'pending'")
     suspend fun markVisiting(uid: String)
 
+    @Query("UPDATE stops SET lat = :lat, lng = :lng, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
+    suspend fun updateCoords(uid: String, lat: Double, lng: Double, at: String)
+
     @Query("""UPDATE stops SET status = 'done', visitedAt = :at, visitResult = :result,
         notes = :notes, nextAction = :nextAction, updatedAt = :at, syncStatus = 'pending'
         WHERE uid = :uid""")
