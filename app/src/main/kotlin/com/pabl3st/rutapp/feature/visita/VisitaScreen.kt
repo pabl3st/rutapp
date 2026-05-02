@@ -175,7 +175,8 @@ fun VisitaScreen(
                         }
                     }
 
-                    Text("Resultado", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Resultado", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         VISIT_RESULTS.forEach { (value, label, icon) ->
                             val selected = ui.selectedResult == value
                             Card(

@@ -107,8 +107,7 @@ class VisitaViewModel @Inject constructor(
                 }
             if (kpiEntities.isNotEmpty()) {
                 kpiValueDao.upsertAll(kpiEntities)
-                // Encolar sync como una operación de tipo kpi_values
-                stopRepo.enqueueKpiValuesSync(stopUid, _ui.value.kpiValues)
+                // syncStatus="pending" por defecto — SyncWorker los recoge automáticamente
             }
 
             _ui.update { it.copy(isSaving = false, saved = true) }

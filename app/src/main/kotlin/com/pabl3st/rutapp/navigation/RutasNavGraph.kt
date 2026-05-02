@@ -84,7 +84,6 @@ fun RutasNavGraph(
                     ExitAppDialog(onConfirm = onExitApp, onDismiss = { showExitDialog = false })
                 }
                 HomeScreen(
-                    onStopClick  = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
