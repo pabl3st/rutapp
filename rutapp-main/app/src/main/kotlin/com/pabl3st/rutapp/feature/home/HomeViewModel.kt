@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.WorkManager
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
+import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.repository.JornadaRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
@@ -17,75 +18,75 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeUiState(
-    val routes: List<RouteEntity> = emptyList(),
-    val isLoading: Boolean        = true,
-    val isSyncing: Boolean        = false,
-    val pendingSync: Int          = 0,
-    val lastSync: String          = "",
-    val userName: String          = "",
-    // ── Resumen del día ─────────────────────────────────
-    val totalStopsToday: Int      = 0,
-    val doneStopsToday: Int       = 0,
-    val distanceKmToday: Double   = 0.0,  // suma de todas las jornadas activas hoy
-    val error: String?            = null,
+    // Ruta del día (1 ruta por día)
+    val route:         RouteEntity?    = null,
+    // Paradas de la ruta — lista principal de la pantalla
+    val stops:         List<StopEntity> = emptyList(),
+    val isLoading:     Boolean          = true,
+    val isSyncing:     Boolean          = false,
+    val pendingSync:   Int              = 0,
+    val lastSync:      String           = "",
+    val userName:      String           = "",
+    // Resumen del día
+    val totalStops:    Int              = 0,
+    val doneStops:     Int              = 0,
+    val distanceKm:    Double           = 0.0,
+    val error:         String?          = null,
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val routeRepo:    RouteRepository,
-    private val stopRepo:     StopRepository,
-    private val jornadaRepo:  JornadaRepository,
-    private val syncRepo:     SyncRepository,
-    private val session:      SessionManager,
-    private val workManager:  WorkManager,
+    private val routeRepo:   RouteRepository,
+    private val stopRepo:    StopRepository,
+    private val jornadaRepo: JornadaRepository,
+    private val syncRepo:    SyncRepository,
+    private val session:     SessionManager,
+    private val workManager: WorkManager,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(
-        HomeUiState(userName = session.userDisplayName)
-    )
+    private val _ui = MutableStateFlow(HomeUiState(userName = session.userDisplayName))
     val ui: StateFlow<HomeUiState> = _ui.asStateFlow()
 
+    private var stopsJob: kotlinx.coroutines.Job? = null
+
     init {
-        observeRoutes()
-        observeDayStats()
+        observeRoute()
         schedulePeriodicSync()
         syncNow()
     }
 
-    private fun observeDayStats() {
-        viewModelScope.launch {
-            // Recalcular stats cada vez que cambian las rutas del día
-            routeRepo.observeToday().collect { routes ->
-                val routeUids = routes.map { it.uid }
-                if (routeUids.isEmpty()) {
-                    _ui.update { it.copy(totalStopsToday = 0, doneStopsToday = 0, distanceKmToday = 0.0) }
-                    return@collect
-                }
-                val stops      = stopRepo.observeByRouteUids(routeUids)
-                // Obtener snapshot actual de stops
-                stops.collect { list ->
-                    val total      = list.size
-                    val done       = list.count { it.status == "done" }
-                    val dateStr    = jornadaRepo.todayStr()
-                    val distanceKm = routeUids.sumOf { uid ->
-                        jornadaRepo.get(uid, dateStr)?.distanceKm ?: 0.0
-                    }
-                    _ui.update { it.copy(
-                        totalStopsToday = total,
-                        doneStopsToday  = done,
-                        distanceKmToday = distanceKm,
-                    )}
-                }
-            }
-        }
-    }
-
-    private fun observeRoutes() {
+    // ── Observa la ruta del día → cuando llega, suscribe sus stops ──
+    private fun observeRoute() {
         viewModelScope.launch {
             routeRepo.observeToday()
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
                 .collect { routes ->
-                    _ui.update { it.copy(routes = routes, isLoading = false) }
+                    val route = routes.firstOrNull()
+                    _ui.update { it.copy(route = route, isLoading = false) }
+                    if (route != null) {
+                        subscribeStops(route.uid)
+                    } else {
+                        stopsJob?.cancel()
+                        _ui.update { it.copy(stops = emptyList(), totalStops = 0, doneStops = 0) }
+                    }
+                }
+        }
+    }
+
+    private fun subscribeStops(routeUid: String) {
+        stopsJob?.cancel()
+        stopsJob = viewModelScope.launch {
+            stopRepo.observeByRoute(routeUid)
+                .catch { e -> _ui.update { it.copy(error = e.message) } }
+                .collect { stops ->
+                    val done       = stops.count { it.status == "done" }
+                    val distanceKm = jornadaRepo.get(routeUid, jornadaRepo.todayStr())?.distanceKm ?: 0.0
+                    _ui.update { it.copy(
+                        stops      = stops,
+                        totalStops = stops.size,
+                        doneStops  = done,
+                        distanceKm = distanceKm,
+                    )}
                 }
         }
     }

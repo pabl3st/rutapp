@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.pabl3st.rutapp.data.local.entity.RouteEntity
+import com.pabl3st.rutapp.data.local.entity.StopEntity
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -27,12 +27,13 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onRouteClick: (String) -> Unit = {},
+    onStopClick:  (stopUid: String)   -> Unit = {},
+    onRouteClick: (routeUid: String)  -> Unit = {},
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val ui              by vm.ui.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val today  = LocalDate.now()
+    val today = LocalDate.now()
         .format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es")))
         .replaceFirstChar { it.uppercase() }
 
@@ -43,10 +44,7 @@ fun HomeScreen(
                 title = { Text("Hola, ${ui.userName}") },
                 actions = {
                     if (ui.isSyncing) {
-                        CircularProgressIndicator(
-                            modifier    = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(Spacing.sm))
                     } else {
                         IconButton(onClick = vm::syncNow) {
@@ -64,43 +62,98 @@ fun HomeScreen(
             state        = pullState,
             modifier     = Modifier.fillMaxSize().padding(padding),
         ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
 
-            // ── Estado de sincronización ──────────────────────
-            SyncStatusBar(
-                pending  = ui.pendingSync,
-                lastSync = ui.lastSync,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg, vertical = 4.dp),
-            )
-
-            // ── Fecha del día ─────────────────────────────────
-            Text(
-                text     = today,
-                style    = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = 4.dp),
-            )
-
-            // ── Barra de jornada — visible cuando hay ruta activa hoy ─
-            if (ui.routes.size == 1) {
-                JornadaBar(
-                    routeUid = ui.routes.first().uid,
-                    modifier = Modifier.padding(horizontal = Spacing.lg, vertical = 4.dp),
+                // ── Sync status ───────────────────────────────
+                SyncStatusBar(
+                    pending  = ui.pendingSync,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
                 )
-            }
 
-            // ── Contenido ─────────────────────────────────────
-            when {
-                ui.isLoading -> LoadingContent()
-                ui.routes.isEmpty() -> EmptyRoutesMessage(Modifier.fillMaxSize())
-                else -> RoutesList(routes = ui.routes, onRouteClick = onRouteClick)
+                // ── Fecha ─────────────────────────────────────
+                Text(
+                    text     = today,
+                    style    = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+                )
+
+                // ── Header ruta del día ───────────────────────
+                ui.route?.let { route ->
+                    RouteHeader(
+                        routeName  = route.name,
+                        routeNotes = route.notes,
+                        status     = route.status,
+                        onClick    = { onRouteClick(route.uid) },
+                        modifier   = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+                    )
+                }
+
+                // ── Jornada timer ─────────────────────────────
+                ui.route?.let { route ->
+                    JornadaBar(
+                        routeUid = route.uid,
+                        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+                    )
+                }
+
+                // ── Barra de progreso del día ─────────────────
+                if (ui.totalStops > 0) {
+                    DaySummaryBar(
+                        done       = ui.doneStops,
+                        total      = ui.totalStops,
+                        distanceKm = ui.distanceKm,
+                        modifier   = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.xs))
+
+                // ── Lista de paradas ──────────────────────────
+                when {
+                    ui.isLoading -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator() }
+
+                    ui.route == null -> EmptyDayMessage(modifier = Modifier.fillMaxSize())
+
+                    ui.stops.isEmpty() -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Place, null,
+                                Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                            )
+                            Spacer(Modifier.height(Spacing.sm))
+                            Text(
+                                "Sin paradas en esta ruta",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    else -> LazyColumn(
+                        contentPadding      = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        items(ui.stops, key = { it.uid }) { stop ->
+                            StopCard(
+                                stop    = stop,
+                                onClick = { onStopClick(stop.uid) },
+                            )
+                        }
+                    }
+                }
             }
-        } // Column
-        } // PullToRefreshBox
+        }
     }
 
-    // ── Error snackbar ──────────────────────────────────────
     LaunchedEffect(ui.error) {
         ui.error?.let { msg ->
             snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
@@ -109,182 +162,183 @@ fun HomeScreen(
     }
 }
 
+// ── Header de la ruta del día ─────────────────────────────────
 @Composable
-private fun LoadingContent() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+private fun RouteHeader(
+    routeName:  String,
+    routeNotes: String?,
+    status:     String,
+    onClick:    () -> Unit,
+    modifier:   Modifier = Modifier,
+) {
+    val (color, icon, label) = when (status) {
+        "active"    -> Triple(MaterialTheme.colorScheme.primary,          Icons.Default.PlayCircle,  "Activa")
+        "done"      -> Triple(MaterialTheme.colorScheme.secondary,        Icons.Default.CheckCircle, "Completada")
+        "cancelled" -> Triple(MaterialTheme.colorScheme.error,            Icons.Default.Cancel,      "Cancelada")
+        else        -> Triple(MaterialTheme.colorScheme.onSurfaceVariant, Icons.Default.Schedule,    "Pendiente")
+    }
+    Row(
+        modifier          = modifier.fillMaxWidth().clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(routeName, style = MaterialTheme.typography.titleSmall,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            routeNotes?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        Icon(icon, null, Modifier.size(14.dp), tint = color)
+        Spacer(Modifier.width(Spacing.xs))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+        Spacer(Modifier.width(Spacing.xs))
+        Icon(Icons.Default.ChevronRight, null, Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
+// ── Card de parada ────────────────────────────────────────────
 @Composable
-private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit) {
-    LazyColumn(
-        contentPadding      = PaddingValues(horizontal = Spacing.lg, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+private fun StopCard(stop: StopEntity, onClick: () -> Unit) {
+    val isDone     = stop.status == "done"
+    val isVisiting = stop.status == "visiting"
+    val hasGps     = stop.lat != null && stop.lat != 0.0
+
+    val (statusColor, statusIcon) = when (stop.status) {
+        "done"     -> MaterialTheme.colorScheme.secondary  to Icons.Default.CheckCircle
+        "visiting" -> MaterialTheme.colorScheme.primary    to Icons.Default.Edit
+        "skipped"  -> MaterialTheme.colorScheme.error      to Icons.Default.Cancel
+        else       -> MaterialTheme.colorScheme.onSurfaceVariant to Icons.Default.RadioButtonUnchecked
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors   = when {
+            isVisiting -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            isDone     -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            else       -> CardDefaults.cardColors()
+        },
+        onClick  = onClick,
     ) {
-        items(routes, key = { it.uid }) { route ->
-            RouteCard(route = route, onClick = { onRouteClick(route.uid) })
+        Row(
+            modifier          = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Número de orden
+            Text(
+                text  = "${stop.orderIndex + 1}",
+                style = MaterialTheme.typography.labelLarge,
+                color = statusColor,
+                modifier = Modifier.width(20.dp),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+
+            // Datos del stop
+            Column(Modifier.weight(1f)) {
+                stop.externalId?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+                Text(
+                    stop.name,
+                    style    = MaterialTheme.typography.titleSmall,
+                    color    = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                               else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                stop.address?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                stop.contactName?.let {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Person, null, Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(Spacing.xs))
+                        Text(it, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Spacer(Modifier.width(Spacing.sm))
+
+            // Estado
+            Icon(statusIcon, contentDescription = stop.status,
+                Modifier.size(20.dp), tint = statusColor)
         }
     }
 }
 
-
+// ── Barra de progreso ─────────────────────────────────────────
 @Composable
 private fun DaySummaryBar(
-    done:       Int,
-    total:      Int,
-    distanceKm: Double,
-    modifier:   Modifier = Modifier,
+    done: Int, total: Int, distanceKm: Double, modifier: Modifier = Modifier,
 ) {
     val progress = if (total > 0) done.toFloat() / total else 0f
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier              = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text  = "$done/$total visitas",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("$done/$total paradas", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (distanceKm > 0.0) {
-                Text(
-                    text  = "%.1f km".format(distanceKm),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("%.1f km".format(distanceKm), style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(Spacing.xs))
         LinearProgressIndicator(
-            progress        = { progress },
-            modifier        = Modifier.fillMaxWidth(),
-            color           = when {
+            progress   = { progress },
+            modifier   = Modifier.fillMaxWidth(),
+            color      = when {
                 progress >= 1f -> MaterialTheme.colorScheme.secondary
                 progress > 0f  -> MaterialTheme.colorScheme.primary
                 else           -> MaterialTheme.colorScheme.onSurfaceVariant
             },
-            trackColor      = MaterialTheme.colorScheme.surfaceVariant,
-            strokeCap       = androidx.compose.ui.graphics.StrokeCap.Round,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            strokeCap  = androidx.compose.ui.graphics.StrokeCap.Round,
         )
     }
 }
 
+// ── Sync status ───────────────────────────────────────────────
 @Composable
-private fun SyncStatusBar(
-    pending: Int,
-    lastSync: String,
-    modifier: Modifier = Modifier,
-) {
+private fun SyncStatusBar(pending: Int, modifier: Modifier = Modifier) {
     val color = if (pending > 0) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            imageVector      = if (pending > 0) Icons.Default.CloudOff else Icons.Default.CloudDone,
-            contentDescription = null,
-            tint             = color,
-            modifier         = Modifier.size(14.dp),
+            if (pending > 0) Icons.Default.CloudOff else Icons.Default.CloudDone,
+            contentDescription = null, tint = color, modifier = Modifier.size(14.dp),
         )
         Spacer(Modifier.width(Spacing.xs))
         Text(
-            text  = if (pending > 0) "$pending cambios pendientes" else "Sincronizado",
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
+            if (pending > 0) "$pending cambios pendientes" else "Sincronizado",
+            style = MaterialTheme.typography.labelSmall, color = color,
         )
     }
 }
 
+// ── Sin ruta asignada ─────────────────────────────────────────
 @Composable
-private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
-    val statusColor = when (route.status) {
-        "active"    -> MaterialTheme.colorScheme.primary
-        "done"      -> MaterialTheme.colorScheme.tertiary
-        "cancelled" -> MaterialTheme.colorScheme.error
-        else        -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(
-            modifier            = Modifier.padding(Spacing.lg),
-            verticalAlignment   = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(route.name, style = MaterialTheme.typography.titleSmall)
-                route.notes?.let { notes ->
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text     = notes,
-                        style    = MaterialTheme.typography.bodySmall,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.width(Spacing.sm))
-            StatusChip(status = route.status)
-        }
-    }
-}
-
-
-@Composable
-private fun StatusChip(status: String) {
-    val (color, icon, label) = when (status) {
-        "active"    -> Triple(
-            MaterialTheme.colorScheme.primary,
-            Icons.Default.PlayCircle,
-            "Activa",
-        )
-        "done"      -> Triple(
-            MaterialTheme.colorScheme.secondary,
-            Icons.Default.CheckCircle,
-            "Completada",
-        )
-        "cancelled" -> Triple(
-            MaterialTheme.colorScheme.error,
-            Icons.Default.Cancel,
-            "Cancelada",
-        )
-        else        -> Triple(
-            MaterialTheme.colorScheme.onSurfaceVariant,
-            Icons.Default.Schedule,
-            "Pendiente",
-        )
-    }
-    SuggestionChip(
-        onClick = {},
-        label   = { Text(label, style = MaterialTheme.typography.labelSmall) },
-        icon    = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
-        colors  = SuggestionChipDefaults.suggestionChipColors(
-            labelColor         = color,
-            iconContentColor   = color,
-        ),
-    )
-}
-@Composable
-private fun EmptyRoutesMessage(modifier: Modifier = Modifier) {
+private fun EmptyDayMessage(modifier: Modifier = Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector        = Icons.Default.Route,
-                contentDescription = null,
-                modifier           = Modifier.size(64.dp),
-                tint               = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-            )
+            Icon(Icons.Default.EventAvailable, null, Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
             Spacer(Modifier.height(Spacing.lg))
-            Text(
-                text  = "Sin rutas para hoy",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("Sin ruta para hoy", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(Spacing.xs))
-            Text(
-                text  = "Toca sincronizar para actualizar",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
+            Text("Toca sincronizar para actualizar", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
         }
     }
 }
-
