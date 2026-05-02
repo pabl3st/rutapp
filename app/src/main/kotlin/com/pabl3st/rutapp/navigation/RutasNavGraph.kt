@@ -23,6 +23,7 @@ import com.pabl3st.rutapp.feature.auth.AuthRoot
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
+import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
@@ -105,6 +106,7 @@ fun RutasNavGraph(
                     onBack          = { navController.popBackStack() },
                     onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
                     onStopClick     = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    onAddStop       = { uid -> navController.navigate(Screen.CrearParada.createRoute(uid)) },
                 )
             }
 
@@ -120,6 +122,20 @@ fun RutasNavGraph(
                 RouteMapScreen(
                     routeUid = routeUid,
                     onBack   = { navController.popBackStack() },
+                )
+            }
+
+            composable(
+                route               = Screen.CrearParada.route,
+                arguments           = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
+            ) {
+                CrearParadaScreen(
+                    onBack  = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
                 )
             }
 

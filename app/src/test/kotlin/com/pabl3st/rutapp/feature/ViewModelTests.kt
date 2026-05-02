@@ -9,11 +9,13 @@ import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.feature.auth.AuthScreen
 import com.pabl3st.rutapp.feature.auth.AuthViewModel
+import com.pabl3st.rutapp.feature.rutas.CrearParadaViewModel
 import com.pabl3st.rutapp.feature.rutas.RouteDetailViewModel
 import com.pabl3st.rutapp.feature.rutas.RutasViewModel
 import com.pabl3st.rutapp.util.FakeSessionManager
 import com.pabl3st.rutapp.util.TestFixtures
 import androidx.lifecycle.SavedStateHandle
+import com.pabl3st.rutapp.core.map.MapProvider
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -51,8 +53,6 @@ class AuthViewModelTest {
 
     private fun createVm() = AuthViewModel(repo, session)
 
-    // ── checkSession ──────────────────────────────────────────
-
     @Test
     fun `sin sesion navega a CHOOSE_TYPE`() = runTest {
         session.setNoAuth()
@@ -79,14 +79,11 @@ class AuthViewModelTest {
         assertThat(vm.ui.value.screen).isEqualTo(AuthScreen.LOGIN)
     }
 
-    // ── login ─────────────────────────────────────────────────
-
     @Test
     fun `login vacio muestra error de validacion`() = runTest {
         session.setNoAuth()
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
-
         vm.login()
         assertThat(vm.ui.value.error).isNotNull()
         coVerify(exactly = 0) { repo.login(any(), any()) }
@@ -97,7 +94,6 @@ class AuthViewModelTest {
         session.setNoAuth()
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
-
         vm.onUsernameChange("god")
         vm.login()
         assertThat(vm.ui.value.error).contains("contraseña")
@@ -109,12 +105,10 @@ class AuthViewModelTest {
         coEvery { repo.login(any(), any()) } returns AuthResult.Success(fakeAuthSuccess())
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
-
         vm.onUsernameChange("god")
         vm.onPasswordChange("God2026!")
         vm.login()
         testDispatcher.scheduler.advanceUntilIdle()
-
         assertThat(vm.ui.value.isAuthenticated).isTrue()
         assertThat(vm.ui.value.isLoading).isFalse()
     }
@@ -125,24 +119,19 @@ class AuthViewModelTest {
         coEvery { repo.login(any(), any()) } returns AuthResult.Error("Credenciales incorrectas")
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
-
         vm.onUsernameChange("god")
         vm.onPasswordChange("wrong")
         vm.login()
         testDispatcher.scheduler.advanceUntilIdle()
-
         assertThat(vm.ui.value.error).isEqualTo("Credenciales incorrectas")
         assertThat(vm.ui.value.isAuthenticated).isFalse()
     }
-
-    // ── handleBack ────────────────────────────────────────────
 
     @Test
     fun `handleBack en CHOOSE_TYPE muestra ExitDialog`() = runTest {
         session.setNoAuth()
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
-
         val handled = vm.handleBack()
         assertThat(handled).isTrue()
         assertThat(vm.ui.value.showExitDialog).isTrue()
@@ -154,7 +143,6 @@ class AuthViewModelTest {
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
         vm.onGoToLogin()
-
         val handled = vm.handleBack()
         assertThat(handled).isTrue()
         assertThat(vm.ui.value.screen).isEqualTo(AuthScreen.CHOOSE_TYPE)
@@ -168,12 +156,9 @@ class AuthViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         vm.onGoToLogin()
         vm.onUsernameChange("god")
-
         vm.handleBack()
         assertThat(vm.ui.value.showDiscardDialog).isTrue()
     }
-
-    // ── validateRegister ──────────────────────────────────────
 
     @Test
     fun `registerIndividual con nombre vacio muestra error`() = runTest {
@@ -181,7 +166,6 @@ class AuthViewModelTest {
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
         vm.onChooseIndividual()
-        // nombre vacío
         vm.onUsernameChange("god")
         vm.onEmailChange("god@test.com")
         vm.onPasswordChange("12345678")
@@ -197,12 +181,10 @@ class AuthViewModelTest {
         vm.onNameChange("God Admin")
         vm.onUsernameChange("god")
         vm.onEmailChange("god@test.com")
-        vm.onPasswordChange("123")   // < 8 chars
+        vm.onPasswordChange("123")
         vm.registerIndividual()
         assertThat(vm.ui.value.error).contains("8")
     }
-
-    // ── logout ────────────────────────────────────────────────
 
     @Test
     fun `logout llama al repo y resetea estado`() = runTest {
@@ -210,16 +192,13 @@ class AuthViewModelTest {
         coEvery { repo.verifySession() } returns AuthResult.Success(fakeAuthSuccess())
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
-
         vm.logout()
         testDispatcher.scheduler.advanceUntilIdle()
-
         coVerify { repo.logout() }
         assertThat(vm.ui.value.screen).isEqualTo(AuthScreen.CHOOSE_TYPE)
         assertThat(vm.ui.value.isAuthenticated).isFalse()
     }
 
-    // ── helpers ───────────────────────────────────────────────
     private fun fakeAuthSuccess() = AuthSuccess(
         token = TestFixtures.TOKEN, userId = TestFixtures.USER_ID,
         userName = "god", userEmail = "god@rutasapp.dev",
@@ -349,29 +328,6 @@ class RouteDetailViewModelTest {
     }
 
     @Test
-    fun `addStop con nombre vacio muestra error`() = runTest {
-        vm = createVm()
-        testDispatcher.scheduler.advanceUntilIdle()
-        vm.onShowAddStopDialog()
-        vm.onNewStopNameChange("")
-        vm.addStop()
-        assertThat(vm.ui.value.error).isNotNull()
-        coVerify(exactly = 0) { stopRepo.createStop(any(), any(), any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `addStop valido llama al repositorio con routeUid correcto`() = runTest {
-        vm = createVm(uid = "route-uid-001")
-        testDispatcher.scheduler.advanceUntilIdle()
-        vm.onShowAddStopDialog()
-        vm.onNewStopNameChange("Nuevo Cliente")
-        vm.addStop()
-        testDispatcher.scheduler.advanceUntilIdle()
-        coVerify { stopRepo.createStop("route-uid-001", "Nuevo Cliente", any(), any(), any(), any(), any()) }
-        assertThat(vm.ui.value.showAddStopDialog).isFalse()
-    }
-
-    @Test
     fun `markStopVisited llama al repositorio`() = runTest {
         vm = createVm()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -381,14 +337,132 @@ class RouteDetailViewModelTest {
     }
 
     @Test
-    fun `onDismissAddStopDialog limpia campos`() = runTest {
+    fun `isLoading false tras cargar ruta`() = runTest {
         vm = createVm()
-        vm.onShowAddStopDialog()
-        vm.onNewStopNameChange("Borrar")
-        vm.onNewStopAddressChange("Calle")
-        vm.onDismissAddStopDialog()
-        assertThat(vm.ui.value.showAddStopDialog).isFalse()
-        assertThat(vm.ui.value.newStopName).isEmpty()
-        assertThat(vm.ui.value.newStopAddress).isEmpty()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(vm.ui.value.isLoading).isFalse()
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+// CrearParadaViewModelTest
+// ════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(JUnit4::class)
+class CrearParadaViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var stopRepo:    StopRepository
+    private lateinit var mapProvider: MapProvider
+    private lateinit var vm:          CrearParadaViewModel
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        stopRepo    = mockk(relaxed = true)
+        mapProvider = mockk(relaxed = true)
+        coEvery { stopRepo.createStop(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            TestFixtures.stopEntity()
+    }
+
+    @After
+    fun tearDown() { Dispatchers.resetMain() }
+
+    private fun createVm(routeUid: String = "route-uid-001") = CrearParadaViewModel(
+        savedStateHandle = SavedStateHandle(mapOf("routeUid" to routeUid)),
+        stopRepo         = stopRepo,
+        mapProvider      = mapProvider,
+    )
+
+    @Test
+    fun `estado inicial limpio`() {
+        vm = createVm()
+        assertThat(vm.ui.value.name).isEmpty()
+        assertThat(vm.ui.value.isSaving).isFalse()
+        assertThat(vm.ui.value.savedUid).isNull()
+        assertThat(vm.ui.value.priority).isEqualTo(3)
+    }
+
+    @Test
+    fun `save con nombre vacio muestra error`() = runTest {
+        vm = createVm()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.save()
+        assertThat(vm.ui.value.error).contains("nombre")
+        coVerify(exactly = 0) { stopRepo.createStop(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `save valido llama al repositorio con routeUid correcto`() = runTest {
+        vm = createVm(routeUid = "route-uid-001")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.onNameChange("Farmacia Central")
+        vm.save()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { stopRepo.createStop("route-uid-001", "Farmacia Central", any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `save valido establece savedUid`() = runTest {
+        vm = createVm()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.onNameChange("Farmacia Central")
+        vm.save()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(vm.ui.value.savedUid).isNotNull()
+        assertThat(vm.ui.value.isSaving).isFalse()
+    }
+
+    @Test
+    fun `onNameChange limpia error previo`() {
+        vm = createVm()
+        vm.save()
+        assertThat(vm.ui.value.error).isNotNull()
+        vm.onNameChange("Algo")
+        assertThat(vm.ui.value.error).isNull()
+    }
+
+    @Test
+    fun `onPriorityChange se limita entre 1 y 5`() {
+        vm = createVm()
+        vm.onPriorityChange(0)
+        assertThat(vm.ui.value.priority).isEqualTo(1)
+        vm.onPriorityChange(6)
+        assertThat(vm.ui.value.priority).isEqualTo(5)
+        vm.onPriorityChange(2)
+        assertThat(vm.ui.value.priority).isEqualTo(2)
+    }
+
+    @Test
+    fun `geocodeAddress no hace nada con direccion vacia`() = runTest {
+        vm = createVm()
+        vm.geocodeAddress()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { mapProvider.geocode(any()) }
+    }
+
+    @Test
+    fun `geocodeAddress con resultado rellena lat y lng`() = runTest {
+        coEvery { mapProvider.geocode(any()) } returns
+            com.pabl3st.rutapp.core.map.MapLatLng(39.4699, -0.3763)
+        vm = createVm()
+        vm.onAddressChange("Calle Colón 12, Valencia")
+        vm.geocodeAddress()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(vm.ui.value.lat).isNotEmpty()
+        assertThat(vm.ui.value.lng).isNotEmpty()
+        assertThat(vm.ui.value.isGeocoding).isFalse()
+    }
+
+    @Test
+    fun `geocodeAddress sin resultado no modifica coords`() = runTest {
+        coEvery { mapProvider.geocode(any()) } returns null
+        vm = createVm()
+        vm.onAddressChange("Dirección inventada xyz")
+        vm.geocodeAddress()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertThat(vm.ui.value.lat).isEmpty()
+        assertThat(vm.ui.value.isGeocoding).isFalse()
     }
 }

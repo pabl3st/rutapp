@@ -18,4 +18,7 @@ sealed class Screen(val route: String) {
     object RouteMap : Screen("map/{routeUid}") {
         fun createRoute(uid: String) = "map/$uid"
     }
+    object CrearParada : Screen("crear-parada/{routeUid}") {
+        fun createRoute(routeUid: String) = "crear-parada/$routeUid"
+    }
 }

@@ -22,10 +22,18 @@ fun RouteDetailScreen(
     onBack: () -> Unit,
     onNavigateToMap: (String) -> Unit = {},
     onStopClick: (String) -> Unit = {},
+    onAddStop: (String) -> Unit = {},
     vm: RouteDetailViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(ui.error) {
+        ui.error?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+            vm.clearError()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -50,7 +58,7 @@ fun RouteDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = vm::onShowAddStopDialog) {
+            FloatingActionButton(onClick = { onAddStop(routeUid) }) {
                 Icon(Icons.Default.AddLocation, contentDescription = "Añadir parada")
             }
         },
@@ -91,46 +99,6 @@ fun RouteDetailScreen(
             }
         }
     }
-
-    // ── Diálogo añadir stop ────────────────────────────────────
-    if (ui.showAddStopDialog) {
-        AlertDialog(
-            onDismissRequest = vm::onDismissAddStopDialog,
-            title = { Text("Nueva parada") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value         = ui.newStopName,
-                        onValueChange = vm::onNewStopNameChange,
-                        label         = { Text("Nombre del cliente / punto") },
-                        singleLine    = true,
-                        modifier      = Modifier.fillMaxWidth(),
-                        isError       = ui.error != null,
-                        supportingText = ui.error?.let { err ->
-                            { Text(err, color = MaterialTheme.colorScheme.error) }
-                        },
-                    )
-                    OutlinedTextField(
-                        value         = ui.newStopExternalId,
-                        onValueChange = vm::onNewStopExternalIdChange,
-                        label         = { Text("Código cliente (opcional)") },
-                        placeholder   = { Text("Ej: LCC00237", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                        singleLine    = true,
-                        modifier      = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value         = ui.newStopAddress,
-                        onValueChange = vm::onNewStopAddressChange,
-                        label         = { Text("Dirección (opcional)") },
-                        singleLine    = true,
-                        modifier      = Modifier.fillMaxWidth(),
-                    )
-                }
-            },
-            confirmButton  = { TextButton(onClick = vm::addStop) { Text("Añadir") } },
-            dismissButton  = { TextButton(onClick = vm::onDismissAddStopDialog) { Text("Cancelar") } },
-        )
-    }
 }
 
 
@@ -162,7 +130,6 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
             modifier          = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Número de orden
             Surface(
                 shape    = MaterialTheme.shapes.small,
                 color    = if (isDone) MaterialTheme.colorScheme.tertiaryContainer
@@ -180,7 +147,6 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                // Mostrar external_id si existe (ej: LCC00237)
                 stop.externalId?.let { extId ->
                     Text(
                         text  = extId,
@@ -202,13 +168,11 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
                 }
             }
             if (!isDone) {
-                // Abrir formulario de visita completo
                 IconButton(onClick = onOpenVisita) {
                     Icon(Icons.Default.Edit,
                         contentDescription = "Registrar visita",
                         tint = MaterialTheme.colorScheme.primary)
                 }
-                // Marcar visitado rápido sin abrir formulario
                 IconButton(onClick = onMarkVisited) {
                     Icon(Icons.Default.CheckCircleOutline,
                         contentDescription = "Marcar visitado",
