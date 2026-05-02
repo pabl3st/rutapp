@@ -103,7 +103,7 @@ fun RouteMapScreen(
                     }
                 }
             )
-        }
+        },
         snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
