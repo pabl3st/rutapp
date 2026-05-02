@@ -102,6 +102,18 @@ dependencies {
     implementation(libs.maplibre)
     implementation(libs.play.services.location)
 
+    // Cámara — captura de fotos en visita (S05)
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+
+    // Imágenes — carga y caché (previews fotos visita)
+    implementation(libs.coil.compose)
+
+    // Permissions — solicitud de permisos con Compose
+    implementation(libs.accompanist.permissions)
+
     // Firebase — FCM (push) + Crashlytics + Analytics
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.fcm)

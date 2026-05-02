@@ -25,6 +25,7 @@ data class RouteMapUiState(
     val locationPermissionGranted: Boolean = false,
     val showPermissionRationale: Boolean   = false,
     val isOptimizing: Boolean              = false,
+    val routePolyline: List<MapLatLng>     = emptyList(),
     val error: String?                     = null,
 )
 
@@ -141,6 +142,23 @@ class RouteMapViewModel @Inject constructor(
             )
 
         _ui.update { it.copy(stops = markers) }
+
+        // Calcular ruta OSRM si hay 2+ stops con GPS
+        val withGps = markers.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
+        if (withGps.size >= 2) {
+            viewModelScope.launch { fetchRoute(withGps) }
+        }
+    }
+
+    private suspend fun fetchRoute(markers: List<StopMapMarker>) {
+        val origin = _ui.value.userLocation ?: markers.first().latLng
+        val destinations = markers.map { it.latLng }
+        val result = runCatching {
+            mapProvider.calculateRoute(origin, destinations, mapConfig.route)
+        }.getOrNull()
+        result?.let { route ->
+            _ui.update { it.copy(routePolyline = route.points) }
+        }
     }
 
     private fun formatDistance(meters: Float): String = when {

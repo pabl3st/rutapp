@@ -102,15 +102,20 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 ### S05 — COMPLETADO ✅
 - VisitaScreen: formulario de visita con resultado, notas, próxima acción
 - VisitaViewModel: actualiza stop en Room + marca para sync
+- Fotos en visita: CameraX captura + Coil preview + permiso CAMERA
+- PhotosSection: LazyRow con add/remove, guarda en MediaStore Pictures/RutasApp
 
 ### S06 — COMPLETADO ✅
 - KpisScreen: estadísticas de visitas, tasa de éxito, tendencia semanal
 - KpisViewModel: cálculos sobre Room local
 
-### S07 — EN PROGRESO 🚧
-- Creador de paradas (CrearParadaScreen) — pendiente
-- Endpoint API stops_create / stops_update — pendiente
-- Routing OSRM en MapLibre — pendiente (TODO en MapLibreProvider)
+### S07 — COMPLETADO ✅
+- CrearParadaScreen: formulario completo (nombre, código, dirección, GPS, contacto, prioridad, notas)
+- CrearParadaViewModel: geocoding vía MapLibre, prioridad 1-5, save() con validación
+- RouteDetailScreen: FAB navega a CrearParada (eliminado AlertDialog básico)
+- Screen.CrearParada + NavGraph registrado con transiciones push
+- OSRM routing: calculateRoute implementado en MapLibreProvider vía router.project-osrm.org
+- RouteMapViewModel: routePolyline en UiState, fetchRoute() tras cargar stops
 
 ### S08 — PENDIENTE ⏳
 - CalendarioScreen (PlaceholderScreen activo en nav)

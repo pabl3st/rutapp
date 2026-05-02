@@ -66,9 +66,9 @@ feature/
 | S02 — Room + Sync | ✅ Completado | Room (Route/Stop/SyncQueue), SyncWorker offline-first, HomeScreen, Firebase FCM |
 | S03 — Rutas + GPS | ✅ Completado | RutasScreen, RouteDetailScreen, RouteMapScreen (MapLibre), GPS |
 | S04 — Mapa global | ✅ Completado | GlobalMapScreen con MapLibre, filtros por estado |
-| S05 — Visitas | ✅ Completado | VisitaScreen, formulario de resultado de visita |
+| S05 — Visitas | ✅ Completado | VisitaScreen, formulario visita, fotos CameraX + Coil |
 | S06 — KPIs | ✅ Completado | KpisScreen con estadísticas y tendencias |
-| S07 — Creador paradas | 🚧 En progreso | CrearParadaScreen + endpoint API stops |
+| S07 — Creador paradas + OSRM | ✅ Completado | CrearParadaScreen, routing OSRM en MapLibreProvider |
 | S08 — Calendario | ⏳ Planificado | Placeholder activo en nav |
 | S09 — Admin | ⏳ Planificado | Placeholder activo en nav |
 | S10 — XLS Import | ⏳ Planificado | — |

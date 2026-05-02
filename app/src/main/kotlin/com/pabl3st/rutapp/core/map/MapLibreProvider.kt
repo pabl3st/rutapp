@@ -226,7 +226,45 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         origin: MapLatLng,
         stops: List<MapLatLng>,
         options: RouteOptions,
-    ): MapRoute? = null   // TODO S07 con OSRM
+    ): MapRoute? = withContext(Dispatchers.IO) {
+        if (stops.isEmpty()) return@withContext null
+        runCatching {
+            // OSRM public API — gratuito, sin API key
+            // Formato: /route/v1/{profile}/{lon,lat};{lon,lat}?overview=full&geometries=geojson
+            val profile = when (options.mode) {
+                RouteMode.WALKING  -> "foot"
+                RouteMode.CYCLING  -> "bike"
+                else               -> "car"
+            }
+            val coords = (listOf(origin) + stops)
+                .joinToString(";") { "${it.lng},${it.lat}" }
+            val url = "https://router.project-osrm.org/route/v1/$profile/$coords" +
+                      "?overview=full&geometries=geojson&steps=false"
+
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.setRequestProperty("User-Agent", "RutasApp Android")
+            conn.connectTimeout = 8_000
+            conn.readTimeout    = 8_000
+
+            val body = conn.inputStream.bufferedReader().readText()
+            val json = org.json.JSONObject(body)
+
+            if (json.optString("code") != "Ok") return@runCatching null
+
+            val route    = json.getJSONArray("routes").getJSONObject(0)
+            val distance = route.getDouble("distance")
+            val duration = route.getDouble("duration").toInt()
+            val geometry = route.getJSONObject("geometry")
+            val coords2  = geometry.getJSONArray("coordinates")
+
+            val points = (0 until coords2.length()).map { i ->
+                val pt = coords2.getJSONArray(i)
+                MapLatLng(pt.getDouble(1), pt.getDouble(0))   // GeoJSON: [lng, lat]
+            }
+
+            MapRoute(points = points, distanceMeters = distance, durationSeconds = duration)
+        }.getOrNull()
+    }
 
     override suspend fun optimizeStopOrder(
         origin: MapLatLng,
