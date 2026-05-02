@@ -19,6 +19,7 @@ data class RutasUiState(
     val showCreateDialog: Boolean = false,
     val newRouteName: String      = "",
     val newRouteDate: String      = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
+    val userRole: String          = "agent",
     val error: String?            = null,
 )
 
@@ -28,7 +29,7 @@ class RutasViewModel @Inject constructor(
     private val session:   SessionManager,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(RutasUiState())
+    private val _ui = MutableStateFlow(RutasUiState(userRole = session.userRole))
     val ui: StateFlow<RutasUiState> = _ui.asStateFlow()
 
     init {

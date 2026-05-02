@@ -61,8 +61,8 @@ fun HomeScreen(
 
             ui.routes.isEmpty() -> EmptyRoutesMessage(Modifier.fillMaxSize().padding(padding))
 
-            // 1 ruta hoy → mostrar JornadaBar + lista de paradas directamente
-            ui.routes.size == 1 -> {
+            // Agent con su ruta del día → JornadaBar + lista de paradas directamente
+            ui.userRole !in setOf("owner","admin","manager") && ui.routes.size == 1 -> {
                 val route = ui.routes.first()
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding),

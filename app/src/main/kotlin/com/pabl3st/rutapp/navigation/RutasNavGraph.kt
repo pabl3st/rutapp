@@ -33,6 +33,9 @@ import com.pabl3st.rutapp.feature.calendario.CalendarioScreen
 import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pabl3st.rutapp.feature.home.HomeViewModel
 
 // ── Transiciones de navegación ───────────────────────────
 private val enterPush   = slideInHorizontally(tween(280)) { it / 4 } + fadeIn(tween(280))
@@ -47,13 +50,21 @@ fun RutasNavGraph(
     navController: NavHostController = rememberNavController(),
     onExitApp: () -> Unit,
 ) {
-    val backStack by navController.currentBackStackEntryAsState()
-    val currentRoute = backStack?.destination?.route
+    val backStack    by navController.currentBackStackEntryAsState()
+    val currentRoute  = backStack?.destination?.route
     val showBottomBar = currentRoute in BOTTOM_BAR_ROUTES
+
+    // Leer rol de sesión — HomeViewModel ya lo tiene inyectado con session
+    val homeVm: com.pabl3st.rutapp.feature.home.HomeViewModel =
+        androidx.hilt.navigation.compose.hiltViewModel()
+    val userRole by homeVm.ui.collectAsStateWithLifecycle()
 
     Scaffold(
         bottomBar = {
-            if (showBottomBar) RutasBottomBar(navController)
+            if (showBottomBar) RutasBottomBar(
+                navController = navController,
+                userRole      = userRole.userRole,
+            )
         }
     ) { scaffoldPadding ->
         NavHost(

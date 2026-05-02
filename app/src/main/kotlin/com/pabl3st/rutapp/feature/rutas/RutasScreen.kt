@@ -53,8 +53,11 @@ fun RutasScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = vm::onShowCreateDialog) {
-                Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+            // Solo managers/admin/owner pueden crear rutas
+            if (ui.userRole in setOf("owner", "admin", "manager")) {
+                FloatingActionButton(onClick = vm::onShowCreateDialog) {
+                    Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

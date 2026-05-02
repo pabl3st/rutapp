@@ -26,13 +26,19 @@ private val NAV_ITEMS = listOf(
 // Rutas donde se muestra la bottom bar
 val BOTTOM_BAR_ROUTES = NAV_ITEMS.map { it.screen.route }.toSet()
 
+private val MANAGER_ROLES = setOf("owner", "admin", "manager")
+
 @Composable
-fun RutasBottomBar(navController: NavHostController) {
+fun RutasBottomBar(navController: NavHostController, userRole: String = "agent") {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
+    // agents no ven el tab Rutas — su flujo es Home → paradas → visita
+    val visibleItems = if (userRole in MANAGER_ROLES) NAV_ITEMS
+                       else NAV_ITEMS.filter { it.screen != Screen.Rutas }
+
     NavigationBar {
-        NAV_ITEMS.forEach { item ->
+        visibleItems.forEach { item ->
             val selected = currentRoute == item.screen.route
             NavigationBarItem(
                 selected     = selected,

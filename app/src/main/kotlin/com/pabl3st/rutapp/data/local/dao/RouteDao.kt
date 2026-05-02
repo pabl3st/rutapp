@@ -10,8 +10,14 @@ interface RouteDao {
     @Query("SELECT * FROM routes WHERE deletedAt IS NULL AND userId = :userId ORDER BY dateAssigned DESC")
     fun observeByUser(userId: Int): Flow<List<RouteEntity>>
 
+    @Query("SELECT * FROM routes WHERE deletedAt IS NULL AND accountId = :accountId ORDER BY dateAssigned DESC, userId ASC")
+    fun observeByAccount(accountId: Int): Flow<List<RouteEntity>>
+
     @Query("SELECT * FROM routes WHERE deletedAt IS NULL AND userId = :userId AND dateAssigned = :date ORDER BY name ASC")
     fun observeByDate(userId: Int, date: String): Flow<List<RouteEntity>>
+
+    @Query("SELECT * FROM routes WHERE deletedAt IS NULL AND accountId = :accountId AND dateAssigned = :date ORDER BY userId ASC, name ASC")
+    fun observeByDateForAccount(accountId: Int, date: String): Flow<List<RouteEntity>>
 
     @Query("SELECT * FROM routes WHERE uid = :uid LIMIT 1")
     suspend fun getByUid(uid: String): RouteEntity?

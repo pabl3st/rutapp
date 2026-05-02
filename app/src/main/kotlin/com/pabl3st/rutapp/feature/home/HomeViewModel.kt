@@ -17,15 +17,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeUiState(
-    val routes:      List<RouteEntity> = emptyList(),
-    val todayStops:  List<StopEntity>  = emptyList(),  // stops de la ruta de hoy (si hay 1)
-    val isLoading:   Boolean           = true,
-    val isSyncing:   Boolean           = false,
-    val pendingSync: Int               = 0,
-    val lastSync:    String            = "",
-    val userName:    String            = "",
-    val error:       String?           = null,
+    val routes:         List<RouteEntity> = emptyList(),
+    val todayStops:     List<StopEntity>  = emptyList(),
+    val isLoading:      Boolean           = true,
+    val isSyncing:      Boolean           = false,
+    val pendingSync:    Int               = 0,
+    val lastSync:       String            = "",
+    val userName:       String            = "",
+    val userRole:       String            = "agent",
+    val error:          String?           = null,
 )
+
+// Roles que gestionan rutas y ven datos de equipo
+private val MANAGER_ROLES = setOf("owner", "admin", "manager")
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -37,7 +41,10 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(
-        HomeUiState(userName = session.userDisplayName)
+        HomeUiState(
+            userName = session.userDisplayName,
+            userRole = session.userRole,
+        )
     )
     val ui: StateFlow<HomeUiState> = _ui.asStateFlow()
 
@@ -48,13 +55,14 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun observeRoutes() {
+        val isAgent = session.userRole !in MANAGER_ROLES
         viewModelScope.launch {
             routeRepo.observeToday()
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
                 .flatMapLatest { routes ->
                     _ui.update { it.copy(routes = routes, isLoading = false) }
-                    // Si hay exactamente 1 ruta hoy, cargar sus stops ordenados
-                    if (routes.size == 1) {
+                    // Solo cargar stops inline si es agent con exactamente 1 ruta
+                    if (isAgent && routes.size == 1) {
                         stopRepo.observeByRoute(routes.first().uid)
                     } else {
                         flowOf(emptyList())

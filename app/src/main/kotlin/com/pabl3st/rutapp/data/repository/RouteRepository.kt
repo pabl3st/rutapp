@@ -32,14 +32,23 @@ class RouteRepository @Inject constructor(
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
-    // ── Observar rutas del día — reactivo desde Room ──────────
+    // ── Roles con visibilidad ampliada ────────────────────────
+    // owner/admin/manager ven todas las rutas del account
+    // agent/viewer solo ven las suyas
+    private val isManager: Boolean
+        get() = session.userRole in listOf("owner", "admin", "manager")
+
     fun observeToday(): Flow<List<RouteEntity>> {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return routeDao.observeByDate(session.userId, today)
+        return if (isManager)
+            routeDao.observeByDateForAccount(session.accountId, today)
+        else
+            routeDao.observeByDate(session.userId, today)
     }
 
     fun observeAll(): Flow<List<RouteEntity>> =
-        routeDao.observeByUser(session.userId)
+        if (isManager) routeDao.observeByAccount(session.accountId)
+        else           routeDao.observeByUser(session.userId)
 
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
