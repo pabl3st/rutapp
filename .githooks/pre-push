@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# pre-push hook — RutasApp
+# Ejecuta compileDebugKotlin + kspDebugKotlin antes de cada push
+# para detectar errores de compilación y Hilt/KSP localmente.
+#
+# Requiere: JDK 17 + Android SDK configurado (ANDROID_HOME)
+# Para instalar: ya está en .git/hooks/pre-push (chmod +x)
+# Para saltar en caso de emergencia: git push --no-verify
+# ─────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║   RutasApp — pre-push build check        ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
+
+# Verificar que existe gradlew
+if [ ! -f "./gradlew" ]; then
+  echo -e "${RED}✗ gradlew no encontrado — ejecuta desde la raíz del proyecto${NC}"
+  exit 1
+fi
+
+# Verificar JDK
+if ! java -version 2>&1 | grep -q "version \"17"; then
+  echo -e "${YELLOW}⚠ JDK 17 no detectado — el CI usa JDK 17 (temurin)${NC}"
+  echo -e "${YELLOW}  Continuando de todas formas...${NC}"
+fi
+
+chmod +x gradlew
+
+echo ""
+echo -e "${CYAN}▶ Paso 1/2 — KSP + Hilt (kspDebugKotlin)...${NC}"
+if ./gradlew kspDebugKotlin --no-daemon --quiet 2>&1; then
+  echo -e "${GREEN}  ✅ KSP/Hilt OK${NC}"
+else
+  echo -e "${RED}  ❌ KSP/Hilt falló — push cancelado${NC}"
+  echo -e "${RED}     Revisa los errores arriba antes de hacer push${NC}"
+  echo -e "${YELLOW}     Para saltar: git push --no-verify${NC}"
+  exit 1
+fi
+
+echo ""
+echo -e "${CYAN}▶ Paso 2/2 — Compilación Kotlin (compileDebugKotlin)...${NC}"
+if ./gradlew compileDebugKotlin --no-daemon --quiet 2>&1; then
+  echo -e "${GREEN}  ✅ Kotlin compile OK${NC}"
+else
+  echo -e "${RED}  ❌ Compilación falló — push cancelado${NC}"
+  echo -e "${RED}     Revisa los errores arriba antes de hacer push${NC}"
+  echo -e "${YELLOW}     Para saltar: git push --no-verify${NC}"
+  exit 1
+fi
+
+echo ""
+echo -e "${GREEN}╔══════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║   ✅ Pre-push OK — enviando a GitHub...  ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
+echo ""
