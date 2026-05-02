@@ -25,6 +25,7 @@ fun RouteDetailScreen(
     vm: RouteDetailViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
         topBar = {
@@ -53,7 +54,7 @@ fun RouteDetailScreen(
                 Icon(Icons.Default.AddLocation, contentDescription = "Añadir parada")
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHost) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         when {
             ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

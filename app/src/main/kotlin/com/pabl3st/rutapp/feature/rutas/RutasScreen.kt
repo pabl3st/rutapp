@@ -30,6 +30,7 @@ fun RutasScreen(
     vm: RutasViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
         topBar = {
@@ -56,7 +57,7 @@ fun RutasScreen(
                 Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHost) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         val pullState = rememberPullToRefreshState()
         PullToRefreshBox(
