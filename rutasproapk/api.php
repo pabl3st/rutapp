@@ -652,11 +652,34 @@ if ($action === 'delta_sync') {
     );
     $stS->execute([$uid, $since]);
 
+    // Jornadas del usuario en el período
+    $stD = db()->prepare(
+        'SELECT route_uid, date_str, state, started_at, elapsed_ms,
+                distance_km, last_lat, last_lng, updated_at
+         FROM day_sessions
+         WHERE user_id=? AND updated_at > ?
+         ORDER BY updated_at ASC LIMIT 200'
+    );
+    $stD->execute([$uid, (int)(strtotime($since) * 1000)]);
+
+    // KPI values de stops actualizados en el período
+    $stK = db()->prepare(
+        'SELECT kv.stop_uid, kv.kpi_id, kv.value_text, kv.updated_at
+         FROM kpi_values kv
+         JOIN stops s ON s.uid = kv.stop_uid
+         JOIN routes r ON r.id = s.route_id
+         WHERE r.user_id=? AND kv.updated_at > ?
+         ORDER BY kv.updated_at ASC LIMIT 1000'
+    );
+    $stK->execute([$uid, $since]);
+
     apiLog($action, $uid, $aid);
     ok([
-        'routes'      => $stR->fetchAll(),
-        'stops'       => $stS->fetchAll(),
-        'server_time' => date('c'),
+        'routes'       => $stR->fetchAll(),
+        'stops'        => $stS->fetchAll(),
+        'day_sessions' => $stD->fetchAll(),
+        'kpi_values'   => $stK->fetchAll(),
+        'server_time'  => date('c'),
     ]);
 }
 
@@ -710,6 +733,74 @@ if ($action === 'batch_sync') {
                             'UPDATE routes SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND user_id=?'
                         )->execute([$clientUid, $uid]);
                         $synced[] = ['uid' => $clientUid, 'entity' => 'route', 'deleted' => true];
+                    }
+
+                } elseif ($entity === 'day_session') {
+                    if ($operation === 'upsert' || $operation === 'create' || $operation === 'update') {
+                        db()->prepare(
+                            'INSERT INTO day_sessions
+                                (account_id, user_id, route_uid, date_str, state,
+                                 started_at, elapsed_ms, distance_km, last_lat, last_lng, updated_at)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                             ON DUPLICATE KEY UPDATE
+                                state=VALUES(state), elapsed_ms=VALUES(elapsed_ms),
+                                distance_km=VALUES(distance_km),
+                                last_lat=VALUES(last_lat), last_lng=VALUES(last_lng),
+                                started_at=COALESCE(started_at, VALUES(started_at)),
+                                updated_at=VALUES(updated_at), synced_at=NOW()'
+                        )->execute([
+                            $aid, $uid,
+                            san($data['routeUid']    ?? '', 36),
+                            san($data['dateStr']     ?? date('Y-m-d'), 10),
+                            san($data['state']       ?? 'idle', 10),
+                            isset($data['startedAt']) ? (int)$data['startedAt'] : null,
+                            (int)($data['elapsedMs']   ?? 0),
+                            (float)($data['distanceKm'] ?? 0),
+                            isset($data['lastLat']) ? (float)$data['lastLat'] : null,
+                            isset($data['lastLng']) ? (float)$data['lastLng'] : null,
+                            (int)($data['updatedAt'] ?? 0),
+                        ]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'day_session'];
+                    }
+
+                } elseif ($entity === 'kpi_values') {
+                    if ($operation === 'upsert' || $operation === 'create' || $operation === 'update') {
+                        $stopUid = san($data['stopUid'] ?? '', 36);
+                        $values  = $data['values'] ?? [];
+                        if ($stopUid && is_array($values)) {
+                            $stmt = db()->prepare(
+                                'INSERT INTO kpi_values (account_id, stop_uid, kpi_id, value_text)
+                                 VALUES (?,?,?,?)
+                                 ON DUPLICATE KEY UPDATE value_text=VALUES(value_text), updated_at=NOW()'
+                            );
+                            foreach ($values as $kpiId => $val) {
+                                $stmt->execute([
+                                    $aid,
+                                    $stopUid,
+                                    san((string)$kpiId, 100),
+                                    san((string)($val ?? ''), 5000),
+                                ]);
+                            }
+                            $synced[] = ['uid' => $clientUid, 'entity' => 'kpi_values'];
+                        } else {
+                            $errors[] = ['uid' => $clientUid, 'entity' => 'kpi_values', 'error' => 'stopUid o values inválidos'];
+                        }
+                    }
+
+                } elseif ($entity === 'business_profile') {
+                    if ($operation === 'upsert' || $operation === 'create' || $operation === 'update') {
+                        db()->prepare(
+                            'INSERT INTO business_profiles (account_id, sector, name, updated_at)
+                             VALUES (?,?,?,?)
+                             ON DUPLICATE KEY UPDATE
+                                sector=VALUES(sector), name=VALUES(name), updated_at=VALUES(updated_at)'
+                        )->execute([
+                            $aid,
+                            san($data['sector'] ?? 'custom', 50),
+                            san($data['name']   ?? 'Mi negocio', 255),
+                            (int)($data['updatedAt'] ?? 0),
+                        ]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'business_profile'];
                     }
 
                 } elseif ($entity === 'stop') {

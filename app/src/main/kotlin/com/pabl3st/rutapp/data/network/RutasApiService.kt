@@ -183,7 +183,9 @@ data class DeltaSyncResponse(
     val ok: Boolean,
     val routes: List<RouteDto>?,
     val stops: List<StopDto>?,
-    @Json(name = "server_time") val serverTime: String?,
+    @Json(name = "day_sessions") val daySessions: List<DaySessionDto>? = null,
+    @Json(name = "kpi_values")   val kpiValues:   List<KpiValueDto>?  = null,
+    @Json(name = "server_time")  val serverTime:  String?,
     val error: String?,
 )
 
@@ -216,6 +218,29 @@ data class BatchSyncResponse(
     val errors: List<BatchSyncResult>?,
     @Json(name = "server_time") val serverTime: String?,
     val error: String?,
+)
+
+// ── S08/S09 DTOs — jornada y KPI values ─────────────────────
+
+@JsonClass(generateAdapter = true)
+data class DaySessionDto(
+    @Json(name = "route_uid")    val routeUid:   String,
+    @Json(name = "date_str")     val dateStr:    String,
+    val state:                                   String,
+    @Json(name = "started_at")   val startedAt:  Long?,
+    @Json(name = "elapsed_ms")   val elapsedMs:  Long,
+    @Json(name = "distance_km")  val distanceKm: Double,
+    @Json(name = "last_lat")     val lastLat:    Double?,
+    @Json(name = "last_lng")     val lastLng:    Double?,
+    @Json(name = "updated_at")   val updatedAt:  Long,
+)
+
+@JsonClass(generateAdapter = true)
+data class KpiValueDto(
+    @Json(name = "stop_uid")    val stopUid:   String,
+    @Json(name = "kpi_id")      val kpiId:     String,
+    @Json(name = "value_text")  val valueText: String?,
+    @Json(name = "updated_at")  val updatedAt: String?,
 )
 
 // ── Retrofit interface ───────────────────────────────────────
