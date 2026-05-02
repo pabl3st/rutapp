@@ -19,8 +19,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import java.time.LocalDate
@@ -63,6 +66,17 @@ fun KpisScreen(
                     active   = ui.activePeriod,
                     onSelect = vm::setPeriod,
                 )
+            }
+
+            // ── Filtro por ruta ───────────────────────────────
+            if (ui.routes.size > 1) {
+                item {
+                    RouteFilterChips(
+                        routes          = ui.routes,
+                        selectedRouteUid = ui.selectedRouteUid,
+                        onSelect        = vm::setRouteFilter,
+                    )
+                }
             }
 
             // ── Métricas principales (2x2 grid) ───────────────
@@ -122,6 +136,18 @@ fun KpisScreen(
                     data     = ui.metrics.weeklyTrend,
                     barColor = MaterialTheme.colorScheme.primary,
                 )
+            }
+
+            // ── Tendencia 6 meses ─────────────────────────────
+            if (ui.activePeriod == KpiPeriod.SIX_MONTHS || ui.activePeriod == KpiPeriod.MONTH) {
+                item {
+                    SectionTitle("Tendencia mensual (6 meses)")
+                    Spacer(Modifier.height(Spacing.sm))
+                    WeeklyTrendChart(
+                        data     = ui.metrics.monthlyTrend,
+                        barColor = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
             }
 
             // ── Resultados de visita ───────────────────────────
@@ -211,6 +237,15 @@ fun KpisScreen(
                 }
             }
 
+            // ── KPIs del sector activo ────────────────────────
+            if (ui.sectorKpis.isNotEmpty()) {
+                item {
+                    SectionTitle("KPIs del sector")
+                    Spacer(Modifier.height(Spacing.sm))
+                    SectorKpisGrid(sectorKpis = ui.sectorKpis)
+                }
+            }
+
             // Padding inferior
             item { Spacer(Modifier.height(Spacing.xl)) }
         }
@@ -224,9 +259,10 @@ private fun PeriodSelector(
     onSelect: (KpiPeriod) -> Unit,
 ) {
     val periods = listOf(
-        KpiPeriod.TODAY to "Hoy",
-        KpiPeriod.WEEK  to "7 días",
-        KpiPeriod.MONTH to "30 días",
+        KpiPeriod.TODAY      to "Hoy",
+        KpiPeriod.WEEK       to "7 días",
+        KpiPeriod.MONTH      to "30 días",
+        KpiPeriod.SIX_MONTHS to "6 meses",
     )
     Row(
         modifier              = Modifier.fillMaxWidth(),
@@ -391,6 +427,56 @@ private fun VisitResultBreakdown(metrics: KpiMetrics) {
     }
 }
 
+
+@Composable
+private fun SectorKpisGrid(
+    sectorKpis: List<Triple<KpiDefinitionEntity, String, Boolean>>,
+) {
+    val rows = sectorKpis.chunked(2)
+    Card(colors = CardDefaults.cardColors()) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            rows.forEachIndexed { rowIdx, row ->
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    row.forEach { (def, value, isNumeric) ->
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            colors   = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                        ) {
+                            Column(
+                                modifier            = Modifier.padding(Spacing.md),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    text      = value,
+                                    style     = MaterialTheme.typography.headlineSmall,
+                                    color     = if (isNumeric) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.secondary,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Text(
+                                    text      = def.label,
+                                    style     = MaterialTheme.typography.labelSmall,
+                                    color     = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    maxLines  = 2,
+                                    overflow  = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+                if (rowIdx < rows.size - 1) Spacer(Modifier.height(Spacing.sm))
+            }
+        }
+    }
+}
+
 // ── Título de sección ─────────────────────────────────────────
 @Composable
 private fun SectionTitle(text: String) {
@@ -399,4 +485,39 @@ private fun SectionTitle(text: String) {
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
     )
+}
+
+// ── Filtro por ruta ───────────────────────────────────────────
+@Composable
+private fun RouteFilterChips(
+    routes: List<com.pabl3st.rutapp.data.local.entity.RouteEntity>,
+    selectedRouteUid: String?,
+    onSelect: (String?) -> Unit,
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        item {
+            FilterChip(
+                selected = selectedRouteUid == null,
+                onClick  = { onSelect(null) },
+                label    = { Text("Todas", style = MaterialTheme.typography.labelSmall) },
+            )
+        }
+        items(routes) { route ->
+            FilterChip(
+                selected = selectedRouteUid == route.uid,
+                onClick  = { onSelect(if (selectedRouteUid == route.uid) null else route.uid) },
+                label    = {
+                    Text(
+                        route.name,
+                        style   = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 100.dp),
+                    )
+                },
+            )
+        }
+    }
 }

@@ -25,6 +25,8 @@ fun PerfilScreen(
     onLoggedOut: () -> Unit,
     onBack: () -> Unit,
     onNavigateToBusinessProfile: () -> Unit = {},
+    onNavigateToCalendario: () -> Unit = {},
+    onNavigateToAdmin: () -> Unit = {},
     vm: PerfilViewModel = hiltViewModel(),
     themeVm: ThemeViewModel = hiltViewModel(),
 ) {
@@ -103,11 +105,27 @@ fun PerfilScreen(
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 InfoRowAction(
-                    icon    = Icons.Default.Notifications,
-                    label   = "Notificaciones",
-                    detail  = "Activadas",
+                    icon    = Icons.Default.BusinessCenter,
+                    label   = "Perfil de negocio",
+                    detail  = "KPIs y sector",
                     onClick = { onNavigateToBusinessProfile() },
                 )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                InfoRowAction(
+                    icon    = Icons.Default.CalendarMonth,
+                    label   = "Calendario",
+                    detail  = "Planificación mensual",
+                    onClick = { onNavigateToCalendario() },
+                )
+                if (ui.userRole in listOf("owner", "admin")) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    InfoRowAction(
+                        icon    = Icons.Default.AdminPanelSettings,
+                        label   = "Admin",
+                        detail  = "Gestión de cuenta",
+                        onClick = { onNavigateToAdmin() },
+                    )
+                }
             }
 
             // ── Sesión ────────────────────────────────────────

@@ -6,6 +6,7 @@ import com.pabl3st.rutapp.core.location.LocationManager
 import com.pabl3st.rutapp.core.map.MapConfig
 import com.pabl3st.rutapp.core.map.MapLatLng
 import com.pabl3st.rutapp.core.map.MapProvider
+import com.pabl3st.rutapp.core.map.RouteOptions
 import com.pabl3st.rutapp.core.map.StopMapMarker
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
@@ -38,11 +39,13 @@ enum class MapStatusFilter {
 data class GlobalMapUiState(
 
     // Datos en bruto
-    val routes:   List<RouteEntity>      = emptyList(),
-    val allStops: List<StopMapMarker>    = emptyList(),
+    val routes:         List<RouteEntity>      = emptyList(),
+    val allStops:       List<StopMapMarker>    = emptyList(),
+    val stopRouteIndex: Map<String, String>    = emptyMap(), // stopUid -> routeUid
 
     // Vista filtrada — lo que renderiza el mapa y la lista
     val visibleStops: List<StopMapMarker> = emptyList(),
+    val routePolyline: List<MapLatLng>   = emptyList(),
 
     // Estadísticas del día
     val statTotal:   Int = 0,
@@ -118,18 +121,32 @@ class GlobalMapViewModel @Inject constructor(
     private fun processStops(stops: List<StopEntity>) {
         val userLoc   = _ui.value.userLocation
         val markers   = stops.map { it.toMarker(userLoc) }
-        val filtered  = applyFilters(markers)
+        val index     = stops.associate { it.uid to it.routeUid }
+        val filtered  = applyFilters(markers, stopRouteIndex = index)
 
         _ui.update { s ->
             s.copy(
-                allStops     = markers,
-                visibleStops = filtered,
+                allStops        = markers,
+                stopRouteIndex  = index,
+                visibleStops    = filtered,
                 statTotal    = markers.size,
                 statDone     = markers.count { it.status == "done" },
                 statPending  = markers.count { it.status == "pending" || it.status == "visiting" },
                 statNoGps    = stops.count { it.lat == null || it.lat == 0.0 },
                 isLoading    = false,
             )
+        }
+        val withGps = markers.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
+        if (withGps.size >= 2) viewModelScope.launch { fetchRoutePolyline(withGps) }
+    }
+
+    private suspend fun fetchRoutePolyline(markers: List<StopMapMarker>) {
+        val origin = _ui.value.userLocation ?: markers.first().latLng
+        val result = runCatching {
+            mapProvider.calculateRoute(origin, markers.map { it.latLng }, mapConfig.route)
+        }.getOrNull()
+        result?.let { route ->
+            _ui.update { it.copy(routePolyline = route.points) }
         }
     }
 
@@ -153,19 +170,21 @@ class GlobalMapViewModel @Inject constructor(
 
     // ── Aplicar filtros de ruta + estado ──────────────────────
     private fun applyFilters(
-        stops: List<StopMapMarker>,
-        statusFilter: MapStatusFilter = _ui.value.activeStatusFilter,
-        routeUid: String?             = _ui.value.selectedRouteUid,
+        stops:          List<StopMapMarker>,
+        statusFilter:   MapStatusFilter        = _ui.value.activeStatusFilter,
+        routeUid:       String?                = _ui.value.selectedRouteUid,
+        stopRouteIndex: Map<String, String>    = _ui.value.stopRouteIndex,
     ): List<StopMapMarker> {
-        // Primero filtrar por ruta
-        // Para esto necesitamos saber a qué ruta pertenece cada stop.
-        // Lo pasamos a través del routeUid en un índice auxiliar construido desde allStops.
-        // Por ahora el filtro de ruta se aplica en la vista (lista); el mapa muestra todos.
+        // Filtrar por ruta usando el índice uid→routeUid
+        val byRoute = if (routeUid != null)
+            stops.filter { stopRouteIndex[it.uid] == routeUid }
+        else stops
+
         val byStatus = when (statusFilter) {
-            MapStatusFilter.ALL     -> stops
-            MapStatusFilter.PENDING -> stops.filter { it.status == "pending" || it.status == "visiting" }
-            MapStatusFilter.DONE    -> stops.filter { it.status == "done" }
-            MapStatusFilter.NO_GPS  -> stops.filter { it.latLng.lat == 0.0 || it.latLng.lng == 0.0 }
+            MapStatusFilter.ALL     -> byRoute
+            MapStatusFilter.PENDING -> byRoute.filter { it.status == "pending" || it.status == "visiting" }
+            MapStatusFilter.DONE    -> byRoute.filter { it.status == "done" }
+            MapStatusFilter.NO_GPS  -> byRoute.filter { it.latLng.lat == 0.0 || it.latLng.lng == 0.0 }
         }
         return byStatus.sortedWith(
             compareBy(
@@ -183,10 +202,8 @@ class GlobalMapViewModel @Inject constructor(
     }
 
     fun setRouteFilter(routeUid: String?) {
-        _ui.update { it.copy(selectedRouteUid = routeUid) }
-        // Re-aplicar filtro de estado sobre la selección de ruta
         val visible = applyFilters(_ui.value.allStops, _ui.value.activeStatusFilter, routeUid)
-        _ui.update { it.copy(visibleStops = visible) }
+        _ui.update { it.copy(selectedRouteUid = routeUid, visibleStops = visible) }
     }
 
     // ── GPS ───────────────────────────────────────────────────
@@ -221,33 +238,18 @@ class GlobalMapViewModel @Inject constructor(
 
     private fun onNewLocation(loc: MapLatLng) {
         _ui.update { it.copy(userLocation = loc, isLocating = false) }
-        // Recalcular distancias en todos los markers actuales
-        processStops(
-            _ui.value.allStops.map { marker ->
-                // Necesitamos la StopEntity — usamos la info que ya está en el marker
-                // para reconstruir la distancia sin nuevo acceso a DB
-                val hasGps = marker.latLng.lat != 0.0 && marker.latLng.lng != 0.0
-                val dist   = if (hasGps) locationMgr.distanceBetween(
-                    loc.lat, loc.lng, marker.latLng.lat, marker.latLng.lng
-                ) else null
-                marker.copy(distanceLabel = dist?.formatAsDistance() ?: marker.distanceLabel)
-            }.map { marker ->
-                // Convertir de vuelta a una StopEntity minimal para reusar processStops
-                StopEntity(
-                    uid        = marker.uid,
-                    routeUid   = "",           // no necesario para el recálculo
-                    accountId  = 0,
-                    name       = marker.name,
-                    externalId = marker.externalId,
-                    lat        = if (marker.latLng.lat != 0.0) marker.latLng.lat else null,
-                    lng        = if (marker.latLng.lng != 0.0) marker.latLng.lng else null,
-                    status     = marker.status,
-                    orderIndex = marker.orderIndex,
-                    createdAt  = "",
-                    updatedAt  = "",
-                )
-            }
-        )
+        // Recalcular distancias directamente sobre los markers existentes
+        // sin acceder a la BD — solo actualiza distanceLabel con la nueva posición
+        val updated = _ui.value.allStops.map { marker ->
+            val hasGps = marker.latLng.lat != 0.0 && marker.latLng.lng != 0.0
+            val label  = if (hasGps)
+                locationMgr.distanceBetween(loc.lat, loc.lng, marker.latLng.lat, marker.latLng.lng)
+                    .formatAsDistance()
+            else "Sin GPS"
+            marker.copy(distanceLabel = label)
+        }
+        val filtered = applyFilters(updated)
+        _ui.update { it.copy(allStops = updated, visibleStops = filtered) }
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }

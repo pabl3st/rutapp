@@ -39,9 +39,12 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -60,9 +63,16 @@ fun VisitaScreen(
     onBack: () -> Unit,
     vm: VisitaViewModel = hiltViewModel(),
 ) {
-    val ui by vm.ui.collectAsStateWithLifecycle()
+    val ui            by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHost   = remember { SnackbarHostState() }
 
     LaunchedEffect(ui.saved) { if (ui.saved) onBack() }
+    LaunchedEffect(ui.error) {
+        ui.error?.let { msg ->
+            snackbarHost.showSnackbar(msg, duration = SnackbarDuration.Short)
+            vm.clearError()
+        }
+    }
 
     if (ui.showCamera) {
         CameraScreen(onPhotoTaken = vm::onPhotoTaken, onDismiss = vm::onHideCamera)
@@ -70,6 +80,7 @@ fun VisitaScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text(ui.stop?.name ?: "Visita") },
@@ -129,8 +140,42 @@ fun VisitaScreen(
                         }
                     }
 
-                    Text("Resultado", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // ── Estado PDV ─────────────────────────────────
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors   = CardDefaults.cardColors(
+                            containerColor = if (ui.storeOpen)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.errorContainer,
+                        ),
+                    ) {
+                        Row(
+                            modifier          = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = if (ui.storeOpen) Icons.Default.Store else Icons.Default.StoreMallDirectory,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = if (ui.storeOpen) MaterialTheme.colorScheme.onPrimaryContainer
+                                       else MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text  = if (ui.storeOpen) "PDV abierto" else "PDV cerrado",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (ui.storeOpen) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Switch(
+                                checked         = ui.storeOpen,
+                                onCheckedChange = vm::onStoreOpenChange,
+                            )
+                        }
+                    }
+
+                    Text("Resultado", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         VISIT_RESULTS.forEach { (value, label, icon) ->
                             val selected = ui.selectedResult == value
                             Card(
@@ -152,7 +197,21 @@ fun VisitaScreen(
                     Text("Fotos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     PhotosSection(photos = ui.photos, onAddPhoto = vm::onShowCamera, onRemovePhoto = vm::onRemovePhoto)
 
-                    OutlinedTextField(value = ui.notes, onValueChange = vm::onNotesChange, label = { Text("Notas de la visita") }, placeholder = { Text("Observaciones, incidencias...") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6)
+
+                    // ── KPIs dinámicos del sector ─────────────────────
+                    if (ui.kpiFields.isNotEmpty()) {
+                        Text("Datos de visita", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary)
+                        ui.kpiFields.forEach { kpi ->
+                            KpiField(
+                                kpi      = kpi,
+                                value    = ui.kpiValues[kpi.id] ?: "",
+                                onChange = { vm.onKpiValueChange(kpi.id, it) },
+                            )
+                        }
+                    }
+
+                                        OutlinedTextField(value = ui.notes, onValueChange = vm::onNotesChange, label = { Text("Notas de la visita") }, placeholder = { Text("Observaciones, incidencias...") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6)
 
                     OutlinedTextField(value = ui.nextAction, onValueChange = vm::onNextActionChange, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.Default.NextPlan, null, Modifier.size(18.dp)) })
 
@@ -257,5 +316,73 @@ private fun CameraScreen(onPhotoTaken: (Uri) -> Unit, onDismiss: () -> Unit) {
                 Spacer(Modifier.size(32.dp))
             }
         }
+    }
+}
+
+// ── Campo de KPI dinámico ─────────────────────────────────────
+// Renderiza el input correcto según el tipo del KPI:
+// number → teclado numérico decimal
+// boolean → Switch
+// select → LazyRow de FilterChips con las opciones
+// text → campo de texto libre
+@Composable
+private fun KpiField(
+    kpi:      KpiDefinitionEntity,
+    value:    String,
+    onChange: (String) -> Unit,
+) {
+    val label = if (kpi.required) "${kpi.label} *" else kpi.label
+    when (kpi.type) {
+        "boolean" -> Row(
+            modifier          = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Switch(
+                checked         = value == "true",
+                onCheckedChange = { onChange(if (it) "true" else "false") },
+            )
+        }
+        "select" -> {
+            val options = runCatching {
+                kpi.options
+                    ?.trim('[', ']')
+                    ?.split(",")
+                    ?.map { it.trim().trim('"') }
+                    ?: emptyList()
+            }.getOrDefault(emptyList())
+            Column {
+                Text(label, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(options) { opt ->
+                        FilterChip(
+                            selected = value == opt,
+                            onClick  = { onChange(opt) },
+                            label    = { Text(opt, style = MaterialTheme.typography.labelSmall) },
+                        )
+                    }
+                }
+            }
+        }
+        "number" -> OutlinedTextField(
+            value           = value,
+            onValueChange   = onChange,
+            label           = { Text(label) },
+            modifier        = Modifier.fillMaxWidth(),
+            singleLine      = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            suffix          = kpi.unit?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
+        )
+        else -> OutlinedTextField(
+            value         = value,
+            onValueChange = onChange,
+            label         = { Text(label) },
+            modifier      = Modifier.fillMaxWidth(),
+            singleLine    = true,
+        )
     }
 }

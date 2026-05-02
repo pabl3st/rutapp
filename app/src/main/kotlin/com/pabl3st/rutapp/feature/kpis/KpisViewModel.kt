@@ -2,8 +2,12 @@ package com.pabl3st.rutapp.feature.kpis
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
+import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
+import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,7 +22,7 @@ import javax.inject.Inject
 // ─────────────────────────────────────────────────────────────
 // Período de tiempo para las métricas
 // ─────────────────────────────────────────────────────────────
-enum class KpiPeriod { TODAY, WEEK, MONTH }
+enum class KpiPeriod { TODAY, WEEK, MONTH, SIX_MONTHS }
 
 // ─────────────────────────────────────────────────────────────
 // Métricas calculadas para el período activo
@@ -53,16 +57,27 @@ data class KpiMetrics(
 
     // Tendencia (7 días) — lista de (fecha, nStops) para mini-chart
     val weeklyTrend: List<Pair<String, Int>> = emptyList(),
+
+    // Tendencia mensual (6 meses) — lista de (mesLabel, nStops)
+    val monthlyTrend: List<Pair<String, Int>> = emptyList(),
+
+    // KPIs del sector — lista de (KpiDefinition, totalValue, unitLabel)
+    // totalValue suma todos los valores numéricos del período para ese KPI
+    val sectorKpis: List<Triple<KpiDefinitionEntity, String, Boolean>> = emptyList(),
+    // Triple: (definition, displayValue, isNumeric)
 )
 
 // ─────────────────────────────────────────────────────────────
 // UiState completo de KPIs
 // ─────────────────────────────────────────────────────────────
 data class KpisUiState(
-    val metrics:      KpiMetrics = KpiMetrics(),
-    val activePeriod: KpiPeriod  = KpiPeriod.TODAY,
-    val isLoading:    Boolean    = true,
-    val error:        String?    = null,
+    val metrics:         KpiMetrics = KpiMetrics(),
+    val activePeriod:    KpiPeriod  = KpiPeriod.TODAY,
+    val routes:          List<RouteEntity> = emptyList(),
+    val selectedRouteUid: String?   = null,
+    val sectorKpis:      List<Triple<KpiDefinitionEntity, String, Boolean>> = emptyList(),
+    val isLoading:       Boolean    = true,
+    val error:           String?    = null,
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -70,8 +85,10 @@ data class KpisUiState(
 // ─────────────────────────────────────────────────────────────
 @HiltViewModel
 class KpisViewModel @Inject constructor(
-    private val routeRepo: RouteRepository,
-    private val stopRepo:  StopRepository,
+    private val routeRepo:    RouteRepository,
+    private val stopRepo:     StopRepository,
+    private val kpiValueDao:  KpiValueDao,
+    private val profileRepo:  BusinessProfileRepository,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(KpisUiState())
@@ -114,31 +131,51 @@ class KpisViewModel @Inject constructor(
         recalculate(period)
     }
 
+    fun setRouteFilter(routeUid: String?) {
+        _ui.update { it.copy(selectedRouteUid = routeUid) }
+        recalculate(_ui.value.activePeriod)
+    }
+
     private fun recalculate(period: KpiPeriod) {
         val today = java.time.LocalDate.now()
         val fmt   = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
 
-        // Filtrar rutas por período
         val filteredRoutes = allRoutes.filter { route ->
             val d = runCatching { java.time.LocalDate.parse(route.dateAssigned, fmt) }.getOrNull()
                 ?: return@filter false
-            when (period) {
-                KpiPeriod.TODAY -> d == today
-                KpiPeriod.WEEK  -> d >= today.minusDays(6) && d <= today
-                KpiPeriod.MONTH -> d >= today.minusDays(29) && d <= today
+            val inPeriod = when (period) {
+                KpiPeriod.TODAY      -> d == today
+                KpiPeriod.WEEK       -> d >= today.minusDays(6) && d <= today
+                KpiPeriod.MONTH      -> d >= today.minusDays(29) && d <= today
+                KpiPeriod.SIX_MONTHS -> d >= today.minusDays(179) && d <= today
             }
+            val inRoute = _ui.value.selectedRouteUid?.let { it == route.uid } ?: true
+            inPeriod && inRoute
         }
 
         val routeUids = filteredRoutes.map { it.uid }.toSet()
         val stops     = allStops.filter { it.routeUid in routeUids }
 
-        // Tendencia semanal (últimos 7 días) — independiente del período
+        // Tendencia semanal (7 días)
         val weeklyTrend = (6 downTo 0).map { daysAgo ->
             val date      = today.minusDays(daysAgo.toLong())
             val dateStr   = date.format(fmt)
             val dayRoutes = allRoutes.filter { it.dateAssigned == dateStr }.map { it.uid }.toSet()
             val dayDone   = allStops.count { it.routeUid in dayRoutes && it.status == "done" }
             dateStr to dayDone
+        }
+
+        // Tendencia mensual (6 meses)
+        val monthlyTrend = (5 downTo 0).map { monthsAgo ->
+            val month     = today.minusMonths(monthsAgo.toLong())
+            val monthRoutes = allRoutes.filter {
+                val d = runCatching { java.time.LocalDate.parse(it.dateAssigned, fmt) }.getOrNull()
+                d?.year == month.year && d.monthValue == month.monthValue
+            }.map { it.uid }.toSet()
+            val monthDone = allStops.count { it.routeUid in monthRoutes && it.status == "done" }
+            val label = month.format(java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale("es")))
+                .replaceFirstChar { it.uppercase() }
+            label to monthDone
         }
 
         val total    = stops.size
@@ -164,9 +201,50 @@ class KpisViewModel @Inject constructor(
             resultReturn    = stops.count { it.visitResult == "volvemos" },
             resultRejected  = stops.count { it.visitResult == "rechazado" },
             weeklyTrend     = weeklyTrend,
+            monthlyTrend    = monthlyTrend,
         )
 
-        _ui.update { it.copy(metrics = metrics, isLoading = false) }
+        // ── KPIs del sector ───────────────────────────────────────
+        val sectorKpis = buildSectorKpis(stops.map { it.uid })
+        _ui.update { it.copy(
+            metrics        = metrics,
+            sectorKpis     = sectorKpis,
+            routes         = allRoutes.distinctBy { it.uid },
+            isLoading      = false,
+        ) }
+    }
+
+    private suspend fun buildSectorKpis(
+        stopUids: List<String>
+    ): List<Triple<KpiDefinitionEntity, String, Boolean>> {
+        if (stopUids.isEmpty()) return emptyList()
+        val profile  = profileRepo.getOrCreateProfile()
+        val kpiDefs  = profileRepo.getVisibleKpisForSector(profile.sector)
+            .filter { it.type == "number" || it.type == "boolean" }
+            .filter { it.id !in setOf("common_resultado", "common_duracion") }
+
+        if (kpiDefs.isEmpty()) return emptyList()
+
+        return kpiDefs.mapNotNull { def ->
+            val values = stopUids.flatMap { uid ->
+                kpiValueDao.getByStop(uid).filter { it.kpiId == def.id }
+            }
+            if (values.isEmpty()) return@mapNotNull null
+            val display = when (def.type) {
+                "boolean" -> {
+                    val trueCount = values.count { it.valueText == "true" }
+                    "$trueCount/${values.size}"
+                }
+                "number"  -> {
+                    val sum = values.sumOf { it.valueText.toDoubleOrNull() ?: 0.0 }
+                    val unit = def.unit?.let { " $it" } ?: ""
+                    if (sum == sum.toLong().toDouble()) "${sum.toLong()}$unit"
+                    else "${"%.1f".format(sum)}$unit"
+                }
+                else -> values.lastOrNull()?.valueText ?: ""
+            }
+            Triple(def, display, def.type == "number")
+        }
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }

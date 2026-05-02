@@ -30,7 +30,8 @@ import com.pabl3st.rutapp.data.local.entity.RouteEntity
 // ─────────────────────────────────────────────────────────────
 @Composable
 fun GlobalMapScreen(
-    onNavigateToStop: (stopUid: String) -> Unit = {},
+    onNavigateToStop:  (stopUid: String)  -> Unit = {},
+    onNavigateToRoute: (routeUid: String) -> Unit = {},
     vm: GlobalMapViewModel = hiltViewModel(),
 ) {
     val ui      by vm.ui.collectAsStateWithLifecycle()
@@ -94,6 +95,7 @@ fun GlobalMapScreen(
                         it.latLng.lat != 0.0 && it.latLng.lng != 0.0
                     },
                     userLocation = ui.userLocation,
+                    polyline     = ui.routePolyline,
                     onStopClick  = onNavigateToStop,
                     onMapClick   = {},
                     onCameraIdle = { _, _ -> },

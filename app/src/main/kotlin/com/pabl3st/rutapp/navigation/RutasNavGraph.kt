@@ -28,6 +28,8 @@ import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
+import com.pabl3st.rutapp.feature.admin.AdminScreen
+import com.pabl3st.rutapp.feature.calendario.CalendarioScreen
 import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
@@ -82,6 +84,7 @@ fun RutasNavGraph(
                     ExitAppDialog(onConfirm = onExitApp, onDismiss = { showExitDialog = false })
                 }
                 HomeScreen(
+                    onStopClick  = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
@@ -157,12 +160,17 @@ fun RutasNavGraph(
 
             composable(Screen.Mapa.route) {
                 GlobalMapScreen(
-                    onNavigateToStop = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    onNavigateToStop  = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    onNavigateToRoute = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
             composable(Screen.Kpis.route) { KpisScreen() }
-            composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S08") }
-            composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S09") }
+            composable(Screen.Calendario.route) {
+                CalendarioScreen(
+                    onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                )
+            }
+            composable(Screen.Admin.route) { AdminScreen() }
 
             composable(Screen.Perfil.route) {
                 PerfilScreen(
@@ -174,6 +182,12 @@ fun RutasNavGraph(
                     onBack = { navController.popBackStack() },
                     onNavigateToBusinessProfile = {
                         navController.navigate(Screen.BusinessProfile.route)
+                    },
+                    onNavigateToCalendario = {
+                        navController.navigate(Screen.Calendario.route)
+                    },
+                    onNavigateToAdmin = {
+                        navController.navigate(Screen.Admin.route)
                     },
                 )
             }
