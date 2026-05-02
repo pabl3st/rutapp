@@ -1,10 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.home
 
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,35 +14,37 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
+import com.pabl3st.rutapp.data.local.entity.StopEntity
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onRouteClick: (String) -> Unit = {},
+    onStopClick:  (String) -> Unit = {},
     vm: HomeViewModel = hiltViewModel(),
 ) {
-    val ui              by vm.ui.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val ui    by vm.ui.collectAsStateWithLifecycle()
     val today  = LocalDate.now()
         .format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es")))
         .replaceFirstChar { it.uppercase() }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Hola, ${ui.userName}") },
+                title = {
+                    Column {
+                        Text("Hola, ${ui.userName}", style = MaterialTheme.typography.titleMedium)
+                        Text(today, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
                 actions = {
                     if (ui.isSyncing) {
-                        CircularProgressIndicator(
-                            modifier    = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(Modifier.width(8.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp).padding(end = 4.dp), strokeWidth = 2.dp)
                     } else {
                         IconButton(onClick = vm::syncNow) {
                             Icon(Icons.Default.Sync, contentDescription = "Sincronizar")
@@ -56,70 +54,167 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        val pullState = rememberPullToRefreshState()
-        PullToRefreshBox(
-            isRefreshing = ui.isSyncing,
-            onRefresh    = vm::syncNow,
-            state        = pullState,
-            modifier     = Modifier.fillMaxSize().padding(padding),
-        ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-
-            // ── Estado de sincronización ──────────────────────
-            SyncStatusBar(
-                pending  = ui.pendingSync,
-                lastSync = ui.lastSync,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-
-            // ── Fecha del día ─────────────────────────────────
-            Text(
-                text     = today,
-                style    = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-
-            // ── Barra de jornada — visible cuando hay ruta activa hoy ─
-            if (ui.routes.size == 1) {
-                JornadaBar(
-                    routeUid = ui.routes.first().uid,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
+        when {
+            ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
 
-            // ── Contenido ─────────────────────────────────────
-            when {
-                ui.isLoading -> LoadingContent()
-                ui.routes.isEmpty() -> EmptyRoutesMessage(Modifier.fillMaxSize())
-                else -> RoutesList(routes = ui.routes, onRouteClick = onRouteClick)
-            }
-        } // Column
-        } // PullToRefreshBox
-    }
+            ui.routes.isEmpty() -> EmptyRoutesMessage(Modifier.fillMaxSize().padding(padding))
 
-    // ── Error snackbar ──────────────────────────────────────
-    LaunchedEffect(ui.error) {
-        ui.error?.let { msg ->
-            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
-            vm.clearError()
+            // 1 ruta hoy → mostrar JornadaBar + lista de paradas directamente
+            ui.routes.size == 1 -> {
+                val route = ui.routes.first()
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    // Barra de jornada
+                    item {
+                        JornadaBar(routeUid = route.uid)
+                    }
+
+                    // Cabecera de la ruta
+                    item {
+                        RouteHeader(route = route, onRouteClick = { onRouteClick(route.uid) })
+                    }
+
+                    // Lista de paradas ordenadas por orderIndex
+                    if (ui.todayStops.isEmpty()) {
+                        item {
+                            EmptyStopsMessage()
+                        }
+                    } else {
+                        items(ui.todayStops, key = { it.uid }) { stop ->
+                            StopRow(
+                                stop    = stop,
+                                onClick = { onStopClick(stop.uid) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Varias rutas hoy → mostrar lista de rutas
+            else -> RoutesList(
+                routes = ui.routes,
+                modifier = Modifier.padding(padding),
+                onRouteClick = onRouteClick,
+            )
         }
     }
 }
 
+// ── Cabecera de ruta cuando hay 1 ruta ──────────────────────
 @Composable
-private fun LoadingContent() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+private fun RouteHeader(route: RouteEntity, onRouteClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(route.name, style = MaterialTheme.typography.titleSmall)
+            route.notes?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        TextButton(onClick = onRouteClick) {
+            Text("Ver ruta", style = MaterialTheme.typography.labelMedium)
+            Icon(Icons.Default.ChevronRight, null, Modifier.size(16.dp))
+        }
+    }
+    HorizontalDivider()
+}
+
+// ── Fila de parada en HomeScreen ─────────────────────────────
+@Composable
+private fun StopRow(stop: StopEntity, onClick: () -> Unit) {
+    val (statusIcon, statusTint) = when (stop.status) {
+        "done"     -> Icons.Default.CheckCircle to MaterialTheme.colorScheme.primary
+        "visiting" -> Icons.Default.PlayCircle   to MaterialTheme.colorScheme.tertiary
+        "skipped"  -> Icons.Default.RemoveCircle  to MaterialTheme.colorScheme.outline
+        else       -> Icons.Default.RadioButtonUnchecked to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (stop.status == "done")
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.surface,
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // Número de orden
+            Text(
+                text  = "${stop.orderIndex + 1}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(20.dp),
+            )
+
+            // Info
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text  = stop.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (stop.status == "done")
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
+                )
+                stop.address?.let { addr ->
+                    Text(
+                        text  = addr,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (stop.status == "done" && stop.visitResult != null) {
+                    Text(
+                        text  = stop.visitResult,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when (stop.visitResult) {
+                            "contactado" -> MaterialTheme.colorScheme.primary
+                            "no_estaba"  -> MaterialTheme.colorScheme.error
+                            else         -> MaterialTheme.colorScheme.tertiary
+                        },
+                    )
+                }
+            }
+
+            // Estado
+            Icon(
+                imageVector = statusIcon,
+                contentDescription = stop.status,
+                tint = statusTint,
+                modifier = Modifier.size(22.dp),
+            )
+        }
     }
 }
 
+// ── Lista de rutas cuando hay varias ─────────────────────────
 @Composable
-private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit) {
+private fun RoutesList(
+    routes: List<RouteEntity>,
+    modifier: Modifier = Modifier,
+    onRouteClick: (String) -> Unit,
+) {
     LazyColumn(
-        contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(routes, key = { it.uid }) { route ->
             RouteCard(route = route, onClick = { onRouteClick(route.uid) })
@@ -128,119 +223,72 @@ private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit
 }
 
 @Composable
-private fun SyncStatusBar(
-    pending: Int,
-    lastSync: String,
-    modifier: Modifier = Modifier,
-) {
-    val color = if (pending > 0) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector      = if (pending > 0) Icons.Default.CloudOff else Icons.Default.CloudDone,
-            contentDescription = null,
-            tint             = color,
-            modifier         = Modifier.size(14.dp),
-        )
-        Spacer(Modifier.width(4.dp))
-        Text(
-            text  = if (pending > 0) "$pending cambios pendientes" else "Sincronizado",
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-        )
-    }
-}
-
-@Composable
 private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
-    val statusColor = when (route.status) {
-        "active"    -> MaterialTheme.colorScheme.primary
-        "done"      -> MaterialTheme.colorScheme.tertiary
-        "cancelled" -> MaterialTheme.colorScheme.error
-        else        -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier            = Modifier.padding(16.dp),
-            verticalAlignment   = Alignment.CenterVertically,
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Icon(
+                Icons.Default.Route,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
             Column(Modifier.weight(1f)) {
                 Text(route.name, style = MaterialTheme.typography.titleSmall)
-                route.notes?.let { notes ->
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text     = notes,
-                        style    = MaterialTheme.typography.bodySmall,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    )
+                route.notes?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            Spacer(Modifier.width(8.dp))
             StatusChip(status = route.status)
         }
     }
 }
 
-
 @Composable
 private fun StatusChip(status: String) {
-    val (color, icon, label) = when (status) {
-        "active"    -> Triple(
-            MaterialTheme.colorScheme.primary,
-            Icons.Default.PlayCircle,
-            "Activa",
-        )
-        "done"      -> Triple(
-            MaterialTheme.colorScheme.secondary,
-            Icons.Default.CheckCircle,
-            "Completada",
-        )
-        "cancelled" -> Triple(
-            MaterialTheme.colorScheme.error,
-            Icons.Default.Cancel,
-            "Cancelada",
-        )
-        else        -> Triple(
-            MaterialTheme.colorScheme.onSurfaceVariant,
-            Icons.Default.Schedule,
-            "Pendiente",
-        )
+    val (label, color) = when (status) {
+        "active" -> "Activa"  to MaterialTheme.colorScheme.primaryContainer
+        "done"   -> "Hecha"   to MaterialTheme.colorScheme.secondaryContainer
+        else     -> "Pendiente" to MaterialTheme.colorScheme.surfaceVariant
     }
-    SuggestionChip(
-        onClick = {},
-        label   = { Text(label, style = MaterialTheme.typography.labelSmall) },
-        icon    = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
-        colors  = SuggestionChipDefaults.suggestionChipColors(
-            labelColor         = color,
-            iconContentColor   = color,
-        ),
-    )
+    Surface(shape = MaterialTheme.shapes.small, color = color) {
+        Text(label, style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+    }
 }
+
 @Composable
-private fun EmptyRoutesMessage(modifier: Modifier = Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) {
+private fun EmptyStopsMessage() {
+    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector        = Icons.Default.Route,
-                contentDescription = null,
-                modifier           = Modifier.size(64.dp),
-                tint               = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text  = "Sin rutas para hoy",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text  = "Toca sincronizar para actualizar",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
+            Icon(Icons.Default.AddLocation, null, Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text("Sin paradas en esta ruta",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
+@Composable
+private fun EmptyRoutesMessage(modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Route, null, Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+            Text("Sin rutas para hoy",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Las rutas aparecerán aquí cuando estén asignadas",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}

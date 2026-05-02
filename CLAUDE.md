@@ -163,7 +163,27 @@ Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formula
 
 **Nota sobre AccountDto:** el servidor ya envía `form_config` y `plus_config` en `me` y `AuthResponse`. En S09 el cliente ignora estos campos del servidor y usa Room como fuente de verdad local. La sincronización servidor↔cliente del perfil se hace en S14 (admin).
 
-### S10 — PENDIENTE ⏳ — Formulario de visita extendido (depende S09)
+### S10b — PENDIENTE ⏳ — Ordenación de paradas (independiente, sin dependencias)
+**Nuevo sprint añadido. Aplica a todas las vistas que muestran listas de paradas.**
+
+Situación actual:
+- `RouteDetailScreen`: ordena por `orderIndex ASC` ✅ (DAO query)
+- `GlobalMapScreen`: ordena por `orderIndex ASC` ✅ (DAO query + applyFilters)
+- `HomeScreen`: ordena por `orderIndex ASC` ✅ (tras refactor S10b)
+- `RouteMapScreen`: markers sin orden explícito de renderizado ⚠️
+
+Modos de ordenación a implementar por pantalla:
+- **RouteDetailScreen** (lista de ejecución): `orderIndex` (manual, el agente reordena), nearest-neighbor desde posición GPS, greedy desde última visitada
+- **GlobalMapScreen** (lista lateral): `orderIndex` dentro de cada ruta, luego por estado (pending primero)
+- **HomeScreen** (paradas del día): igual que RouteDetail — `orderIndex` como principal
+- Botón de reordenar en `RouteDetailScreen` con 3 modos: Manual / Por GPS / Greedy
+
+Ficheros afectados:
+- `StopDao.kt`: nuevas queries con ORDER BY flexible
+- `StopRepository.kt`: métodos `reorderByGps()` y `reorderGreedy()`
+- `RouteDetailViewModel.kt`: `activeSort` enum (MANUAL/GPS/GREEDY) + `onReorder()`
+- `RouteDetailScreen.kt`: selector de modo de ordenación (3 chips)
+- `GlobalMapViewModel.kt`: ya ordena por `orderIndex`, añadir opción por estado
 - VisitaScreen genera campos dinámicamente desde KpiDefinitionEntity del perfil activo
 - VisitaReportEntity almacena los valores como JSON keyed por kpiDefinitionId
 - Estado PDV: abierto / cerrado hoy / inactivo permanente
