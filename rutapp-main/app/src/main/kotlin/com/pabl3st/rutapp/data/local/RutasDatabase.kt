@@ -5,12 +5,14 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
+import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
@@ -25,8 +27,9 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         DaySessionEntity::class,
         KpiDefinitionEntity::class,
         BusinessProfileEntity::class,
+        KpiValueEntity::class,
     ],
-    version      = 5,
+    version      = 6,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -36,6 +39,7 @@ abstract class RutasDatabase : RoomDatabase() {
     abstract fun daySessionDao(): DaySessionDao
     abstract fun kpiDefinitionDao(): KpiDefinitionDao
     abstract fun businessProfileDao(): BusinessProfileDao
+    abstract fun kpiValueDao(): KpiValueDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -71,6 +75,22 @@ abstract class RutasDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_day_sessions_dateStr ON day_sessions (dateStr)")
+            }
+        }
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Tabla kpi_values: un valor por KPI por stop
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS kpi_values (
+                        stopUid    TEXT NOT NULL,
+                        kpiId      TEXT NOT NULL,
+                        valueText  TEXT NOT NULL,
+                        syncStatus TEXT NOT NULL DEFAULT 'pending',
+                        PRIMARY KEY (stopUid, kpiId)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_kpi_values_stop ON kpi_values (stopUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_kpi_values_sync ON kpi_values (syncStatus)")
             }
         }
         val MIGRATION_4_5 = object : Migration(4, 5) {

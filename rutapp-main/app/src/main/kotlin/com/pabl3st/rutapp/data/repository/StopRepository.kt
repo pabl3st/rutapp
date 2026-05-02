@@ -99,6 +99,27 @@ class StopRepository @Inject constructor(
         if (routeUids.isEmpty()) flowOf(emptyList())
         else stopDao.observeWithGpsByRouteUids(routeUids)
 
+    // ── KPI values sync ──────────────────────────────────────
+    /** Encola los valores KPI de un stop como operación kpi_values en sync_queue */
+    suspend fun enqueueKpiValuesSync(stopUid: String, values: Map<String, String>) {
+        if (values.isEmpty()) return
+        val nonEmpty = values.filter { (_, v) -> v.isNotBlank() }
+        if (nonEmpty.isEmpty()) return
+        // Serializar como JSON {"stopUid":"...","values":{"kpiId":"val",...}}
+        val valuesJson = nonEmpty.entries.joinToString(",") {
+            ""${it.key}":"${it.value.replace(""","\\"")}""
+        }
+        val payload = "{"stopUid":"$stopUid","values":{$valuesJson}}"
+        syncQueueDao.enqueue(
+            com.pabl3st.rutapp.data.local.entity.SyncQueueEntity(
+                entity    = "kpi_values",
+                entityUid = stopUid,
+                operation = "upsert",
+                payload   = payload,
+            )
+        )
+    }
+
     suspend fun getByUid(uid: String): StopEntity? = stopDao.getByUid(uid)
 
     /**

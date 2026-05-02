@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.data.repository
 
+import com.pabl3st.rutapp.data.local.dao.DaySessionDao
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
@@ -23,12 +25,14 @@ sealed class SyncResult {
 
 @Singleton
 class SyncRepository @Inject constructor(
-    private val syncQueueDao: SyncQueueDao,
-    private val routeDao:     RouteDao,
-    private val stopDao:      StopDao,
-    private val api:          RutasApiService,
-    private val session:      SessionManager,
-    private val moshi:        Moshi,
+    private val syncQueueDao:   SyncQueueDao,
+    private val routeDao:       RouteDao,
+    private val stopDao:        StopDao,
+    private val daySessionDao:  DaySessionDao,
+    private val kpiValueDao:    KpiValueDao,
+    private val api:            RutasApiService,
+    private val session:        SessionManager,
+    private val moshi:          Moshi,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
@@ -82,8 +86,11 @@ class SyncRepository @Inject constructor(
         // Marcar synced en Room
         body.synced?.forEach { result ->
             when (result.entity) {
-                "route" -> routeDao.updateSyncStatus(result.uid, "synced", now)
-                "stop"  -> stopDao.updateSyncStatus(result.uid, "synced", now)
+                "route"            -> routeDao.updateSyncStatus(result.uid, "synced", now)
+                "stop"             -> stopDao.updateSyncStatus(result.uid, "synced", now)
+                "day_session"      -> { /* DaySessionEntity no tiene syncStatus — se elimina de la cola */ }
+                "kpi_values"       -> kpiValueDao.markSynced(result.uid)
+                "business_profile" -> { /* solo local — no requiere status update */ }
             }
         }
 
@@ -113,6 +120,10 @@ class SyncRepository @Inject constructor(
             ?.let { routeDao.upsertAll(it) }
         body.stops?.mapNotNull { it.toEntity(session.accountId) }
             ?.let { if (it.isNotEmpty()) stopDao.upsertAll(it) }
+        body.daySessions?.map { it.toEntity(session.userId, session.accountId) }
+            ?.let { if (it.isNotEmpty()) daySessionDao.upsertAll(it) }
+        body.kpiValues?.map { it.toEntity() }
+            ?.let { if (it.isNotEmpty()) kpiValueDao.upsertAll(it) }
         body.serverTime?.let { session.lastSyncTimestamp = it }
         return true
     }

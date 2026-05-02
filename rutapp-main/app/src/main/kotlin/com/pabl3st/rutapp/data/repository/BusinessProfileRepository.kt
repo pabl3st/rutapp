@@ -1,6 +1,8 @@
 package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
+import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
+import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.KpiCatalog
@@ -13,8 +15,9 @@ import javax.inject.Singleton
 
 @Singleton
 class BusinessProfileRepository @Inject constructor(
-    private val profileDao: BusinessProfileDao,
-    private val kpiDao:     KpiDefinitionDao,
+    private val profileDao:   BusinessProfileDao,
+    private val kpiDao:       KpiDefinitionDao,
+    private val syncQueueDao: SyncQueueDao,
     private val session:    SessionManager,
 ) {
     val accountId: Int get() = session.accountId
@@ -31,6 +34,15 @@ class BusinessProfileRepository @Inject constructor(
     }
 
     /** Cambia el sector y carga los KPIs predefinidos si no existen ya */
+    suspend fun enqueueSector(sector: String, name: String) {
+        syncQueueDao.enqueue(SyncQueueEntity(
+            entity    = "business_profile",
+            entityUid = "profile",
+            operation = "upsert",
+            payload   = "{\"sector\":\"$sector\",\"name\":\"$name\",\"updatedAt\":${System.currentTimeMillis()}}",
+        ))
+    }
+
     suspend fun setSector(sector: String) {
         val profile = BusinessProfileEntity(
             accountId = accountId,

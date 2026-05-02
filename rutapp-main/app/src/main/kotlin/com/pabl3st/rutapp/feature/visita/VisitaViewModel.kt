@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
+import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
@@ -33,6 +35,7 @@ class VisitaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val stopRepo:    StopRepository,
     private val profileRepo: BusinessProfileRepository,
+    private val kpiValueDao: KpiValueDao,
 ) : ViewModel() {
 
     private val stopUid: String = checkNotNull(savedStateHandle["stopUid"])
@@ -43,6 +46,7 @@ class VisitaViewModel @Inject constructor(
     init {
         loadStop()
         loadKpiFields()
+        loadExistingKpiValues()
     }
 
     private fun loadStop() {
@@ -79,13 +83,41 @@ class VisitaViewModel @Inject constructor(
     fun saveVisit() {
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
+
+            // 1. Guardar resultado de visita en Stop
             stopRepo.saveVisitResult(
                 uid        = stopUid,
                 result     = _ui.value.selectedResult,
                 notes      = _ui.value.notes.trim().ifEmpty { null },
                 nextAction = _ui.value.nextAction.trim().ifEmpty { null },
             )
+
+            // 2. Persistir valores KPI en Room + marcar pendiente de sync
+            val kpiEntities = _ui.value.kpiValues
+                .filter { (_, v) -> v.isNotBlank() }
+                .map { (kpiId, value) ->
+                    KpiValueEntity(
+                        stopUid    = stopUid,
+                        kpiId      = kpiId,
+                        valueText  = value.trim(),
+                        syncStatus = "pending",
+                    )
+                }
+            if (kpiEntities.isNotEmpty()) {
+                kpiValueDao.upsertAll(kpiEntities)
+                // Encolar sync como una operación de tipo kpi_values
+                stopRepo.enqueueKpiValuesSync(stopUid, _ui.value.kpiValues)
+            }
+
             _ui.update { it.copy(isSaving = false, saved = true) }
+        }
+    }
+
+    private fun loadExistingKpiValues() {
+        viewModelScope.launch {
+            val existing = kpiValueDao.getByStop(stopUid)
+                .associate { it.kpiId to it.valueText }
+            _ui.update { it.copy(kpiValues = it.kpiValues + existing) }
         }
     }
 

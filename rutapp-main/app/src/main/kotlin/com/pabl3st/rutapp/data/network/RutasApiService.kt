@@ -183,7 +183,9 @@ data class DeltaSyncResponse(
     val ok: Boolean,
     val routes: List<RouteDto>?,
     val stops: List<StopDto>?,
-    @Json(name = "server_time") val serverTime: String?,
+    @Json(name = "day_sessions") val daySessions: List<DaySessionDto>?,
+    @Json(name = "kpi_values")   val kpiValues:   List<KpiValueDto>?,
+    @Json(name = "server_time")  val serverTime:  String?,
     val error: String?,
 )
 
@@ -217,6 +219,46 @@ data class BatchSyncResponse(
     @Json(name = "server_time") val serverTime: String?,
     val error: String?,
 )
+
+
+@JsonClass(generateAdapter = true)
+data class DaySessionDto(
+    @Json(name = "route_uid")    val routeUid:   String,
+    @Json(name = "date_str")     val dateStr:    String,
+    val state:                                   String,
+    @Json(name = "started_at")   val startedAt:  Long?,
+    @Json(name = "elapsed_ms")   val elapsedMs:  Long,
+    @Json(name = "distance_km")  val distanceKm: Double,
+    @Json(name = "last_lat")     val lastLat:    Double?,
+    @Json(name = "last_lng")     val lastLng:    Double?,
+    @Json(name = "updated_at")   val updatedAt:  Long,
+) {
+    fun toEntity(userId: Int, accountId: Int) = com.pabl3st.rutapp.data.local.entity.DaySessionEntity(
+        routeUid   = routeUid,
+        dateStr    = dateStr,
+        state      = state,
+        startedAt  = startedAt,
+        elapsedMs  = elapsedMs,
+        distanceKm = distanceKm,
+        lastLat    = lastLat,
+        lastLng    = lastLng,
+        updatedAt  = updatedAt,
+    )
+}
+
+@JsonClass(generateAdapter = true)
+data class KpiValueDto(
+    @Json(name = "stop_uid")    val stopUid:   String,
+    @Json(name = "kpi_id")      val kpiId:     String,
+    @Json(name = "value_text")  val valueText: String,
+) {
+    fun toEntity() = com.pabl3st.rutapp.data.local.entity.KpiValueEntity(
+        stopUid    = stopUid,
+        kpiId      = kpiId,
+        valueText  = valueText,
+        syncStatus = "synced",
+    )
+}
 
 // ── Retrofit interface ───────────────────────────────────────
 
