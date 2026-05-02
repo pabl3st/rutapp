@@ -157,12 +157,13 @@ fun RutasNavGraph(
 
             composable(Screen.Mapa.route) {
                 GlobalMapScreen(
-                    onNavigateToStop = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    onNavigateToStop  = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    onNavigateToRoute = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
             composable(Screen.Kpis.route) { KpisScreen() }
-            composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S08") }
-            composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S09") }
+            composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S10") }
+            composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S10") }
 
             composable(Screen.Perfil.route) {
                 PerfilScreen(

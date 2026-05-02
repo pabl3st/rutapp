@@ -128,6 +128,49 @@ private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit
     }
 }
 
+
+@Composable
+private fun DaySummaryBar(
+    done:       Int,
+    total:      Int,
+    distanceKm: Double,
+    modifier:   Modifier = Modifier,
+) {
+    val progress = if (total > 0) done.toFloat() / total else 0f
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically,
+        ) {
+            Text(
+                text  = "$done/$total visitas",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (distanceKm > 0.0) {
+                Text(
+                    text  = "%.1f km".format(distanceKm),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.height(Spacing.xs))
+        LinearProgressIndicator(
+            progress        = { progress },
+            modifier        = Modifier.fillMaxWidth(),
+            color           = when {
+                progress >= 1f -> MaterialTheme.colorScheme.secondary
+                progress > 0f  -> MaterialTheme.colorScheme.primary
+                else           -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            trackColor      = MaterialTheme.colorScheme.surfaceVariant,
+            strokeCap       = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+    }
+}
+
 @Composable
 private fun SyncStatusBar(
     pending: Int,

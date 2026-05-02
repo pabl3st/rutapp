@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import java.time.LocalDate
@@ -386,6 +387,56 @@ private fun VisitResultBreakdown(metrics: KpiMetrics) {
                         textAlign = TextAlign.End,
                     )
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun SectorKpisGrid(
+    sectorKpis: List<Triple<KpiDefinitionEntity, String, Boolean>>,
+) {
+    val rows = sectorKpis.chunked(2)
+    Card(colors = CardDefaults.cardColors()) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            rows.forEachIndexed { rowIdx, row ->
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    row.forEach { (def, value, isNumeric) ->
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            colors   = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                        ) {
+                            Column(
+                                modifier            = Modifier.padding(Spacing.md),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    text      = value,
+                                    style     = MaterialTheme.typography.headlineSmall,
+                                    color     = if (isNumeric) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.secondary,
+                                    textAlign = TextAlign.Center,
+                                )
+                                Text(
+                                    text      = def.label,
+                                    style     = MaterialTheme.typography.labelSmall,
+                                    color     = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    maxLines  = 2,
+                                    overflow  = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+                if (rowIdx < rows.size - 1) Spacer(Modifier.height(Spacing.sm))
             }
         }
     }

@@ -30,7 +30,8 @@ import com.pabl3st.rutapp.data.local.entity.RouteEntity
 // ─────────────────────────────────────────────────────────────
 @Composable
 fun GlobalMapScreen(
-    onNavigateToStop: (stopUid: String) -> Unit = {},
+    onNavigateToStop:  (stopUid: String)  -> Unit = {},
+    onNavigateToRoute: (routeUid: String) -> Unit = {},
     vm: GlobalMapViewModel = hiltViewModel(),
 ) {
     val ui      by vm.ui.collectAsStateWithLifecycle()

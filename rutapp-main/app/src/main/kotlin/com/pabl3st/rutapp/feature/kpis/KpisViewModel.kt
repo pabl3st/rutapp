@@ -2,8 +2,12 @@ package com.pabl3st.rutapp.feature.kpis
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
+import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
+import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,6 +57,11 @@ data class KpiMetrics(
 
     // Tendencia (7 días) — lista de (fecha, nStops) para mini-chart
     val weeklyTrend: List<Pair<String, Int>> = emptyList(),
+
+    // KPIs del sector — lista de (KpiDefinition, totalValue, unitLabel)
+    // totalValue suma todos los valores numéricos del período para ese KPI
+    val sectorKpis: List<Triple<KpiDefinitionEntity, String, Boolean>> = emptyList(),
+    // Triple: (definition, displayValue, isNumeric)
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -70,8 +79,10 @@ data class KpisUiState(
 // ─────────────────────────────────────────────────────────────
 @HiltViewModel
 class KpisViewModel @Inject constructor(
-    private val routeRepo: RouteRepository,
-    private val stopRepo:  StopRepository,
+    private val routeRepo:    RouteRepository,
+    private val stopRepo:     StopRepository,
+    private val kpiValueDao:  KpiValueDao,
+    private val profileRepo:  BusinessProfileRepository,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(KpisUiState())
@@ -166,7 +177,42 @@ class KpisViewModel @Inject constructor(
             weeklyTrend     = weeklyTrend,
         )
 
-        _ui.update { it.copy(metrics = metrics, isLoading = false) }
+        // ── KPIs del sector ───────────────────────────────────────
+        val sectorKpis = buildSectorKpis(stops.map { it.uid })
+        _ui.update { it.copy(metrics = metrics, sectorKpis = sectorKpis, isLoading = false) }
+    }
+
+    private suspend fun buildSectorKpis(
+        stopUids: List<String>
+    ): List<Triple<KpiDefinitionEntity, String, Boolean>> {
+        if (stopUids.isEmpty()) return emptyList()
+        val profile  = profileRepo.getOrCreateProfile()
+        val kpiDefs  = profileRepo.getVisibleKpisForSector(profile.sector)
+            .filter { it.type == "number" || it.type == "boolean" }
+            .filter { it.id !in setOf("common_resultado", "common_duracion") }
+
+        if (kpiDefs.isEmpty()) return emptyList()
+
+        return kpiDefs.mapNotNull { def ->
+            val values = stopUids.flatMap { uid ->
+                kpiValueDao.getByStop(uid).filter { it.kpiId == def.id }
+            }
+            if (values.isEmpty()) return@mapNotNull null
+            val display = when (def.type) {
+                "boolean" -> {
+                    val trueCount = values.count { it.valueText == "true" }
+                    "$trueCount/${values.size}"
+                }
+                "number"  -> {
+                    val sum = values.sumOf { it.valueText.toDoubleOrNull() ?: 0.0 }
+                    val unit = def.unit?.let { " $it" } ?: ""
+                    if (sum == sum.toLong().toDouble()) "${sum.toLong()}$unit"
+                    else "${"%.1f".format(sum)}$unit"
+                }
+                else -> values.lastOrNull()?.valueText ?: ""
+            }
+            Triple(def, display, def.type == "number")
+        }
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }
