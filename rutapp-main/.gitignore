@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# APKs — los genera CI, no se suben al repo
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Secrets — NUNCA al repo
+google-services.json

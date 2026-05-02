@@ -1,0 +1,17 @@
+-- ============================================================
+-- Migration v5.0.0 — OBSOLETA / NO APLICAR
+-- ============================================================
+-- Esta migración fue generada por error y duplica columnas
+-- que ya fueron añadidas en migration_v3.sql y migration_v4.sql:
+--   - external_id, contact_name, contact_phone  →  ya en v3
+--   - visit_result, next_action                 →  ya en v3
+--   - visit_frequency, priority, segment,
+--     account_status, opening_hours             →  ya en v4
+--
+-- Aplicar este fichero sobre una BD que ya tiene v3+v4 aplicadas
+-- produce error: "Duplicate column name".
+--
+-- Estado actual del servidor: v4.0.0 aplicada (ver schema_migrations).
+-- La siguiente migración real será v5.0.0 cuando se añadan
+-- nuevas columnas (ej: fotos de visita, coords geocodificadas).
+-- ============================================================
