@@ -28,6 +28,8 @@ import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
+import com.pabl3st.rutapp.feature.admin.AdminScreen
+import com.pabl3st.rutapp.feature.calendario.CalendarioScreen
 import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
@@ -162,8 +164,12 @@ fun RutasNavGraph(
                 )
             }
             composable(Screen.Kpis.route) { KpisScreen() }
-            composable(Screen.Calendario.route) { PlaceholderScreen("Calendario", "S10") }
-            composable(Screen.Admin.route)      { PlaceholderScreen("Admin", "S10") }
+            composable(Screen.Calendario.route) {
+                CalendarioScreen(
+                    onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                )
+            }
+            composable(Screen.Admin.route) { AdminScreen() }
 
             composable(Screen.Perfil.route) {
                 PerfilScreen(

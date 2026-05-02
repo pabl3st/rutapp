@@ -6,16 +6,26 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.pabl3st.rutapp.MainActivity
 import com.pabl3st.rutapp.R
+import com.pabl3st.rutapp.sync.SyncWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+// ── Tipos de payload FCM reconocidos ─────────────────────────
+// Enviados desde el servidor en el campo 'data' del mensaje FCM
+// type=sync_now      → forzar sync inmediato (nueva ruta asignada, etc.)
+// type=new_route     → notificación + sync (ruta asignada hoy)
+// type=route_update  → notificación + sync (cambio en ruta existente)
+// type=message       → notificación informativa pura
 
 @AndroidEntryPoint
 class RutasMessagingService : FirebaseMessagingService() {
@@ -26,31 +36,58 @@ class RutasMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Guardar y enviar al servidor cuando hay sesión activa
-        serviceScope.launch {
-            fcmTokenRepository.onTokenRefresh(token)
-        }
+        serviceScope.launch { fcmTokenRepository.onTokenRefresh(token) }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        val title = message.notification?.title ?: message.data["title"] ?: "RutasApp"
-        val body  = message.notification?.body  ?: message.data["body"]  ?: return
+        val data  = message.data
+        val type  = data["type"] ?: "message"
+        val title = message.notification?.title ?: data["title"] ?: "RutasApp"
+        val body  = message.notification?.body  ?: data["body"]
 
-        showNotification(title, body)
+        when (type) {
+            "sync_now" -> {
+                // Sync silencioso — sin notificación visible
+                triggerImmediateSync()
+            }
+            "new_route" -> {
+                // Nueva ruta asignada — notificación + sync
+                triggerImmediateSync()
+                body?.let { showNotification(title, it, CHANNEL_ROUTES) }
+            }
+            "route_update" -> {
+                // Cambio en ruta — notificación + sync
+                triggerImmediateSync()
+                body?.let { showNotification(title, it, CHANNEL_ROUTES) }
+            }
+            else -> {
+                // Notificación informativa
+                body?.let { showNotification(title, it, CHANNEL_DEFAULT) }
+            }
+        }
     }
 
-    private fun showNotification(title: String, body: String) {
+    // ── Lanzar SyncWorker inmediato vía WorkManager ───────────
+    private fun triggerImmediateSync() {
+        WorkManager.getInstance(applicationContext)
+            .enqueue(
+                OneTimeWorkRequestBuilder<SyncWorker>()
+                    .addTag("fcm_triggered")
+                    .build()
+            )
+    }
+
+    private fun showNotification(title: String, body: String, channelId: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Canal (Android 8+)
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "RutasApp",
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply { description = "Notificaciones de RutasApp" }
-        manager.createNotificationChannel(channel)
+        // Crear canal si no existe
+        val channelName = if (channelId == CHANNEL_ROUTES) "Rutas" else "General"
+        manager.createNotificationChannel(
+            NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = "Notificaciones RutasApp — $channelName" }
+        )
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -60,18 +97,21 @@ class RutasMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        manager.notify(
+            System.currentTimeMillis().toInt(),
+            NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .build()
+        )
     }
 
     companion object {
-        const val CHANNEL_ID = "rutasapp_default"
+        const val CHANNEL_DEFAULT = "rutasapp_default"
+        const val CHANNEL_ROUTES  = "rutasapp_routes"
     }
 }
