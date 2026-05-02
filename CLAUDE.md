@@ -117,8 +117,14 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - OSRM routing: calculateRoute implementado en MapLibreProvider vía router.project-osrm.org
 - RouteMapViewModel: routePolyline en UiState, fetchRoute() tras cargar stops
 
-### S08 — PENDIENTE ⏳
-- CalendarioScreen (PlaceholderScreen activo en nav)
+### S08 — COMPLETADO ✅
+- DaySessionEntity + DaySessionDao — tabla day_sessions con PK compuesta routeUid+dateStr
+- JornadaRepository — start/pause/resume/finish + updateGps (Haversine acumulado)
+- JornadaViewModel — tick cada 1s, locationUpdates cada 10s/30m, formatElapsed
+- JornadaBar — composable con timer monoespacio, km, botones play/pause/fin/finalizada
+- HomeScreen — JornadaBar visible cuando hay exactamente 1 ruta hoy
+- RutasDatabase v3→v4 — MIGRATION_3_4 crea tabla day_sessions
+- DatabaseModule — addMigrations(3,4) + provideDaySessionDao
 
 ### S09+ — PENDIENTE ⏳
 - AdminScreen (PlaceholderScreen activo en nav)

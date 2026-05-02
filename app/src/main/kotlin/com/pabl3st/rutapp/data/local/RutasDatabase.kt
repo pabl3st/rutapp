@@ -4,25 +4,27 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
+import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 
 @Database(
-    entities     = [RouteEntity::class, StopEntity::class, SyncQueueEntity::class],
-    version      = 3,
+    entities     = [RouteEntity::class, StopEntity::class, SyncQueueEntity::class, DaySessionEntity::class],
+    version      = 4,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun stopDao(): StopDao
     abstract fun syncQueueDao(): SyncQueueDao
+    abstract fun daySessionDao(): DaySessionDao
 
     companion object {
-        // v2 → v3: añadir campos universales stops: añadir external_id, contact_name, contact_phone, visit_result, next_action
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE stops ADD COLUMN externalId   TEXT DEFAULT NULL")
@@ -40,6 +42,27 @@ abstract class RutasDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE stops ADD COLUMN segment TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE stops ADD COLUMN accountStatus TEXT DEFAULT 'active'")
                 db.execSQL("ALTER TABLE stops ADD COLUMN openingHours TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS day_sessions (
+                        routeUid    TEXT    NOT NULL,
+                        dateStr     TEXT    NOT NULL,
+                        state       TEXT    NOT NULL DEFAULT 'idle',
+                        startedAt   INTEGER,
+                        pausedAt    INTEGER,
+                        elapsedMs   INTEGER NOT NULL DEFAULT 0,
+                        distanceKm  REAL    NOT NULL DEFAULT 0.0,
+                        lastLat     REAL,
+                        lastLng     REAL,
+                        updatedAt   INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY (routeUid, dateStr)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_day_sessions_dateStr ON day_sessions (dateStr)")
             }
         }
     }

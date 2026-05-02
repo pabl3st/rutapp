@@ -18,7 +18,11 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): RutasDatabase =
         Room.databaseBuilder(ctx, RutasDatabase::class.java, "rutasapp.db")
-            .addMigrations(RutasDatabase.MIGRATION_1_2, RutasDatabase.MIGRATION_2_3)
+            .addMigrations(
+                RutasDatabase.MIGRATION_1_2,
+                RutasDatabase.MIGRATION_2_3,
+                RutasDatabase.MIGRATION_3_4,
+            )
             .build()
 
     @Provides
@@ -29,5 +33,8 @@ object DatabaseModule {
 
     @Provides
     fun provideSyncQueueDao(db: RutasDatabase) = db.syncQueueDao()
+
+    @Provides
+    fun provideDaySessionDao(db: RutasDatabase) = db.daySessionDao()
 }
 

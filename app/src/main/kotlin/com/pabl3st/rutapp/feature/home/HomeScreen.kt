@@ -81,6 +81,14 @@ fun HomeScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
+            // ── Barra de jornada — visible cuando hay ruta activa hoy ─
+            if (ui.routes.size == 1) {
+                JornadaBar(
+                    routeUid = ui.routes.first().uid,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
             // ── Contenido ─────────────────────────────────────
             when {
                 ui.isLoading -> LoadingContent()

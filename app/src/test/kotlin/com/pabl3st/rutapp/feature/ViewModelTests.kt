@@ -466,3 +466,83 @@ class CrearParadaViewModelTest {
         assertThat(vm.ui.value.isGeocoding).isFalse()
     }
 }
+
+// ════════════════════════════════════════════════════════════
+// JornadaViewModelTest
+// ════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(JUnit4::class)
+class JornadaViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var jornadaRepo: com.pabl3st.rutapp.data.repository.JornadaRepository
+    private lateinit var locationMgr: com.pabl3st.rutapp.core.location.LocationManager
+    private lateinit var vm: com.pabl3st.rutapp.feature.home.JornadaViewModel
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        jornadaRepo = mockk(relaxed = true)
+        locationMgr = mockk(relaxed = true)
+        coEvery { jornadaRepo.todayStr() } returns "2026-05-02"
+        coEvery { jornadaRepo.observe(any(), any()) } returns flowOf(null)
+    }
+
+    @After
+    fun tearDown() { Dispatchers.resetMain() }
+
+    private fun createVm() = com.pabl3st.rutapp.feature.home.JornadaViewModel(jornadaRepo, locationMgr)
+
+    @Test
+    fun `estado inicial sin sesion`() {
+        vm = createVm()
+        assertThat(vm.ui.value.session).isNull()
+        assertThat(vm.ui.value.elapsedMs).isEqualTo(0L)
+        assertThat(vm.ui.value.distanceKm).isEqualTo(0.0)
+    }
+
+    @Test
+    fun `start llama al repositorio`() = runTest {
+        vm = createVm()
+        vm.init("route-uid-001")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.start()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { jornadaRepo.start("route-uid-001", "2026-05-02") }
+    }
+
+    @Test
+    fun `pause llama al repositorio`() = runTest {
+        vm = createVm()
+        vm.init("route-uid-001")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.pause()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { jornadaRepo.pause("route-uid-001", "2026-05-02") }
+    }
+
+    @Test
+    fun `finish llama al repositorio`() = runTest {
+        vm = createVm()
+        vm.init("route-uid-001")
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.finish()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { jornadaRepo.finish("route-uid-001", "2026-05-02") }
+    }
+
+    @Test
+    fun `formatElapsed formatea segundos correctamente`() {
+        vm = createVm()
+        assertThat(vm.formatElapsed(0L)).isEqualTo("00:00")
+        assertThat(vm.formatElapsed(61_000L)).isEqualTo("01:01")
+        assertThat(vm.formatElapsed(3_661_000L)).isEqualTo("1:01:01")
+    }
+
+    @Test
+    fun `formatElapsed horas correctamente`() {
+        vm = createVm()
+        assertThat(vm.formatElapsed(7_200_000L)).isEqualTo("2:00:00")
+    }
+}
