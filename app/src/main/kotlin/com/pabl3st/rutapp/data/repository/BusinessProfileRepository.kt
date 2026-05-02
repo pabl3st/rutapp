@@ -7,6 +7,7 @@ import com.pabl3st.rutapp.data.local.entity.KpiCatalog
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.session.SessionManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,6 +54,12 @@ class BusinessProfileRepository @Inject constructor(
 
     fun observeAllKpis(sector: String): Flow<List<KpiDefinitionEntity>> =
         kpiDao.observeAll(accountId, sector)
+
+    /** Devuelve lista síncrona de KPIs visibles del sector — usado en buildSectorKpis */
+    suspend fun getVisibleKpisForSector(sector: String): List<KpiDefinitionEntity> {
+        val flow = kpiDao.observeActive(accountId, sector)
+        return flow.firstOrNull() ?: emptyList()
+    }
 
     /** Semilla: inserta KPIs predefinidos del sector si no existen */
     suspend fun seedKpisIfNeeded(sector: String) {

@@ -7,12 +7,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
+import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
@@ -25,8 +27,9 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         DaySessionEntity::class,
         KpiDefinitionEntity::class,
         BusinessProfileEntity::class,
+        KpiValueEntity::class,
     ],
-    version      = 5,
+    version      = 6,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -36,6 +39,7 @@ abstract class RutasDatabase : RoomDatabase() {
     abstract fun daySessionDao(): DaySessionDao
     abstract fun kpiDefinitionDao(): KpiDefinitionDao
     abstract fun businessProfileDao(): BusinessProfileDao
+    abstract fun kpiValueDao(): KpiValueDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -99,6 +103,19 @@ abstract class RutasDatabase : RoomDatabase() {
                         sector TEXT NOT NULL DEFAULT 'custom',
                         name TEXT NOT NULL DEFAULT 'Mi negocio',
                         updatedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS kpi_values (
+                        stopUid    TEXT NOT NULL,
+                        kpiId      TEXT NOT NULL,
+                        valueText  TEXT NOT NULL,
+                        syncStatus TEXT NOT NULL DEFAULT 'pending',
+                        PRIMARY KEY (stopUid, kpiId)
                     )
                 """.trimIndent())
             }

@@ -31,7 +31,15 @@ fun RouteMapScreen(
     onBack: () -> Unit,
     vm: RouteMapViewModel = hiltViewModel(),
 ) {
-    val ui      by vm.ui.collectAsStateWithLifecycle()
+    val ui             by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHost   = remember { SnackbarHostState() }
+
+    LaunchedEffect(ui.error) {
+        ui.error?.let { msg ->
+            snackbarHost.showSnackbar(msg, duration = SnackbarDuration.Short)
+        }
+    }
+
     val context  = LocalContext.current
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope     = rememberCoroutineScope()
@@ -96,6 +104,7 @@ fun RouteMapScreen(
                 }
             )
         }
+        snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
 

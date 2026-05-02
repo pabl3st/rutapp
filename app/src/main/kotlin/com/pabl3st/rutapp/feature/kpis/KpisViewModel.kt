@@ -205,13 +205,16 @@ class KpisViewModel @Inject constructor(
         )
 
         // ── KPIs del sector ───────────────────────────────────────
-        val sectorKpis = buildSectorKpis(stops.map { it.uid })
         _ui.update { it.copy(
-            metrics        = metrics,
-            sectorKpis     = sectorKpis,
-            routes         = allRoutes.distinctBy { it.uid },
-            isLoading      = false,
+            metrics  = metrics,
+            routes   = allRoutes.distinctBy { it.uid },
+            isLoading = false,
         ) }
+        // buildSectorKpis es suspend — lanzar en coroutine separada
+        viewModelScope.launch {
+            val sectorKpis = buildSectorKpis(stops.map { it.uid })
+            _ui.update { it.copy(sectorKpis = sectorKpis) }
+        }
     }
 
     private suspend fun buildSectorKpis(
