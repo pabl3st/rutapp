@@ -24,6 +24,7 @@ import com.pabl3st.rutapp.core.ui.theme.Spacing
 fun PerfilScreen(
     onLoggedOut: () -> Unit,
     onBack: () -> Unit,
+    onNavigateToBusinessProfile: () -> Unit = {},
     vm: PerfilViewModel = hiltViewModel(),
     themeVm: ThemeViewModel = hiltViewModel(),
 ) {
@@ -105,7 +106,7 @@ fun PerfilScreen(
                     icon    = Icons.Default.Notifications,
                     label   = "Notificaciones",
                     detail  = "Activadas",
-                    onClick = { /* S08 */ },
+                    onClick = { onNavigateToBusinessProfile() },
                 )
             }
 

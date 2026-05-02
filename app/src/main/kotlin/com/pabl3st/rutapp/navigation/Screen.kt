@@ -21,4 +21,5 @@ sealed class Screen(val route: String) {
     object CrearParada : Screen("crear-parada/{routeUid}") {
         fun createRoute(routeUid: String) = "crear-parada/$routeUid"
     }
+    object BusinessProfile : Screen("business-profile")
 }

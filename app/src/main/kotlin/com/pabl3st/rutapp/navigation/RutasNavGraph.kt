@@ -22,6 +22,7 @@ import androidx.compose.animation.core.tween
 import com.pabl3st.rutapp.feature.auth.AuthRoot
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 import com.pabl3st.rutapp.feature.home.HomeScreen
+import com.pabl3st.rutapp.feature.perfil.BusinessProfileScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
@@ -171,7 +172,20 @@ fun RutasNavGraph(
                         }
                     },
                     onBack = { navController.popBackStack() },
+                    onNavigateToBusinessProfile = {
+                        navController.navigate(Screen.BusinessProfile.route)
+                    },
                 )
+            }
+
+            composable(
+                route              = Screen.BusinessProfile.route,
+                enterTransition    = { enterPush },
+                exitTransition     = { exitPush },
+                popEnterTransition = { enterPop },
+                popExitTransition  = { exitPop },
+            ) {
+                BusinessProfileScreen(onBack = { navController.popBackStack() })
             }
         }
     }
