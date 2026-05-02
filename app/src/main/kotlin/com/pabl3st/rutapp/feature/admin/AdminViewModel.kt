@@ -12,17 +12,16 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class AdminUiState(
-    val userName:      String  = "",
-    val userEmail:     String  = "",
-    val userRole:      String  = "",
-    val accountName:   String  = "",
-    val accountPlan:   String  = "",
-    // Estadísticas globales (solo god/admin)
-    val totalRoutes:   Int     = 0,
-    val totalStops:    Int     = 0,
-    val pendingSync:   Int     = 0,
-    val isLoading:     Boolean = true,
-    val error:         String? = null,
+    val userName:    String  = "",
+    val userEmail:   String  = "",
+    val userRole:    String  = "",
+    val accountName: String  = "",
+    val accountType: String  = "",
+    val totalRoutes: Int     = 0,
+    val totalStops:  Int     = 0,
+    val pendingSync: Int     = 0,
+    val isLoading:   Boolean = true,
+    val error:       String? = null,
 )
 
 @HiltViewModel
@@ -33,12 +32,15 @@ class AdminViewModel @Inject constructor(
     private val stopRepo:  StopRepository,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(AdminUiState(
-        userName    = session.userDisplayName,
-        userEmail   = session.userEmail,
-        userRole    = session.userRole,
-        accountName = session.accountName,
-    ))
+    private val _ui = MutableStateFlow(
+        AdminUiState(
+            userName    = session.userDisplayName.ifBlank { session.userName },
+            userEmail   = session.userEmail,
+            userRole    = session.userRole,
+            accountName = session.accountName,
+            accountType = session.accountType,
+        )
+    )
     val ui: StateFlow<AdminUiState> = _ui.asStateFlow()
 
     init { loadStats() }
@@ -46,19 +48,23 @@ class AdminViewModel @Inject constructor(
     private fun loadStats() {
         viewModelScope.launch {
             val pending = syncRepo.pendingCount()
+
+            // Combinar rutas + stops en un solo Flow para evitar collect anidado
             routeRepo.observeAll()
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
-                .collect { routes ->
-                    val routeUids = routes.map { it.uid }
-                    val stops = stopRepo.observeByRouteUids(routeUids)
-                    stops.collect { stopList ->
-                        _ui.update { it.copy(
-                            totalRoutes = routes.size,
-                            totalStops  = stopList.size,
-                            pendingSync = pending,
-                            isLoading   = false,
-                        )}
+                .flatMapLatest { routes ->
+                    val uids = routes.map { it.uid }
+                    stopRepo.observeByRouteUids(uids).map { stops ->
+                        routes.size to stops.size
                     }
+                }
+                .collect { (routeCount, stopCount) ->
+                    _ui.update { it.copy(
+                        totalRoutes = routeCount,
+                        totalStops  = stopCount,
+                        pendingSync = pending,
+                        isLoading   = false,
+                    ) }
                 }
         }
     }

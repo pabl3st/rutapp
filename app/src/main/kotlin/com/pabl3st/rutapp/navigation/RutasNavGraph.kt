@@ -164,13 +164,25 @@ fun RutasNavGraph(
                 )
             }
             composable(Screen.Kpis.route) { KpisScreen() }
-            composable(Screen.Calendario.route) {
+            composable(
+                route              = Screen.Calendario.route,
+                enterTransition    = { enterPush },
+                exitTransition     = { exitPush },
+                popEnterTransition = { enterPop },
+                popExitTransition  = { exitPop },
+            ) {
                 CalendarioScreen(
                     onBack       = { navController.popBackStack() },
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
-            composable(Screen.Admin.route) {
+            composable(
+                route              = Screen.Admin.route,
+                enterTransition    = { enterPush },
+                exitTransition     = { exitPush },
+                popEnterTransition = { enterPop },
+                popExitTransition  = { exitPop },
+            ) {
                 AdminScreen(onBack = { navController.popBackStack() })
             }
 
