@@ -126,33 +126,42 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - RutasDatabase v3→v4 — MIGRATION_3_4 crea tabla day_sessions
 - DatabaseModule — addMigrations(3,4) + provideDaySessionDao
 
-### S09 — PENDIENTE ⏳ — Perfil de negocio + configuración de formulario
-**Prerequisito de S10, S11, S12 y S13. Implementar antes que cualquiera de ellos.**
+### S09 — SIGUIENTE 🚧 — Perfil de negocio + configuración de formulario
+**Prerequisito duro de S10, S11, S13 y S15. Sin este sprint, S10 y S11 quedan hardcodeados para un sector.**
 
-Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formularios de visita
-y paneles de KPIs adaptados a su negocio. Sin este sprint, S10 y S11 quedan hardcodeados.
+Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formularios de visita y paneles de KPIs adaptados a su negocio. La web tiene esto hardcodeado para telco — aquí se hace genérico desde el principio.
 
-Entidades nuevas:
-- `BusinessProfileEntity` — perfil de negocio del account: id, nombre, sector (telco/farma/distribución/retail/custom)
-- `KpiDefinitionEntity` — definición de un KPI: id, label, tipo (number/boolean/select/text), unidad, requerido, orden, visible, sector al que pertenece
-- `VisitFormConfigEntity` — qué secciones y campos muestra el formulario de visita para este account
+**Entidades Room nuevas (migration v4→v5):**
+- `BusinessProfileEntity` — perfil activo del account: uid, name, sector, createdAt
+- `KpiDefinitionEntity` — cada campo del formulario: uid, profileUid, key (slug), label, type (int/decimal/bool/text/yesno/select), section (visita/objetivos/pedidos/acciones/notas), enabled, required, orderIndex, isSystem (predefinido vs custom), options (JSON para select), lowerIsBad
+- `VisitaReportEntity` — informe por stop+fecha: uid, stopUid, dateStr, visitResult, storeOpen, kpiValues (JSON Map<kpiKey,value>), createdAt
 
-Tres niveles de configuración:
-1. **Perfiles predefinidos** — packs de KPIs por sector listos para activar:
-   - Telco: activaciones, bonos, churns, portabilidades, stock SIMs, Plus/Plus LL
-   - Farma: unidades vendidas, referencias, facing, caducidades, devoluciones
-   - Distribución: pedido €, referencias activas, exposición, incidencias logísticas
-   - Retail: rotación, sell-out, promociones activas, competencia
-2. **KPIs comunes** — siempre presentes en todos los perfiles: resultado visita, notas, próxima acción, duración
-3. **Editor custom** — añadir/renombrar/reordenar/marcar requerido cualquier campo. Tipos: número, boolean (sí/no), select (opciones fijas), texto libre
+**Ficheros nuevos:**
+- 3 entidades + 3 DAOs + `BusinessProfileRepository.kt`
+- `KpiCatalog.kt` — catálogo de perfiles predefinidos hardcoded (sin BD)
+- `BusinessProfileScreen.kt` + `BusinessProfileViewModel.kt`
+- `Screen.BusinessProfile` en nav
 
-Stats (S11) se recalculan sobre los KpiDefinition activos del account — no sobre campos hardcodeados.
+**Perfiles predefinidos en KpiCatalog:**
+- Telco: activaciones, churns, portabilidades, bonos €, stock SIMs, TV
+- Farma: referencias activas, sell-in €, sell-out, visibilidad, formación
+- Distribución: pedido €, referencias, devoluciones, lineal, caducidades
+- Retail: ventas €, unidades, ticket medio, merma, ocupación lineal
+- Servicios: propuestas, conversiones, tiempo visita, satisfacción (1-5)
+- Libre: sin campos predefinidos, el usuario construye desde cero
 
-Impacto en sprints posteriores:
-- S10 (formulario visita): VisitaScreen lee KpiDefinitionEntity para generar campos dinámicamente
-- S11 (KPIs + stats): KpisScreen agrega por KpiDefinition, no por campos fijos
-- S12 (XLS import): columnas del Excel se mapean a KpiDefinition del perfil activo
-- S13 (admin): empresa puede asignar perfil a cada empleado y bloquear edición de KPIs
+**Tres niveles de configuración en UI:**
+1. Elegir perfil de sector → carga KPIs predefinidos automáticamente
+2. Toggle por campo → activar/desactivar dentro del perfil
+3. Editor custom → añadir campo, tipo, sección, requerido, ordenar con drag
+
+**KPIs comunes siempre presentes** (isSystem=true, no eliminables):
+- Resultado visita (contactado/no_estaba/volvemos/rechazado)
+- Notas (texto)
+- Próxima acción (texto)
+- Duración visita (minutos, calculada desde JornadaSession)
+
+**Nota sobre AccountDto:** el servidor ya envía `form_config` y `plus_config` en `me` y `AuthResponse`. En S09 el cliente ignora estos campos del servidor y usa Room como fuente de verdad local. La sincronización servidor↔cliente del perfil se hace en S14 (admin).
 
 ### S10 — PENDIENTE ⏳ — Formulario de visita extendido (depende S09)
 - VisitaScreen genera campos dinámicamente desde KpiDefinitionEntity del perfil activo

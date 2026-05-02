@@ -68,8 +68,9 @@ feature/
 | S04 — Mapa global | ✅ Completado | GlobalMapScreen con MapLibre, filtros por estado |
 | S05 — Visitas | ✅ Completado | VisitaScreen, formulario visita, fotos CameraX + Coil |
 | S06 — KPIs | ✅ Completado | KpisScreen con estadísticas y tendencias |
+| S07 — Creador paradas + OSRM | ✅ Completado | CrearParadaScreen, routing OSRM en MapLibreProvider |
 | S08 — Jornada laboral | ✅ Completado | Timer + km + GPS trail + DaySession Room |
-| S09 — Perfil de negocio | ⏳ Pendiente | BusinessProfile + KpiDefinition + FormConfig — prerequisito de S10/S11/S12/S14 |
+| S09 — Perfil de negocio | 🚧 Siguiente | BusinessProfile + KpiDefinition + FormConfig — prerequisito de S10/S11/S12/S14 |
 | S10 — Formulario visita extendido | ⏳ Pendiente | Campos dinámicos desde KpiDefinition (depende S09) |
 | S11 — KPIs extendidos + biblioteca | ⏳ Pendiente | Stats por KpiDefinition, gráficas 6m, biblioteca paradas (depende S09+S10) |
 | S12 — Calendario | ⏳ Pendiente | CalendarioScreen real, mes/semana, festivos (independiente) |
