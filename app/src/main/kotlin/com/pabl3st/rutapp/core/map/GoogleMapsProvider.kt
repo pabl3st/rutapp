@@ -42,6 +42,7 @@ class GoogleMapsProvider : MapProvider {
         config: MapConfig,
         stops: List<StopMapMarker>,
         userLocation: MapLatLng?,
+        polyline: List<MapLatLng> = emptyList(),
         onStopClick: (uid: String) -> Unit,
         onMapClick: (MapLatLng) -> Unit,
         onCameraIdle: (center: MapLatLng, zoom: Float) -> Unit,

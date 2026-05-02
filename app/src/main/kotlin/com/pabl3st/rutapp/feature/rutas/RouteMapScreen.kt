@@ -32,6 +32,9 @@ fun RouteMapScreen(
 ) {
     val ui      by vm.ui.collectAsStateWithLifecycle()
     val context  = LocalContext.current
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scope     = rememberCoroutineScope()
+    var centerMap by remember { mutableStateOf(false) }
 
     // ── Permiso GPS ───────────────────────────────────────────
     val requestPermission = rememberLocationPermissionLauncher(
@@ -77,7 +80,7 @@ fun RouteMapScreen(
 
                     // Botón centrar en usuario
                     IconButton(
-                        onClick  = { /* el mapa se centra via LaunchedEffect */ },
+                        onClick  = { centerMap = true },
                         enabled  = ui.userLocation != null,
                     ) {
                         if (ui.isLocating) {
@@ -100,12 +103,14 @@ fun RouteMapScreen(
                 modifier     = Modifier.fillMaxWidth().weight(0.55f),
                 config       = vm.mapConfig,
                 stops        = ui.stops,
-                userLocation = ui.userLocation,
+                userLocation = if (centerMap) { centerMap = false; ui.userLocation } else ui.userLocation,
+                polyline     = ui.routePolyline,
                 onStopClick  = { uid ->
-                    // Scroll a la tarjeta del stop en la lista
+                    val idx = ui.stops.indexOfFirst { it.uid == uid }
+                    if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
                 },
                 onMapClick   = { /* nada por ahora */ },
-                onCameraIdle = { _, _ -> /* guardar zoom/centro para restaurar */ },
+                onCameraIdle = { _, _ -> },
             )
 
             // ── Resumen stats ─────────────────────────────────
@@ -132,6 +137,7 @@ fun RouteMapScreen(
                 }
             } else {
                 LazyColumn(
+                    state           = listState,
                     modifier        = Modifier.fillMaxWidth().weight(0.45f),
                     contentPadding  = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),

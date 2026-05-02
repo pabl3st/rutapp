@@ -18,6 +18,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 // Alias explícito para evitar conflicto con nuestra MarkerOptions
 import org.maplibre.android.annotations.MarkerOptions as MLMarkerOptions
+import org.maplibre.android.annotations.PolylineOptions as MLPolylineOptions
 
 /**
  * MapLibre Provider — OpenStreetMap
@@ -32,14 +33,16 @@ class MapLibreProvider(private val context: Context) : MapProvider {
     override val supportsSatellite = true
 
     private fun styleUrl(style: MapStyle, darkMode: Boolean): String = when (style) {
-        MapStyle.DARK       -> "https://demotiles.maplibre.org/style.json"
-        MapStyle.LIGHT,
-        MapStyle.STANDARD   -> "https://demotiles.maplibre.org/style.json"
+        MapStyle.DARK                  -> "https://tiles.openfreemap.org/styles/dark"
         MapStyle.SATELLITE,
-        MapStyle.HYBRID     -> "https://demotiles.maplibre.org/style.json"
-        MapStyle.TERRAIN    -> "https://demotiles.maplibre.org/style.json"
+        MapStyle.HYBRID                -> "https://tiles.openfreemap.org/styles/bright"
+        MapStyle.LIGHT,
+        MapStyle.STANDARD,
+        MapStyle.TERRAIN,
         MapStyle.TRAFFIC,
-        MapStyle.NAVIGATION -> "https://demotiles.maplibre.org/style.json"
+        MapStyle.NAVIGATION            ->
+            if (darkMode) "https://tiles.openfreemap.org/styles/dark"
+            else          "https://tiles.openfreemap.org/styles/liberty"
     }
 
     // Convierte Long de color (0xFF2563EB) a string hex "#2563eb"
@@ -58,6 +61,7 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         config: MapConfig,
         stops: List<StopMapMarker>,
         userLocation: MapLatLng?,
+        polyline: List<MapLatLng> = emptyList(),
         onStopClick: (uid: String) -> Unit,
         onMapClick: (MapLatLng) -> Unit,
         onCameraIdle: (center: MapLatLng, zoom: Float) -> Unit,
@@ -139,6 +143,16 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                 mlMap?.let { map ->
                     map.clear()
                     addStopMarkers(map, stops, config.markers)
+                    // Dibujar polilínea de ruta OSRM si existe
+                    if (polyline.size >= 2) {
+                        map.addPolyline(
+                            MLPolylineOptions()
+                                .addAll(polyline.map { MLLatLng(it.lat, it.lng) })
+                                .color(android.graphics.Color.parseColor("#2563EB"))
+                                .width(3f)
+                                .alpha(0.85f)
+                        )
+                    }
                     // Si la cámara sigue en el fallback (0,0 o Madrid) y ahora hay stops con GPS,
                     // centrar en el primer stop pendiente
                     val camPos = map.cameraPosition.target
