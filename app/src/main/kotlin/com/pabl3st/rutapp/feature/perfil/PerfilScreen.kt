@@ -117,7 +117,7 @@ fun PerfilScreen(
                     detail  = "Planificación mensual",
                     onClick = { onNavigateToCalendario() },
                 )
-                if (ui.userRole in listOf("owner", "admin")) {
+                if (ui.role in listOf("owner", "admin")) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     InfoRowAction(
                         icon    = Icons.Default.AdminPanelSettings,
