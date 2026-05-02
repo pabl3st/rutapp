@@ -126,10 +126,66 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - RutasDatabase v3→v4 — MIGRATION_3_4 crea tabla day_sessions
 - DatabaseModule — addMigrations(3,4) + provideDaySessionDao
 
-### S09+ — PENDIENTE ⏳
-- AdminScreen (PlaceholderScreen activo en nav)
-- XLS Import
-- Multi-tenancy, roles en UI, FCM push
+### S09 — PENDIENTE ⏳ — Perfil de negocio + configuración de formulario
+**Prerequisito de S10, S11, S12 y S13. Implementar antes que cualquiera de ellos.**
+
+Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formularios de visita
+y paneles de KPIs adaptados a su negocio. Sin este sprint, S10 y S11 quedan hardcodeados.
+
+Entidades nuevas:
+- `BusinessProfileEntity` — perfil de negocio del account: id, nombre, sector (telco/farma/distribución/retail/custom)
+- `KpiDefinitionEntity` — definición de un KPI: id, label, tipo (number/boolean/select/text), unidad, requerido, orden, visible, sector al que pertenece
+- `VisitFormConfigEntity` — qué secciones y campos muestra el formulario de visita para este account
+
+Tres niveles de configuración:
+1. **Perfiles predefinidos** — packs de KPIs por sector listos para activar:
+   - Telco: activaciones, bonos, churns, portabilidades, stock SIMs, Plus/Plus LL
+   - Farma: unidades vendidas, referencias, facing, caducidades, devoluciones
+   - Distribución: pedido €, referencias activas, exposición, incidencias logísticas
+   - Retail: rotación, sell-out, promociones activas, competencia
+2. **KPIs comunes** — siempre presentes en todos los perfiles: resultado visita, notas, próxima acción, duración
+3. **Editor custom** — añadir/renombrar/reordenar/marcar requerido cualquier campo. Tipos: número, boolean (sí/no), select (opciones fijas), texto libre
+
+Stats (S11) se recalculan sobre los KpiDefinition activos del account — no sobre campos hardcodeados.
+
+Impacto en sprints posteriores:
+- S10 (formulario visita): VisitaScreen lee KpiDefinitionEntity para generar campos dinámicamente
+- S11 (KPIs + stats): KpisScreen agrega por KpiDefinition, no por campos fijos
+- S12 (XLS import): columnas del Excel se mapean a KpiDefinition del perfil activo
+- S13 (admin): empresa puede asignar perfil a cada empleado y bloquear edición de KPIs
+
+### S10 — PENDIENTE ⏳ — Formulario de visita extendido (depende S09)
+- VisitaScreen genera campos dinámicamente desde KpiDefinitionEntity del perfil activo
+- VisitaReportEntity almacena los valores como JSON keyed por kpiDefinitionId
+- Estado PDV: abierto / cerrado hoy / inactivo permanente
+- Campos custom configurables por empresa (S09 los define, S10 los renderiza)
+
+### S11 — PENDIENTE ⏳ — KPIs extendidos + biblioteca de paradas (depende S09+S10)
+- KpisScreen agrega por KpiDefinition activos, no hardcodeados
+- Gráficas 6 meses por KPI seleccionable
+- Filtro por ruta
+- BibliotecaScreen: tabs sin GPS / sin ruta / búsqueda / bulk actions
+
+### S12 — PENDIENTE ⏳ — Calendario (independiente)
+- CalendarioScreen real (reemplaza PlaceholderScreen)
+- Vista mes y semana
+- Festivos nacionales vía API pública
+
+### S13 — PENDIENTE ⏳ — XLS Import + generación automática de rutas (depende S09+S11)
+- Importar Excel — columnas mapeadas a KpiDefinition del perfil activo
+- Algoritmo de agrupación geográfica de paradas
+- Asignación de rutas generadas al calendario
+
+### S14 — PENDIENTE ⏳ — Roles y admin panel (depende S09+S10)
+- AdminScreen real (reemplaza PlaceholderScreen)
+- Roles: owner/admin/manager/agent/viewer
+- Empresa asigna perfil de negocio y configuración de formulario por empleado
+- empViewPrefs: mostrar/ocultar elementos por rol
+
+### S15 — PENDIENTE ⏳ — IA (depende S08+S10+S11)
+- Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)
+- Asesor pre-visita por PDV: risk score + objetivo
+- Contexto: historial KpiDefinition + JornadaSession
 
 ---
 

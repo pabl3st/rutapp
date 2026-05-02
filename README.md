@@ -68,9 +68,13 @@ feature/
 | S04 — Mapa global | ✅ Completado | GlobalMapScreen con MapLibre, filtros por estado |
 | S05 — Visitas | ✅ Completado | VisitaScreen, formulario visita, fotos CameraX + Coil |
 | S06 — KPIs | ✅ Completado | KpisScreen con estadísticas y tendencias |
-| S07 — Creador paradas + OSRM | ✅ Completado | CrearParadaScreen, routing OSRM en MapLibreProvider |
-| S08 — Calendario | ⏳ Planificado | Placeholder activo en nav |
-| S09 — Admin | ⏳ Planificado | Placeholder activo en nav |
-| S10 — XLS Import | ⏳ Planificado | — |
-| S11 — Polish | ⏳ Planificado | — |
-| S12 — Play Store | ⏳ Planificado | — |
+| S08 — Jornada laboral | ✅ Completado | Timer + km + GPS trail + DaySession Room |
+| S09 — Perfil de negocio | ⏳ Pendiente | BusinessProfile + KpiDefinition + FormConfig — prerequisito de S10/S11/S12/S14 |
+| S10 — Formulario visita extendido | ⏳ Pendiente | Campos dinámicos desde KpiDefinition (depende S09) |
+| S11 — KPIs extendidos + biblioteca | ⏳ Pendiente | Stats por KpiDefinition, gráficas 6m, biblioteca paradas (depende S09+S10) |
+| S12 — Calendario | ⏳ Pendiente | CalendarioScreen real, mes/semana, festivos (independiente) |
+| S13 — XLS Import + auto-rutas | ⏳ Pendiente | Import Excel mapeado a KpiDefinition (depende S09+S11) |
+| S14 — Roles y admin panel | ⏳ Pendiente | AdminScreen real, empViewPrefs, perfil por empleado (depende S09+S10) |
+| S15 — IA | ⏳ Pendiente | Reoptimización + asesor PDV Gemini/Groq (depende S08+S10+S11) |
+| S16 — Polish | ⏳ Pendiente | — |
+| S17 — Play Store | ⏳ Pendiente | — |
