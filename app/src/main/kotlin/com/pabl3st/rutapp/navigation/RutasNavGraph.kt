@@ -166,10 +166,13 @@ fun RutasNavGraph(
             composable(Screen.Kpis.route) { KpisScreen() }
             composable(Screen.Calendario.route) {
                 CalendarioScreen(
+                    onBack       = { navController.popBackStack() },
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
-            composable(Screen.Admin.route) { AdminScreen() }
+            composable(Screen.Admin.route) {
+                AdminScreen(onBack = { navController.popBackStack() })
+            }
 
             composable(Screen.Perfil.route) {
                 PerfilScreen(

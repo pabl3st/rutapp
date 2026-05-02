@@ -17,13 +17,21 @@ import com.pabl3st.rutapp.core.ui.theme.Spacing
 
 @Composable
 fun AdminScreen(
+    onBack: () -> Unit = {},
     vm: AdminViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Admin") })
+            TopAppBar(
+                title = { Text("Admin") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                    }
+                },
+            )
         }
     ) { padding ->
         if (ui.isLoading) {

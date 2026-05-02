@@ -31,6 +31,7 @@ import java.util.Locale
 
 @Composable
 fun CalendarioScreen(
+    onBack: () -> Unit = {},
     onRouteClick: (String) -> Unit = {},
     vm: CalendarioViewModel = hiltViewModel(),
 ) {
@@ -38,7 +39,14 @@ fun CalendarioScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Calendario") })
+            TopAppBar(
+                title = { Text("Calendario") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                    }
+                },
+            )
         }
     ) { padding ->
         Column(
