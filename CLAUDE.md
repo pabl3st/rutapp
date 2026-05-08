@@ -157,11 +157,13 @@ Screen.Importar        // importar
 - BibliotecaScreen: tabs Todas/Sin GPS/Sin ruta, búsqueda en tiempo real, bulk actions
 - BibliotecaViewModel: combine(_tab, _query.debounce(200)) + flatMapLatest
 
-### S13 — COMPLETADO ✅ (Import CSV)
+### S13 — COMPLETADO ✅ (Import CSV + XLSX)
 - CsvParser: auto-detecta separador, maneja comillas, UTF-8
+- XlsxParser: parser OOXML sin dependencias externas (ZIP+XML, primera hoja, shared strings)
 - GeoCluster: K-means++ geográfico con estrategias AUTO/FIXED_K/RADIUS
 - ImportarScreen: stepper 4 pasos (Seleccionar → Mapear → Preview+Clustering → Guardar)
 - ImportarViewModel: autoMap(), buildClusters(), onSaveConfirm() crea rutas+stops en Room
+- Soporta .csv, .txt, .xlsx — selección automática de parser por extensión
 - RutasScreen: botón import en TopAppBar → navega a Screen.Importar
 
 ### S12 — COMPLETADO ✅ (Calendario)

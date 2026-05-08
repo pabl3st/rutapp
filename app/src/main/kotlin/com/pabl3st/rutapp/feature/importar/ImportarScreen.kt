@@ -171,12 +171,13 @@ private fun StepPickFile(ui: ImportarUiState, vm: ImportarViewModel) {
             tint     = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
         )
         Spacer(Modifier.height(Spacing.lg))
-        Text("Importar desde CSV", style = MaterialTheme.typography.titleLarge)
+        Text("Importar desde CSV o Excel", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(Spacing.sm))
         Text(
-            "Selecciona un fichero .csv o .txt con tus PDVs.\n" +
+            "Selecciona un fichero .csv, .txt o .xlsx con tus PDVs.\n" +
             "La primera fila debe ser la cabecera.\n" +
-            "Separadores soportados: coma, punto y coma, tabulador.",
+            "CSV: separadores coma, punto y coma, tabulador.\n" +
+            "Excel: se lee la primera hoja.",
             style   = MaterialTheme.typography.bodyMedium,
             color   = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -213,12 +214,19 @@ private fun StepPickFile(ui: ImportarUiState, vm: ImportarViewModel) {
             CircularProgressIndicator()
         } else {
             Button(
-                onClick  = { launcher.launch(arrayOf("text/csv", "text/plain", "text/tab-separated-values", "*/*")) },
+                onClick  = { launcher.launch(arrayOf(
+                    "text/csv",
+                    "text/plain",
+                    "text/tab-separated-values",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-excel",
+                    "*/*",
+                )) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(Icons.Default.FolderOpen, null)
                 Spacer(Modifier.width(Spacing.sm))
-                Text("Seleccionar fichero")
+                Text("Seleccionar fichero CSV / XLSX")
             }
         }
     }

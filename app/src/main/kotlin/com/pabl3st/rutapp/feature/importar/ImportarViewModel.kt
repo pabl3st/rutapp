@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.core.importer.CsvParser
 import com.pabl3st.rutapp.core.importer.GeoCluster
+import com.pabl3st.rutapp.core.importer.XlsxParser
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -99,7 +100,9 @@ class ImportarViewModel @Inject constructor(
                 runCatching {
                     val stream = ctx.contentResolver.openInputStream(uri)
                         ?: error("No se pudo abrir el fichero")
-                    CsvParser.parse(stream)
+                    val isXlsx = fileName.lowercase().endsWith(".xlsx") ||
+                                 fileName.lowercase().endsWith(".xls")
+                    if (isXlsx) XlsxParser.parse(stream) else CsvParser.parse(stream)
                 }.fold(
                     onSuccess = { result ->
                         if (result.headers.isEmpty()) {
