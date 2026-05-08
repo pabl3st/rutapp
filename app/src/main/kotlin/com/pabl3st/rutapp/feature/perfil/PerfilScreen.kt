@@ -460,7 +460,8 @@ private fun ThemeRow(currentMode: ThemeMode, onSelect: (ThemeMode) -> Unit) {
 @Composable
 private fun RolChip(role: String) {
     val (color, label) = when (role) {
-        "owner", "god" -> MaterialTheme.colorScheme.primary        to "Propietario"
+        "god"   -> MaterialTheme.colorScheme.primary to "Superadmin"
+        "owner" -> MaterialTheme.colorScheme.primary to "Propietario"
         "admin"        -> MaterialTheme.colorScheme.secondary      to "Admin"
         "manager"      -> MaterialTheme.colorScheme.tertiary       to "Manager"
         "agent"        -> MaterialTheme.colorScheme.onSurfaceVariant to "Agente"

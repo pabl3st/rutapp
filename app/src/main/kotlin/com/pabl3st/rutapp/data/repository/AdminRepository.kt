@@ -77,9 +77,11 @@ class AdminRepository @Inject constructor(
         get() = if (isOwner)
             listOf("admin", "manager", "agent", "viewer")
         else
-            listOf("manager", "agent", "viewer")
+            if (currentUserRole == "god") listOf("owner", "admin", "manager", "agent", "viewer")
+        else listOf("manager", "agent", "viewer")
 
     fun roleLabel(role: String) = when (role) {
+        "god"     -> "Superadmin"
         "owner"   -> "Propietario"
         "admin"   -> "Administrador"
         "manager" -> "Manager"

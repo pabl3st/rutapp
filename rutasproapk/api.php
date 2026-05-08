@@ -175,7 +175,7 @@ function requireAuth(): array {
 }
 
 function roleLevel(string $role): int {
-    return ['viewer'=>1,'agent'=>2,'manager'=>3,'admin'=>4,'owner'=>5][$role] ?? 0;
+    return ['viewer'=>1,'agent'=>2,'manager'=>3,'admin'=>4,'owner'=>5,'god'=>6][$role] ?? 0;
 }
 
 // ── Slug generator ───────────────────────────────────────────
@@ -969,6 +969,7 @@ if ($action === 'update_role') {
     $target = $st->fetch();
     if (!$target) err('Usuario no encontrado', 404);
     if ($target['role'] === 'owner') err('No se puede cambiar el rol del propietario', 403);
+    if ($target['role'] === 'god') err('No se puede cambiar el rol de un superadmin', 403);
     if ($targetId === $uid) err('No puedes cambiar tu propio rol', 403);
 
     db()->prepare('UPDATE users SET role=? WHERE id=? AND account_id=?')
@@ -994,6 +995,7 @@ if ($action === 'deactivate_user') {
     $target = $st->fetch();
     if (!$target) err('Usuario no encontrado', 404);
     if ($target['role'] === 'owner') err('No se puede desactivar al propietario', 403);
+    if ($target['role'] === 'god') err('No se puede desactivar a un superadmin', 403);
 
     db()->prepare('UPDATE users SET active=0 WHERE id=? AND account_id=?')
         ->execute([$targetId, $aid]);

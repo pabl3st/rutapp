@@ -81,6 +81,7 @@ class SessionManager @Inject constructor(
         set(value) = prefs.edit().putString(KEY_ACCOUNT_NAME, value).apply()
 
     val isCompany: Boolean get() = accountType == "company"
+    val isGod: Boolean     get() = userRole == "god"
 
     var lastSyncTimestamp: String
         get()      = prefs.getString(KEY_LAST_SYNC, "") ?: ""

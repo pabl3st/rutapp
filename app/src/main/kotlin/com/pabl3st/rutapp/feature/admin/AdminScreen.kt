@@ -154,7 +154,7 @@ fun AdminScreen(
                             roleLabel      = vm::roleLabel,
                             onChangeRole   = { vm.onShowRolePicker(user) },
                             onDeactivate   = { vm.deactivateUser(user) },
-                            canEdit        = ui.userRole in setOf("owner", "admin") && user.role != "owner",
+                            canEdit        = ui.userRole == "god" || (ui.userRole in setOf("owner", "admin") && user.role !in setOf("owner", "god")),
                         )
                     }
                 }
