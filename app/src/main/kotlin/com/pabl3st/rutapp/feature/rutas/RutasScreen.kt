@@ -27,6 +27,7 @@ import java.util.Locale
 fun RutasScreen(
     onRouteClick: (String) -> Unit,
     onBack: () -> Unit,
+    onImport: () -> Unit = {},
     vm: RutasViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -48,6 +49,11 @@ fun RutasScreen(
                             strokeWidth = 2.dp,
                         )
                         Spacer(Modifier.width(12.dp))
+                    }
+                    if (ui.userRole in setOf("owner", "admin", "manager")) {
+                        IconButton(onClick = onImport) {
+                            Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
+                        }
                     }
                 }
             )

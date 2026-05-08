@@ -164,57 +164,54 @@ Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formula
 **Nota sobre AccountDto:** el servidor ya envía `form_config` y `plus_config` en `me` y `AuthResponse`. En S09 el cliente ignora estos campos del servidor y usa Room como fuente de verdad local. La sincronización servidor↔cliente del perfil se hace en S14 (admin).
 
 ### S10b — COMPLETADO ✅ — Ordenación de paradas
-- StopDao.updateOrderIndex (bulk)
-- StopRepository.reorderStops + observeAll/observeWithoutGps/observeOrphaned
-- RouteDetailViewModel: StopSortMode enum (MANUAL/GPS/GREEDY), sortByGps (nearest-neighbor), sortGreedy (greedy TSP)
-- RouteDetailScreen: 3 FilterChips + botón Guardar orden
+- `StopSortMode` enum: MANUAL / GPS / GREEDY
+- `RouteDetailScreen`: 3 chips de ordenación + botón guardar orden
+- `RouteDetailViewModel`: `sortByGps()` (nearest-neighbor desde GPS actual) + `sortGreedy()` (TSP greedy)
+- `StopRepository.reorderStops()`: bulk update de `orderIndex` en Room
+- `LocationManager.getLastLocation()` usado para modo GPS
 
-**[Descripción original]** Nuevo sprint añadido. Aplica a todas las vistas que muestran listas de paradas.**
+### S11 — COMPLETADO ✅ — KPIs extendidos + Biblioteca de paradas
+- `KpisScreen`: KPIs dinámicos por `KpiDefinitionEntity`, período Hoy/7d/30d/6m, filtro por ruta, tendencia mensual 6 meses, `SectorKpisGrid`
+- `KpisViewModel`: agrega `KpiValueEntity` por `KpiDefinition` activos del perfil, `BusinessProfileRepository` inyectada
+- `BibliotecaScreen`: 3 tabs (Todas / Sin GPS / Sin ruta), buscador con debounce 200ms, contador
+- `BibliotecaViewModel`: `flatMapLatest` con `combine(_tab, _query)`, `observeOrphaned` para stops sin ruta
+- `Screen.Biblioteca` + ruta en NavGraph + import en RutasNavGraph
 
-Situación actual:
-- `RouteDetailScreen`: ordena por `orderIndex ASC` ✅ (DAO query)
-- `GlobalMapScreen`: ordena por `orderIndex ASC` ✅ (DAO query + applyFilters)
-- `HomeScreen`: ordena por `orderIndex ASC` ✅ (tras refactor S10b)
-- `RouteMapScreen`: markers sin orden explícito de renderizado ⚠️
+### S12 — COMPLETADO ✅ — Calendario
+- `CalendarioScreen`: grid mensual con `LocalDate`/`YearMonth`, días con punto de ruta asignada, lista de rutas del día seleccionado
+- `CalendarioViewModel`: `routesByDate: Map<String, List<RouteEntity>>` desde Room, `selectDay()`, `prevMonth()`, `nextMonth()`
+- Navegación desde `PerfilScreen` y desde `BottomNavBar` (no en bottom nav pero sí accesible)
+- **Pendiente**: festivos nacionales vía API pública (no implementado)
 
-Modos de ordenación a implementar por pantalla:
-- **RouteDetailScreen** (lista de ejecución): `orderIndex` (manual, el agente reordena), nearest-neighbor desde posición GPS, greedy desde última visitada
-- **GlobalMapScreen** (lista lateral): `orderIndex` dentro de cada ruta, luego por estado (pending primero)
-- **HomeScreen** (paradas del día): igual que RouteDetail — `orderIndex` como principal
-- Botón de reordenar en `RouteDetailScreen` con 3 modos: Manual / Por GPS / Greedy
+### S13 — SIGUIENTE 🚧 — XLS Import + generación automática de rutas
+**Prerequisito: S09 ✅ (BusinessProfile + KpiDefinition activos)**
 
-Ficheros afectados:
-- `StopDao.kt`: nuevas queries con ORDER BY flexible
-- `StopRepository.kt`: métodos `reorderByGps()` y `reorderGreedy()`
-- `RouteDetailViewModel.kt`: `activeSort` enum (MANUAL/GPS/GREEDY) + `onReorder()`
-- `RouteDetailScreen.kt`: selector de modo de ordenación (3 chips)
-- `GlobalMapViewModel.kt`: ya ordena por `orderIndex`, añadir opción por estado
-- VisitaScreen genera campos dinámicamente desde KpiDefinitionEntity del perfil activo
-- VisitaReportEntity almacena los valores como JSON keyed por kpiDefinitionId
-- Estado PDV: abierto / cerrado hoy / inactivo permanente
-- Campos custom configurables por empresa (S09 los define, S10 los renderiza)
+Objetivo: el usuario importa un Excel con sus PDVs y la app genera rutas optimizadas geográficamente y las asigna al calendario.
 
-### S11 — PARCIAL ✅🔧 — KPIs extendidos + biblioteca de paradas
-- KpisScreen agrega por KpiDefinition activos, no hardcodeados
-- Gráficas 6 meses por KPI seleccionable
-- Filtro por ruta
-- BibliotecaScreen: tabs sin GPS / sin ruta / búsqueda / bulk actions
+**Flujo completo:**
+1. Picker de fichero `.xlsx`/`.csv` → parse columnas
+2. Mapeo de columnas a campos de `StopEntity` + `KpiDefinition` del perfil activo
+3. Vista previa de paradas importadas con errores destacados
+4. Algoritmo de clustering geográfico (K-means simple o radio fijo) → grupos = rutas
+5. Nombrar rutas generadas + asignar fechas en calendario
+6. Guardar stops + routes en Room + sync queue
 
-### S12 — PENDIENTE ⏳ — Calendario (independiente)
-- CalendarioScreen real (reemplaza PlaceholderScreen)
-- Vista mes y semana
-- Festivos nacionales vía API pública
+**Ficheros nuevos:**
+- `feature/importar/ImportarScreen.kt` + `ImportarViewModel.kt`
+- `feature/importar/ColumnMappingScreen.kt` — mapeo interactivo de columnas
+- `core/import/ExcelParser.kt` — Apache POI o lectura CSV manual
+- `core/import/GeoCluster.kt` — algoritmo de agrupación por coordenadas
+- `Screen.Importar` en nav
+- Botón en `RutasScreen` (FAB secundario o menú)
 
-### S13 — PENDIENTE ⏳ — XLS Import + generación automática de rutas (depende S09+S11)
-- Importar Excel — columnas mapeadas a KpiDefinition del perfil activo
-- Algoritmo de agrupación geográfica de paradas
-- Asignación de rutas generadas al calendario
+**Dependencias Android:**
+- Apache POI Android (`poi-android`) o leer CSV con `BufferedReader` (más ligero)
+- `ActivityResultContracts.OpenDocument` para el file picker
 
-### S14 — PENDIENTE ⏳ — Roles y admin panel (depende S09+S10)
-- AdminScreen real (reemplaza PlaceholderScreen)
-- Roles: owner/admin/manager/agent/viewer
-- Empresa asigna perfil de negocio y configuración de formulario por empleado
-- empViewPrefs: mostrar/ocultar elementos por rol
+### S14 — PENDIENTE ⏳ — Admin panel completo (depende S09+S10)
+- `AdminScreen` actual muestra stats básicas (rutas, paradas, sync pendiente) — funcional pero limitado
+- Ampliar con: gestión de usuarios/invitaciones, asignación de perfil de negocio por empleado, roles detallados (owner/admin/manager/agent/viewer), `empViewPrefs` por rol
+- Endpoints API nuevos: `users_list`, `invite_user`, `update_role`, `deactivate_user`
 
 ### S15 — PENDIENTE ⏳ — IA (depende S08+S10+S11)
 - Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)

@@ -33,6 +33,7 @@ import com.pabl3st.rutapp.feature.admin.AdminScreen
 import com.pabl3st.rutapp.feature.calendario.CalendarioScreen
 import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
+import com.pabl3st.rutapp.feature.importar.ImportarScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -105,6 +106,7 @@ fun RutasNavGraph(
                 RutasScreen(
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                     onBack       = { navController.popBackStack() },
+                    onImport     = { navController.navigate(Screen.Importar.route) },
                 )
             }
 
@@ -241,6 +243,15 @@ fun RutasNavGraph(
                     },
                 )
             }
+            composable(route = Screen.Importar.route) {
+                ImportarScreen(
+                    onBack = { navController.popBackStack() },
+                    onDone = {
+                        navController.navigate(Screen.Rutas.route) {
+                            popUpTo(Screen.Importar.route) { inclusive = true }
+                        }
+                    },
+                )
             }
         }
     }

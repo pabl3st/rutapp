@@ -22,5 +22,6 @@ sealed class Screen(val route: String) {
         fun createRoute(routeUid: String) = "crear-parada/$routeUid"
     }
     object BusinessProfile : Screen("business-profile")
-    object Biblioteca : Screen("biblioteca")
+    object Biblioteca      : Screen("biblioteca")
+    object Importar        : Screen("importar")
 }
