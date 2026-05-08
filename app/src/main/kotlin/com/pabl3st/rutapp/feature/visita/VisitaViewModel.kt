@@ -9,6 +9,8 @@ import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
+import com.pabl3st.rutapp.data.repository.UserPrefs
+import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -26,6 +28,7 @@ data class VisitaUiState(
     val photos: List<Uri>       = emptyList(),
     val showCamera: Boolean     = false,
     val saved: Boolean          = false,
+    val prefs: UserPrefs                          = UserPrefs(),
     val kpiFields: List<KpiDefinitionEntity> = emptyList(), // KPIs visibles del sector activo
     val kpiValues: Map<String, String>          = emptyMap(),  // kpiId -> valor introducido
     val error: String?          = null,
@@ -37,6 +40,7 @@ class VisitaViewModel @Inject constructor(
     private val stopRepo:    StopRepository,
     private val profileRepo: BusinessProfileRepository,
     private val kpiValueDao: KpiValueDao,
+    private val prefsRepo:   UserPrefsRepository,
 ) : ViewModel() {
 
     private val stopUid: String = checkNotNull(savedStateHandle["stopUid"])
@@ -47,6 +51,7 @@ class VisitaViewModel @Inject constructor(
     init {
         loadStop()
         loadKpiFields()
+        loadPrefs()
         loadExistingKpiValues()
     }
 
@@ -119,6 +124,12 @@ class VisitaViewModel @Inject constructor(
             val existing = kpiValueDao.getByStop(stopUid)
                 .associate { it.kpiId to it.valueText }
             _ui.update { it.copy(kpiValues = it.kpiValues + existing) }
+        }
+    }
+
+    private fun loadPrefs() {
+        viewModelScope.launch {
+            prefsRepo.prefs.collect { p -> _ui.update { it.copy(prefs = p) } }
         }
     }
 

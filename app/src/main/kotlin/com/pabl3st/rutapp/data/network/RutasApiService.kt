@@ -287,6 +287,12 @@ data class AdminActionResponse(
     val message: String = "",
 )
 
+@JsonClass(generateAdapter = true)
+data class BaseResponse(
+    val ok: Boolean,
+    val error: String? = null,
+)
+
 // ── Retrofit interface ───────────────────────────────────────
 
 interface RutasApiService {
@@ -363,6 +369,13 @@ interface RutasApiService {
     ): Response<BatchSyncResponse>
 
     // ── S14 Admin endpoints ───────────────────────────────────
+    @POST(API_PATH)
+    suspend fun updateUserPrefs(
+        @Query("action")         action: String = "update_user_prefs",
+        @Header("X-Auth-Token")  token: String,
+        @Body                    body: Map<String, @JvmSuppressWildcards Any>,
+    ): retrofit2.Response<BaseResponse>
+
     @GET(API_PATH)
     suspend fun usersList(
         @Query("action") action: String = "users_list",

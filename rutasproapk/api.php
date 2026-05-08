@@ -1006,3 +1006,32 @@ if ($action === 'deactivate_user') {
 }
 
 err("Acción desconocida: {$action}", 404);
+
+// ── update_user_prefs ─────────────────────────────────────────
+if ($action === 'update_user_prefs') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+
+    $prefsInput = $body['prefs'] ?? [];
+    if (!is_array($prefsInput)) err('prefs debe ser un objeto JSON', 400, $action);
+
+    $allowed = [
+        'language', 'show_visit_duration', 'show_next_action',
+        'show_photos', 'require_result', 'push_enabled',
+        'auto_sync', 'jornada_reminder', 'jornada_reminder_hour',
+    ];
+    $clean = [];
+    foreach ($prefsInput as $k => $v) {
+        if (in_array($k, $allowed, true)) $clean[$k] = $v;
+    }
+
+    db()->prepare(
+        'INSERT INTO user_prefs (user_id, prefs) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE prefs = ?, updated_at = NOW()'
+    )->execute([$uid, json_encode($clean), json_encode($clean)]);
+
+    apiLog($action, $uid, $aid);
+    ok(['updated' => true]);
+}
+

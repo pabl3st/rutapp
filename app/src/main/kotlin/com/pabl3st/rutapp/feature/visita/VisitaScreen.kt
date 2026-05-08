@@ -195,8 +195,10 @@ fun VisitaScreen(
                         }
                     }
 
-                    Text("Fotos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    PhotosSection(photos = ui.photos, onAddPhoto = vm::onShowCamera, onRemovePhoto = vm::onRemovePhoto)
+                    if (ui.prefs.showPhotos) {
+                        Text("Fotos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        PhotosSection(photos = ui.photos, onAddPhoto = vm::onShowCamera, onRemovePhoto = vm::onRemovePhoto)
+                    }
 
 
                     // ── KPIs dinámicos del sector ─────────────────────
@@ -214,7 +216,9 @@ fun VisitaScreen(
 
                                         OutlinedTextField(value = ui.notes, onValueChange = vm::onNotesChange, label = { Text("Notas de la visita") }, placeholder = { Text("Observaciones, incidencias...") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6)
 
-                    OutlinedTextField(value = ui.nextAction, onValueChange = vm::onNextActionChange, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.Default.NextPlan, null, Modifier.size(18.dp)) })
+                    if (ui.prefs.showNextAction) {
+                        OutlinedTextField(value = ui.nextAction, onValueChange = vm::onNextActionChange, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.Default.NextPlan, null, Modifier.size(18.dp)) })
+                    }
 
                     Spacer(Modifier.height(8.dp))
                 }
