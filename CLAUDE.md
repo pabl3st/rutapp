@@ -167,8 +167,11 @@ Screen.Importar        // importar
 - RutasScreen: botón import en TopAppBar → navega a Screen.Importar
 
 ### S12 — COMPLETADO ✅ (Calendario)
-- CalendarioScreen (305 líneas): grid mensual, selección de día, lista de rutas del día con estado
-- CalendarioViewModel: observeAll() + groupBy fecha + festivos nacionales via date.nager.at/api/v3
+- CalendarioScreen: grid mensual, selección de día, lista de rutas del día con estado
+- CalendarioViewModel: observeAll() + groupBy fecha + festivos via date.nager.at/api/v3/ES (cache por año)
+- Festivos renderizados: fondo errorContainer en celda, punto rojo bajo número, nombre festivo en panel inferior
+- Fines de semana en color onSurfaceVariant; días con ruta: punto verde (pendiente) o secundario (completada)
+- Sin red: calendario funciona sin festivos (catch silencioso)
 - Festivos: cache por año, merge de múltiples años, fallback silencioso si no hay red
 
 ### S14 — COMPLETADO ✅ (Admin panel + roles)

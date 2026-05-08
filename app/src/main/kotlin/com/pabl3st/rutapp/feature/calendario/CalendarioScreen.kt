@@ -66,6 +66,7 @@ fun CalendarioScreen(
                 today          = ui.today,
                 selectedDay    = ui.selectedDay,
                 routesByDate   = ui.routesByDate,
+                holidays       = ui.holidays,
                 onDayClick     = vm::selectDay,
             )
 
@@ -77,12 +78,33 @@ fun CalendarioScreen(
                     .replaceFirstChar { c -> c.uppercase() }
             } ?: "Sin selección"
 
-            Text(
-                text     = dateLabel,
-                style    = MaterialTheme.typography.titleSmall,
-                color    = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs),
-            )
+            // Festivo del día seleccionado
+            val selectedHoliday = ui.selectedDay?.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                ?.let { ui.holidays[it] }
+
+            Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)) {
+                Text(
+                    text  = dateLabel,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (selectedHoliday != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Celebration, null,
+                            modifier = Modifier.size(12.dp),
+                            tint     = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text  = selectedHoliday.localName.ifBlank { selectedHoliday.name },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
 
             when {
                 ui.isLoading -> Box(
@@ -173,11 +195,11 @@ private fun CalendarGrid(
     today:        LocalDate,
     selectedDay:  LocalDate?,
     routesByDate: Map<String, List<RouteEntity>>,
+    holidays:     Map<String, com.pabl3st.rutapp.feature.calendario.PublicHoliday>,
     onDayClick:   (LocalDate) -> Unit,
 ) {
     val fmt         = DateTimeFormatter.ISO_LOCAL_DATE
     val firstDay    = month.atDay(1)
-    // Monday = 1, offset to align grid
     val startOffset = (firstDay.dayOfWeek.value - 1)
     val daysInMonth = month.lengthOfMonth()
     val totalCells  = startOffset + daysInMonth
@@ -192,11 +214,13 @@ private fun CalendarGrid(
                     if (dayNum < 1 || dayNum > daysInMonth) {
                         Spacer(Modifier.weight(1f).aspectRatio(1f))
                     } else {
-                        val date    = month.atDay(dayNum)
-                        val dateStr = date.format(fmt)
-                        val routes  = routesByDate[dateStr] ?: emptyList()
+                        val date      = month.atDay(dayNum)
+                        val dateStr   = date.format(fmt)
+                        val routes    = routesByDate[dateStr] ?: emptyList()
+                        val holiday   = holidays[dateStr]
                         val isToday    = date == today
                         val isSelected = date == selectedDay
+                        val isWeekend  = date.dayOfWeek.value >= 6
                         val hasRoutes  = routes.isNotEmpty()
                         val allDone    = hasRoutes && routes.all { it.status == "done" }
 
@@ -208,6 +232,7 @@ private fun CalendarGrid(
                                     when {
                                         isSelected -> MaterialTheme.colorScheme.primary
                                         isToday    -> MaterialTheme.colorScheme.primaryContainer
+                                        holiday != null -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
                                         else       -> androidx.compose.ui.graphics.Color.Transparent
                                     }
                                 )
@@ -221,13 +246,16 @@ private fun CalendarGrid(
                                         fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal
                                     ),
                                     color = when {
-                                        isSelected -> MaterialTheme.colorScheme.onPrimary
-                                        isToday    -> MaterialTheme.colorScheme.primary
-                                        else       -> MaterialTheme.colorScheme.onSurface
+                                        isSelected  -> MaterialTheme.colorScheme.onPrimary
+                                        isToday     -> MaterialTheme.colorScheme.primary
+                                        holiday != null && !isWeekend -> MaterialTheme.colorScheme.error
+                                        isWeekend   -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        else        -> MaterialTheme.colorScheme.onSurface
                                     },
                                 )
-                                if (hasRoutes) {
-                                    Box(
+                                // Punto de ruta o festivo
+                                when {
+                                    hasRoutes -> Box(
                                         modifier = Modifier.size(5.dp).clip(CircleShape).background(
                                             when {
                                                 isSelected -> MaterialTheme.colorScheme.onPrimary
@@ -235,6 +263,10 @@ private fun CalendarGrid(
                                                 else       -> MaterialTheme.colorScheme.tertiary
                                             }
                                         )
+                                    )
+                                    holiday != null && !isSelected -> Box(
+                                        modifier = Modifier.size(4.dp).clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
                                     )
                                 }
                             }
