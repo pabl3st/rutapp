@@ -101,6 +101,28 @@ class StopRepository @Inject constructor(
 
     suspend fun getByUid(uid: String): StopEntity? = stopDao.getByUid(uid)
 
+    // ── Biblioteca de paradas ─────────────────────────────────
+
+    fun observeAll(accountId: Int): Flow<List<StopEntity>> =
+        stopDao.observeAll(accountId)
+
+    fun observeWithoutGps(accountId: Int): Flow<List<StopEntity>> =
+        stopDao.observeWithoutGps(accountId)
+
+    fun observeOrphaned(accountId: Int): Flow<List<StopEntity>> =
+        stopDao.observeOrphaned(accountId)
+
+    // ── Reordenación de paradas ───────────────────────────────
+
+    /** Persiste el orden actual de la lista en Room (bulk update) */
+    suspend fun reorderStops(stops: List<StopEntity>) {
+        val now = java.time.Instant.now().atOffset(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        stops.forEachIndexed { index, stop ->
+            stopDao.updateOrderIndex(stop.uid, index, now)
+        }
+    }
+
     /**
      * Geocodifica la dirección del stop y guarda las coordenadas en Room.
      * Llamar en background tras createStop si el stop tiene dirección.

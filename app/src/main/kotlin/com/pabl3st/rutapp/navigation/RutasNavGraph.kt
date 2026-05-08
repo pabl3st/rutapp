@@ -24,6 +24,7 @@ import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.perfil.BusinessProfileScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
+import com.pabl3st.rutapp.feature.biblioteca.BibliotecaScreen
 import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
@@ -175,7 +176,11 @@ fun RutasNavGraph(
                     onNavigateToRoute = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
-            composable(Screen.Kpis.route) { KpisScreen() }
+            composable(Screen.Kpis.route) {
+                KpisScreen(
+                    onNavigateToBiblioteca = { navController.navigate(Screen.Biblioteca.route) },
+                )
+            }
             composable(
                 route              = Screen.Calendario.route,
                 enterTransition    = { enterPush },
@@ -226,6 +231,16 @@ fun RutasNavGraph(
                 popExitTransition  = { exitPop },
             ) {
                 BusinessProfileScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(route = Screen.Biblioteca.route) {
+                BibliotecaScreen(
+                    onBack      = { navController.popBackStack() },
+                    onStopClick = { stopUid ->
+                        navController.navigate(Screen.Visita.createRoute(stopUid))
+                    },
+                )
+            }
             }
         }
     }

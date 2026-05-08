@@ -35,6 +35,7 @@ import java.util.Locale
 // ─────────────────────────────────────────────────────────────
 @Composable
 fun KpisScreen(
+    onNavigateToBiblioteca: () -> Unit = {},
     vm: KpisViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -43,6 +44,11 @@ fun KpisScreen(
         topBar = {
             TopAppBar(
                 title = { Text("KPIs") },
+                actions = {
+                    IconButton(onClick = onNavigateToBiblioteca) {
+                        Icon(Icons.Default.LibraryBooks, contentDescription = "Biblioteca de paradas")
+                    }
+                },
             )
         }
     ) { padding ->

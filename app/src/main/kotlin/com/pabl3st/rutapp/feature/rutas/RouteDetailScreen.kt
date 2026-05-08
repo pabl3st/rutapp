@@ -64,43 +64,123 @@ fun RouteDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        when {
-            ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        Column(modifier = Modifier.padding(padding)) {
+            // ── Selector de modo de ordenación ─────────────────
+            if (ui.stops.isNotEmpty()) {
+                SortModeSelector(
+                    current   = ui.sortMode,
+                    onChange  = { vm.setSortMode(it) },
+                    onSave    = { vm.saveCurrentOrder() },
+                    isSaving  = ui.isReordering,
+                    modifier  = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
-            ui.stops.isEmpty() -> Box(
-                Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Place, null, Modifier.size(56.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                    Spacer(Modifier.height(12.dp))
-                    Text("Sin paradas", style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text("Pulsa + para añadir la primera",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+
+            when {
+                ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-            }
-            else -> LazyColumn(
-                contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier            = Modifier.padding(padding),
-            ) {
-                items(ui.stops, key = { it.uid }) { stop ->
-                    StopCard(
-                        stop          = stop,
-                        onMarkVisited = { vm.markStopVisited(stop.uid) },
-                        onOpenVisita  = { onStopClick(stop.uid) },
-                    )
+                ui.stops.isEmpty() -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Place, null, Modifier.size(56.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Sin paradas", style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Pulsa + para añadir la primera",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    }
+                }
+                else -> LazyColumn(
+                    contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(ui.stops, key = { it.uid }) { stop ->
+                        StopCard(
+                            stop          = stop,
+                            onMarkVisited = { vm.markStopVisited(stop.uid) },
+                            onOpenVisita  = { onStopClick(stop.uid) },
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@Composable
+private fun SortModeSelector(
+    current:  StopSortMode,
+    onChange: (StopSortMode) -> Unit,
+    onSave:   () -> Unit,
+    isSaving: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier          = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SortModeChip(
+            label    = "Manual",
+            icon     = Icons.Default.DragHandle,
+            selected = current == StopSortMode.MANUAL,
+            onClick  = { onChange(StopSortMode.MANUAL) },
+            modifier = Modifier.weight(1f),
+        )
+        SortModeChip(
+            label    = "Por GPS",
+            icon     = Icons.Default.GpsFixed,
+            selected = current == StopSortMode.GPS,
+            onClick  = { onChange(StopSortMode.GPS) },
+            modifier = Modifier.weight(1f),
+        )
+        SortModeChip(
+            label    = "Óptimo",
+            icon     = Icons.Default.Route,
+            selected = current == StopSortMode.GREEDY,
+            onClick  = { onChange(StopSortMode.GREEDY) },
+            modifier = Modifier.weight(1f),
+        )
+        if (current != StopSortMode.MANUAL) {
+            IconButton(
+                onClick  = onSave,
+                enabled  = !isSaving,
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Save, contentDescription = "Guardar orden",
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SortModeChip(
+    label:    String,
+    icon:     androidx.compose.ui.graphics.vector.ImageVector,
+    selected: Boolean,
+    onClick:  () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilterChip(
+        selected = selected,
+        onClick  = onClick,
+        label    = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        leadingIcon = {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+        },
+        modifier = modifier,
+    )
+}
 
 @Composable
 private fun StatusChip(status: String, modifier: Modifier = Modifier) {

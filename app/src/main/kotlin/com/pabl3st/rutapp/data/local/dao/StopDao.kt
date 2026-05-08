@@ -26,6 +26,16 @@ interface StopDao {
     """)
     fun observeWithGpsByRouteUids(routeUids: List<String>): Flow<List<StopEntity>>
 
+    // ── Biblioteca ────────────────────────────────────────────
+    @Query("SELECT * FROM stops WHERE accountId = :accountId AND deletedAt IS NULL ORDER BY name ASC")
+    fun observeAll(accountId: Int): Flow<List<StopEntity>>
+
+    @Query("SELECT * FROM stops WHERE accountId = :accountId AND deletedAt IS NULL AND (lat IS NULL OR lng IS NULL OR lat = 0.0 OR lng = 0.0) ORDER BY name ASC")
+    fun observeWithoutGps(accountId: Int): Flow<List<StopEntity>>
+
+    @Query("SELECT * FROM stops WHERE accountId = :accountId AND deletedAt IS NULL AND routeUid NOT IN (SELECT uid FROM routes WHERE deletedAt IS NULL) ORDER BY name ASC")
+    fun observeOrphaned(accountId: Int): Flow<List<StopEntity>>
+
     // ── Lecturas puntuales ────────────────────────────────────
     @Query("SELECT * FROM stops WHERE uid = :uid LIMIT 1")
     suspend fun getByUid(uid: String): StopEntity?
@@ -59,4 +69,8 @@ interface StopDao {
         WHERE uid = :uid
     """)
     suspend fun updateVisitResult(uid: String, result: String, notes: String?, nextAction: String?, at: String)
+
+    // ── Reordenación bulk ─────────────────────────────────────
+    @Query("UPDATE stops SET orderIndex = :orderIndex, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
+    suspend fun updateOrderIndex(uid: String, orderIndex: Int, at: String)
 }
