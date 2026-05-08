@@ -882,4 +882,127 @@ if ($action === 'batch_sync') {
 }
 
 
+// ── users_list ────────────────────────────────────────────────
+if ($action === 'users_list') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+
+    $st = db()->prepare(
+        'SELECT id AS user_id, username, COALESCE(name, username) AS display_name,
+                email, role, active AS is_active,
+                DATE_FORMAT(created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
+         FROM users
+         WHERE account_id = ? AND id != ?
+         ORDER BY role DESC, username ASC'
+    );
+    $st->execute([$aid, $uid]);
+    $users = $st->fetchAll();
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'users' => array_map(function($u) {
+        return [
+            'user_id'      => (int)$u['user_id'],
+            'username'     => $u['username'],
+            'display_name' => $u['display_name'],
+            'email'        => $u['email'],
+            'role'         => $u['role'],
+            'is_active'    => (bool)$u['is_active'],
+            'created_at'   => $u['created_at'] ?? '',
+        ];
+    }, $users)]);
+}
+
+// ── invite_user ───────────────────────────────────────────────
+if ($action === 'invite_user') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+
+    $email = sanEmail($body['email'] ?? '');
+    $role  = san($body['role'] ?? 'agent', 20);
+    if (!$email) err('Email inválido', 400);
+
+    $validRoles = ['admin', 'manager', 'agent', 'viewer'];
+    if (!in_array($role, $validRoles, true)) err('Rol inválido', 400);
+    // owner no puede invitar a otro owner
+    if ($sess['role'] !== 'owner' && $role === 'admin') err('Solo el propietario puede asignar admin', 403);
+
+    // Verificar si ya existe en la cuenta
+    $st = db()->prepare('SELECT id FROM users WHERE email=? AND account_id=? LIMIT 1');
+    $st->execute([$email, $aid]);
+    if ($st->fetchColumn()) err('El usuario ya pertenece a esta cuenta', 409);
+
+    // Crear invite_code reutilizable (1 uso, 7 días)
+    $code    = strtoupper(bin2hex(random_bytes(4))); // 8 chars legible
+    $expires = date('Y-m-d H:i:s', strtotime('+7 days'));
+
+    db()->prepare(
+        'INSERT INTO invite_codes (account_id, created_by, code, role_to_assign, uses_left, expires_at)
+         VALUES (?,?,?,?,1,?)'
+    )->execute([$aid, $uid, $code, $role, $expires]);
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'message' => "Invitación enviada a {$email}", 'code' => $code]);
+}
+
+// ── update_role ───────────────────────────────────────────────
+if ($action === 'update_role') {
+    $sess         = requireAuth();
+    $uid          = (int)$sess['uid'];
+    $aid          = (int)$sess['account_id'];
+    $targetId     = (int)($body['target_user_id'] ?? 0);
+    $newRole      = san($body['role'] ?? '', 20);
+
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+    if (!$targetId) err('target_user_id requerido', 400);
+
+    $validRoles = ['admin', 'manager', 'agent', 'viewer'];
+    if (!in_array($newRole, $validRoles, true)) err('Rol inválido', 400);
+    if ($sess['role'] !== 'owner' && $newRole === 'admin') err('Solo el propietario puede asignar admin', 403);
+
+    // Verificar que el target pertenece al mismo account y no es owner
+    $st = db()->prepare('SELECT role FROM users WHERE id=? AND account_id=? LIMIT 1');
+    $st->execute([$targetId, $aid]);
+    $target = $st->fetch();
+    if (!$target) err('Usuario no encontrado', 404);
+    if ($target['role'] === 'owner') err('No se puede cambiar el rol del propietario', 403);
+    if ($targetId === $uid) err('No puedes cambiar tu propio rol', 403);
+
+    db()->prepare('UPDATE users SET role=? WHERE id=? AND account_id=?')
+        ->execute([$newRole, $targetId, $aid]);
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'message' => 'Rol actualizado correctamente']);
+}
+
+// ── deactivate_user ───────────────────────────────────────────
+if ($action === 'deactivate_user') {
+    $sess      = requireAuth();
+    $uid       = (int)$sess['uid'];
+    $aid       = (int)$sess['account_id'];
+    $targetId  = (int)($body['target_user_id'] ?? 0);
+
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+    if (!$targetId) err('target_user_id requerido', 400);
+    if ($targetId === $uid) err('No puedes desactivarte a ti mismo', 403);
+
+    $st = db()->prepare('SELECT role FROM users WHERE id=? AND account_id=? LIMIT 1');
+    $st->execute([$targetId, $aid]);
+    $target = $st->fetch();
+    if (!$target) err('Usuario no encontrado', 404);
+    if ($target['role'] === 'owner') err('No se puede desactivar al propietario', 403);
+
+    db()->prepare('UPDATE users SET active=0 WHERE id=? AND account_id=?')
+        ->execute([$targetId, $aid]);
+
+    // Invalidar todas sus sesiones activas
+    db()->prepare('DELETE FROM sessions WHERE user_id=?')->execute([$targetId]);
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'message' => 'Usuario desactivado correctamente']);
+}
+
 err("Acción desconocida: {$action}", 404);

@@ -176,7 +176,8 @@ Screen.Importar        // importar
 - AdminViewModel: loadUsers(), inviteUser(), updateRole(), deactivateUser()
 - AdminRepository: listUsers, inviteUser, updateRole, deactivateUser + roleLabel()
 - Roles: owner/admin/manager/agent/viewer — canManageUsers = userRole in {owner, admin}
-- RutasApiService: users_list, user_invite, user_update_role, user_deactivate endpoints
+- RutasApiService: DTOs AccountUserDto, UsersListResponse, InviteUserRequest, UpdateRoleRequest, DeactivateUserRequest
+- api.php: users_list, invite_user (invite_codes), update_role, deactivate_user — roleLevel guards, owner protegido
 
 ### PENDIENTE ⏳
 
