@@ -163,8 +163,13 @@ Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formula
 
 **Nota sobre AccountDto:** el servidor ya envía `form_config` y `plus_config` en `me` y `AuthResponse`. En S09 el cliente ignora estos campos del servidor y usa Room como fuente de verdad local. La sincronización servidor↔cliente del perfil se hace en S14 (admin).
 
-### S10b — PENDIENTE ⏳ — Ordenación de paradas (independiente, sin dependencias)
-**Nuevo sprint añadido. Aplica a todas las vistas que muestran listas de paradas.**
+### S10b — COMPLETADO ✅ — Ordenación de paradas
+- StopDao.updateOrderIndex (bulk)
+- StopRepository.reorderStops + observeAll/observeWithoutGps/observeOrphaned
+- RouteDetailViewModel: StopSortMode enum (MANUAL/GPS/GREEDY), sortByGps (nearest-neighbor), sortGreedy (greedy TSP)
+- RouteDetailScreen: 3 FilterChips + botón Guardar orden
+
+**[Descripción original]** Nuevo sprint añadido. Aplica a todas las vistas que muestran listas de paradas.**
 
 Situación actual:
 - `RouteDetailScreen`: ordena por `orderIndex ASC` ✅ (DAO query)
@@ -189,7 +194,7 @@ Ficheros afectados:
 - Estado PDV: abierto / cerrado hoy / inactivo permanente
 - Campos custom configurables por empresa (S09 los define, S10 los renderiza)
 
-### S11 — PENDIENTE ⏳ — KPIs extendidos + biblioteca de paradas (depende S09+S10)
+### S11 — PARCIAL ✅🔧 — KPIs extendidos + biblioteca de paradas
 - KpisScreen agrega por KpiDefinition activos, no hardcodeados
 - Gráficas 6 meses por KPI seleccionable
 - Filtro por ruta
