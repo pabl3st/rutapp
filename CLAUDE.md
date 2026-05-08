@@ -583,3 +583,44 @@ DM Sans variable: `https://github.com/google/fonts/raw/main/ofl/dmsans/DMSans%5B
 
 **Regla:** Cualquier SDK nativo que requiera init antes de crear una View debe inicializarse
 en `Application.onCreate()`, NO en `LaunchedEffect` dentro de un Composable.
+
+---
+
+### ERROR 16: Palabra reservada Kotlin como segmento de nombre de paquete
+**Build S13** — `e: Expecting a top level declaration` reportado en NavGraph.kt:247 (fichero sin relación)
+
+El directorio `core/import/` generaba `package com.pabl3st.rutapp.core.import`.
+`import` es palabra reservada de Kotlin — el parser la encuentra en la declaración de paquete,
+descarrila silenciosamente, y reporta el error en el PRIMER composable que importa alguna clase
+de ese paquete (en este caso `ImportarScreen` en `NavGraph.kt:247`), no en el fichero problemático.
+
+**Palabras reservadas Kotlin prohibidas como segmentos de package:**
+`as`, `break`, `class`, `continue`, `do`, `else`, `false`, `for`, `fun`, `if`, `in`,
+`interface`, `is`, `null`, `object`, `package`, `return`, `super`, `this`, `throw`,
+`true`, `try`, `type`, `typealias`, `typeof`, `val`, `var`, `when`, `while`, **`import`**
+
+**Fix aplicado:** renombrar `core/import/` → `core/importer/` en package declaration e imports.
+
+**Regla:** al crear un directorio, verificar que su nombre no coincida con ninguna palabra
+reservada de Kotlin. Usar sufijos si es necesario: `importer`, `util`, `helper`, `tools`.
+
+
+---
+
+### ERROR 16: Palabra reservada Kotlin como segmento de nombre de paquete
+**Build S13** -- `e: Expecting a top level declaration` reportado en NavGraph.kt:247 (fichero sin relacion)
+
+El directorio `core/import/` generaba `package com.pabl3st.rutapp.core.import`.
+`import` es palabra reservada de Kotlin -- el parser la encuentra en la declaracion de paquete,
+descarrila silenciosamente, y reporta el error en el PRIMER composable que importa alguna clase
+de ese paquete (en este caso `ImportarScreen` en `NavGraph.kt:247`), no en el fichero problematico.
+
+**Palabras reservadas Kotlin prohibidas como segmentos de package:**
+`as`, `break`, `class`, `continue`, `do`, `else`, `false`, `for`, `fun`, `if`, `in`,
+`interface`, `is`, `null`, `object`, `package`, `return`, `super`, `this`, `throw`,
+`true`, `try`, `type`, `typealias`, `typeof`, `val`, `var`, `when`, `while`, `import`
+
+**Fix aplicado:** renombrar `core/import/` -> `core/importer/` en package declaration e imports.
+
+**Regla:** al crear un directorio, verificar que su nombre no coincida con ninguna palabra
+reservada de Kotlin. Usar sufijos si es necesario: `importer`, `util`, `helper`, `tools`.
