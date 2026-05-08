@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.pabl3st.rutapp.core.import.GeoCluster
+import com.pabl3st.rutapp.core.importer.GeoCluster
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter

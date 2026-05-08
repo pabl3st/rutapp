@@ -4,8 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.pabl3st.rutapp.core.import.CsvParser
-import com.pabl3st.rutapp.core.import.GeoCluster
+import com.pabl3st.rutapp.core.importer.CsvParser
+import com.pabl3st.rutapp.core.importer.GeoCluster
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
