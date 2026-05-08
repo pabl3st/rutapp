@@ -91,7 +91,7 @@ fun VisitaScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick  = vm::saveVisit,
-                    enabled  = !ui.isSaving,
+                    enabled  = !ui.isSaving && (!ui.prefs.requireResult || ui.selectedResult.isNotBlank()),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     if (ui.isSaving) {
