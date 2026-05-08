@@ -93,7 +93,6 @@ class BusinessProfileRepository @Inject constructor(
         section: String,
     ) {
         val profile = getOrCreateProfile()
-        val existing = kpiDao.observeAllKpis(profile.sector, accountId)
         val id = "custom_${UUID.randomUUID().toString().take(8)}"
         kpiDao.upsert(
             KpiDefinitionEntity(
@@ -127,7 +126,3 @@ class BusinessProfileRepository @Inject constructor(
 
     val sectors = listOf("telco", "farma", "distribucion", "retail", "custom")
 }
-
-// Extensión privada para poder contar sin exponer el DAO
-private suspend fun KpiDefinitionDao.observeAllKpis(sector: String, accountId: Int) =
-    countSystem(sector)

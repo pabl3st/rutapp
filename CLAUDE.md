@@ -45,27 +45,55 @@ de rutas comerciales de campo. Es independiente de la PWA existente en
 
 ```
 app/src/main/kotlin/com/pabl3st/rutapp/
-├── RutasApp.kt                          @HiltAndroidApp
-├── MainActivity.kt                      @AndroidEntryPoint, onExitApp = { finish() }
-├── core/ui/theme/Theme.kt               Material3, colores, Spacing object
-├── di/
-│   └── NetworkModule.kt                 Hilt: Retrofit, OkHttp, Moshi, RutasApiService
+├── RutasApp.kt
+├── MainActivity.kt
+├── core/
+│   ├── importer/           CsvParser.kt, GeoCluster.kt
+│   ├── location/           LocationManager.kt, PermissionHandler.kt
+│   ├── map/                MapLibreProvider.kt, MapProvider.kt, MapProviderFactory.kt, OtherProviders.kt
+│   └── ui/theme/           Theme.kt, ThemeRepository.kt, ThemeViewModel.kt
 ├── data/
-│   ├── network/RutasApiService.kt       Retrofit interface + todos los DTOs S01
-│   ├── repository/AuthRepository.kt     Login, register, logout, verifySession offline-first
-│   └── session/SessionManager.kt        Token cifrado (EncryptedSharedPrefs) + datos de sesión
+│   ├── local/
+│   │   ├── RutasDatabase.kt   (version=6, migrations 1→6)
+│   │   ├── dao/               RouteDao, StopDao, SyncQueueDao, DaySessionDao, KpiDefinitionDao, BusinessProfileDao, KpiValueDao
+│   │   └── entity/            RouteEntity, StopEntity, SyncQueueEntity, DaySessionEntity, KpiDefinitionEntity, KpiValueEntity, BusinessProfileEntity, KpiCatalog
+│   ├── network/               RutasApiService.kt + DTOs
+│   └── repository/            AuthRepository, RouteRepository, StopRepository, SyncRepository, JornadaRepository, BusinessProfileRepository, DtoMappers
+├── di/                    DatabaseModule, NetworkModule, LocationModule, MapModule
+├── fcm/                   FcmTokenRepository, RutasMessagingService
 ├── feature/
-│   └── auth/
-│       ├── AuthViewModel.kt             MVVM, handleBack() único punto de verdad
-│       └── AuthScreens.kt              Splash, ChooseType, Login, RegisterIndividual, RegisterCompany
-└── navigation/
-    ├── Screen.kt                        sealed class con rutas
-    └── RutasNavGraph.kt                 NavHost, BackHandler en Home, PlaceholderScreen
+│   ├── admin/             AdminScreen, AdminViewModel
+│   ├── auth/              AuthScreens, AuthViewModel
+│   ├── biblioteca/        BibliotecaScreen, BibliotecaViewModel
+│   ├── calendario/        CalendarioScreen, CalendarioViewModel
+│   ├── home/              HomeScreen, HomeViewModel, JornadaBar, JornadaViewModel
+│   ├── importar/          ImportarScreen, ImportarViewModel
+│   ├── kpis/              KpisScreen, KpisViewModel
+│   ├── mapa/              GlobalMapScreen, GlobalMapViewModel
+│   ├── perfil/            PerfilScreen, PerfilViewModel, BusinessProfileScreen, BusinessProfileViewModel
+│   ├── rutas/             RutasScreen, RutasViewModel, RouteDetailScreen, RouteDetailViewModel,
+│   │                      RouteMapScreen, RouteMapViewModel, CrearParadaScreen, CrearParadaViewModel
+│   └── visita/            VisitaScreen, VisitaViewModel
+├── navigation/            Screen.kt, RutasNavGraph.kt, BottomNavBar.kt
+└── sync/                  SyncWorker.kt
 ```
 
-### Módulos actuales
-Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su `build.gradle.kts`.
-**No declarar módulos en `settings.gradle.kts` que no existan físicamente.**
+### Room — versión actual: 6
+Migrations: 1→2 (stops campos visita), 2→3 (stops campos comerciales), 3→4 (day_sessions),
+4→5 (kpi_definitions + business_profiles), 5→6 (kpi_values).
+
+### Screen routes disponibles
+```kotlin
+Screen.Auth, Screen.Home, Screen.Rutas, Screen.Mapa,
+Screen.Kpis, Screen.Calendario, Screen.Perfil, Screen.Admin,
+Screen.Visita          // visita/{stopUid}
+Screen.RouteDetail     // route/{routeUid}
+Screen.RouteMap        // map/{routeUid}
+Screen.CrearParada     // crear-parada/{routeUid}
+Screen.BusinessProfile // business-profile
+Screen.Biblioteca      // biblioteca
+Screen.Importar        // importar
+```
 
 ---
 
@@ -75,109 +103,90 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - Auth completo: register_individual, register_company, register_with_invite, login, logout, me, token_refresh, health
 - SessionManager con EncryptedSharedPreferences
 - Clean Architecture + MVVM base
-- Navegación con BackHandler correcto en todos los casos
 - CI/CD GitHub Actions: push → assembleDebug → artifact
-- API PHP en servidor operativa, BD `cqvkelal_rutasapp_android` creada y migrada
-- Usuarios en BD: `Pablo` (id=1, owner) y `god` (id=2, owner, para testing)
 
 ### S02 — COMPLETADO ✅
-- Room: RouteEntity, StopEntity, SyncQueueEntity + DAOs + RutasDatabase
+- Room: RouteEntity, StopEntity, SyncQueueEntity + DAOs + RutasDatabase v1→v2
 - SyncWorker (WorkManager + HiltWorker) + SyncRepository
-- Endpoints API: routes_list, delta_sync, batch_sync + migration_v2.sql
-- HomeScreen real con lista de rutas del día + estado sync
-- RouteRepository + SyncRepository offline-first
-- Firebase FCM + Crashlytics + Analytics + RutasMessagingService + FcmTokenRepository
+- HomeScreen real con lista de rutas del día
+- Firebase FCM + Crashlytics + Analytics
 
 ### S03 — COMPLETADO ✅
-- RutasScreen: lista de rutas con pull-to-refresh, FAB crear ruta, diálogo crear ruta
-- RouteDetailScreen: detalle de ruta con lista de paradas ordenadas, FAB añadir parada
-- RouteMapScreen: mapa MapLibre con markers de paradas de la ruta
+- RutasScreen, RouteDetailScreen, RouteMapScreen (MapLibre)
 - GPS: LocationManager + PermissionHandler
 
 ### S04 — COMPLETADO ✅
-- GlobalMapScreen: mapa global MapLibre con todas las rutas del día
-- Filtros por estado: PENDING / DONE / NO_GPS
-- GlobalMapViewModel con Flow de stops filtrados
+- GlobalMapScreen: mapa global con todas las rutas del día, filtros PENDING/DONE/NO_GPS
 
 ### S05 — COMPLETADO ✅
-- VisitaScreen: formulario de visita con resultado, notas, próxima acción
-- VisitaViewModel: actualiza stop en Room + marca para sync
-- Fotos en visita: CameraX captura + Coil preview + permiso CAMERA
-- PhotosSection: LazyRow con add/remove, guarda en MediaStore Pictures/RutasApp
+- VisitaScreen: formulario de visita con resultado, notas, próxima acción, estado PDV
+- VisitaViewModel: actualiza stop en Room + KpiValues
+- Fotos en visita: CameraX captura + Coil preview
 
 ### S06 — COMPLETADO ✅
-- KpisScreen: estadísticas de visitas, tasa de éxito, tendencia semanal
-- KpisViewModel: cálculos sobre Room local
+- KpisScreen: estadísticas de visitas, tendencia semanal/mensual, filtro por ruta, KPIs del sector
+- KpisViewModel: cálculos sobre Room, SIX_MONTHS, buildSectorKpis()
 
 ### S07 — COMPLETADO ✅
 - CrearParadaScreen: formulario completo (nombre, código, dirección, GPS, contacto, prioridad, notas)
-- CrearParadaViewModel: geocoding vía MapLibre, prioridad 1-5, save() con validación
-- RouteDetailScreen: FAB navega a CrearParada (eliminado AlertDialog básico)
-- Screen.CrearParada + NavGraph registrado con transiciones push
-- OSRM routing: calculateRoute implementado en MapLibreProvider vía router.project-osrm.org
-- RouteMapViewModel: routePolyline en UiState, fetchRoute() tras cargar stops
+- OSRM routing en MapLibreProvider
 
 ### S08 — COMPLETADO ✅
-- DaySessionEntity + DaySessionDao — tabla day_sessions con PK compuesta routeUid+dateStr
-- JornadaRepository — start/pause/resume/finish + updateGps (Haversine acumulado)
-- JornadaViewModel — tick cada 1s, locationUpdates cada 10s/30m, formatElapsed
-- JornadaBar — composable con timer monoespacio, km, botones play/pause/fin/finalizada
-- HomeScreen — JornadaBar visible cuando hay exactamente 1 ruta hoy
-- RutasDatabase v3→v4 — MIGRATION_3_4 crea tabla day_sessions
-- DatabaseModule — addMigrations(3,4) + provideDaySessionDao
+- DaySessionEntity + JornadaRepository + JornadaViewModel + JornadaBar
+- HomeScreen con JornadaBar cuando hay exactamente 1 ruta hoy
+- RutasDatabase v3→v4
 
-### S09 — COMPLETADO ✅ — Perfil de negocio + configuración de formulario
-- `BusinessProfileEntity` (Room v5) — sector, name, updatedAt por accountId
-- `KpiDefinitionEntity` (Room v5) — id, accountId, sector, label, type, unit, options, required, visible, orderIndex, section, isSystem
-- `KpiValueEntity` (Room v6) — PK compuesta stopUid+kpiId, valueText, syncStatus=pending
-- `KpiCatalog.kt` — COMMON + TELCO + FARMA + DISTRIBUCION + RETAIL; `forSector()` devuelve COMMON+sector
-- `BusinessProfileDao`, `KpiDefinitionDao`, `KpiValueDao` + MIGRATION_4_5 + MIGRATION_5_6 en `RutasDatabase` (v6)
-- `BusinessProfileRepository` — `getOrCreateProfile()`, `setSector()`, `seedKpisIfNeeded()`, `ensureCommonKpis()`, `addCustomKpi()`, `deleteCustomKpi()`, `setKpiVisible()`, `getVisibleKpisForSector()`
-- `BusinessProfileScreen` — selector de sector + toggle visible por KPI + diálogo nuevo KPI custom (label/tipo/unidad/sección/requerido)
-- `BusinessProfileViewModel` — `flatMapLatest` profile→kpis, `onSelectSector()`, `saveCustomKpi()`, `deleteCustomKpi()`
-- `VisitaScreen` — sección KPIs dinámicos: `KpiField` por cada `KpiDefinitionEntity` activo (number/boolean/select/text)
-- `VisitaViewModel` — `loadKpiFields()` desde `BusinessProfileRepository`, `onKpiValueChange()`, `saveVisit()` persiste `KpiValueEntity` con syncStatus=pending
-- `KpisScreen` — `SectorKpisGrid` agrega `KpiValueEntity` por `KpiDefinition` activos del período
-- `KpisViewModel` — `buildSectorKpis()` suspend: suma números, cuenta booleanos
-- Sync: `SyncRepository` procesa `kpi_values` en `downloadDelta` y `uploadPending`; `api.php` acepta `entity=kpi_value` y `entity=business_profile` en `batch_sync`
-- `Screen.BusinessProfile` en nav; entrada desde `PerfilScreen`
+### S09 — COMPLETADO ✅
+- BusinessProfileEntity + KpiDefinitionEntity + KpiValueEntity (Room v4→v6)
+- BusinessProfileRepository + KpiDefinitionDao + KpiValueDao + BusinessProfileDao
+- KpiCatalog: perfiles predefinidos (telco, farma, distribución, retail, common)
+- BusinessProfileScreen + BusinessProfileViewModel: selector de sector + editor de KPIs
+- VisitaScreen: campos dinámicos del sector (KpiField con tipos number/boolean/select/text)
+- VisitaViewModel: loadKpiFields() + onKpiValueChange() + saveVisit() guarda KpiValueEntity
+- KpisScreen: buildSectorKpis() agrega valores por KpiDefinition activo del perfil
+- Sync: DaySessionDto, KpiValueDto en RutasApiService; SyncRepository procesa kpi_values
+- api.php: delta_sync + batch_sync con day_sessions y kpi_values
 
-### S10b — COMPLETADO ✅ — Ordenación de paradas
-- `StopSortMode` enum: MANUAL / GPS / GREEDY
-- `RouteDetailScreen`: 3 chips de ordenación + botón guardar orden
-- `RouteDetailViewModel`: `sortByGps()` (nearest-neighbor desde GPS actual) + `sortGreedy()` (TSP greedy)
-- `StopRepository.reorderStops()`: bulk update de `orderIndex` en Room
-- `LocationManager.getLastLocation()` usado para modo GPS
+### S10b — COMPLETADO ✅
+- RouteDetailScreen: ordenación Manual/GPS/Greedy con 3 chips
+- StopDao: queries con ORDER BY flexible
+- StopRepository: reorderByGps(), reorderGreedy()
+- RouteDetailViewModel: activeSort enum (MANUAL/GPS/GREEDY) + onReorder()
 
-### S11 — COMPLETADO ✅ — KPIs extendidos + Biblioteca de paradas
-- `KpisScreen`: KPIs dinámicos por `KpiDefinitionEntity`, período Hoy/7d/30d/6m, filtro por ruta, tendencia mensual 6 meses, `SectorKpisGrid`
-- `KpisViewModel`: agrega `KpiValueEntity` por `KpiDefinition` activos del perfil, `BusinessProfileRepository` inyectada
-- `BibliotecaScreen`: 3 tabs (Todas / Sin GPS / Sin ruta), buscador con debounce 200ms, contador
-- `BibliotecaViewModel`: `flatMapLatest` con `combine(_tab, _query)`, `observeOrphaned` para stops sin ruta
-- `Screen.Biblioteca` + ruta en NavGraph + import en RutasNavGraph
+### S11b — COMPLETADO ✅ (Biblioteca de paradas)
+- BibliotecaScreen: tabs Todas/Sin GPS/Sin ruta, búsqueda en tiempo real, bulk actions
+- BibliotecaViewModel: combine(_tab, _query.debounce(200)) + flatMapLatest
 
-### S12 — COMPLETADO ✅ — Calendario
-- `CalendarioScreen`: grid mensual con `LocalDate`/`YearMonth`, días con punto de ruta asignada, lista de rutas del día seleccionado
-- `CalendarioViewModel`: `routesByDate: Map<String, List<RouteEntity>>` desde Room, `selectDay()`, `prevMonth()`, `nextMonth()`
-- Navegación desde `PerfilScreen` y desde `BottomNavBar` (no en bottom nav pero sí accesible)
-- **Pendiente**: festivos nacionales vía API pública (no implementado)
+### S13 — COMPLETADO ✅ (Import CSV)
+- CsvParser: auto-detecta separador, maneja comillas, UTF-8
+- GeoCluster: K-means++ geográfico con estrategias AUTO/FIXED_K/RADIUS
+- ImportarScreen: stepper 4 pasos (Seleccionar → Mapear → Preview+Clustering → Guardar)
+- ImportarViewModel: autoMap(), buildClusters(), onSaveConfirm() crea rutas+stops en Room
+- RutasScreen: botón import en TopAppBar → navega a Screen.Importar
 
-### S13 — COMPLETADO ✅ — CSV Import + generación automática de rutas
-- `feature/importar/ImportarScreen.kt` + `ImportarViewModel.kt` — file picker CSV, columnas mapeadas, vista previa, clustering y creación de rutas
-- `core/importer/CsvParser.kt` — lectura CSV con `BufferedReader`, detección delimitador, encoding UTF-8
-- `core/importer/GeoCluster.kt` — K-means simple por coordenadas, radio configurable
-- `Screen.Importar` en nav + `RutasScreen` navega a ImportarScreen via `onImport`
-- **Pendiente**: soporte real XLSX (Apache POI) — actualmente solo CSV
+### S12 — COMPLETADO ✅ (Calendario)
+- CalendarioScreen (305 líneas): grid mensual, selección de día, lista de rutas del día con estado
+- CalendarioViewModel: observeAll() + groupBy fecha + festivos nacionales via date.nager.at/api/v3
+- Festivos: cache por año, merge de múltiples años, fallback silencioso si no hay red
 
-### S14 — PENDIENTE ⏳ — Admin panel completo (depende S09+S10)
-- `AdminScreen` actual muestra stats básicas (rutas, paradas, sync pendiente) — funcional pero limitado
-- Ampliar con: gestión de usuarios/invitaciones, asignación de perfil de negocio por empleado, roles detallados (owner/admin/manager/agent/viewer), `empViewPrefs` por rol
-- Endpoints API nuevos: `users_list`, `invite_user`, `update_role`, `deactivate_user`
+### S14 — COMPLETADO ✅ (Admin panel + roles)
+- AdminScreen (373 líneas): stats de cuenta, lista de usuarios, invite + cambio de rol, deactivate
+- AdminViewModel: loadUsers(), inviteUser(), updateRole(), deactivateUser()
+- AdminRepository: listUsers, inviteUser, updateRole, deactivateUser + roleLabel()
+- Roles: owner/admin/manager/agent/viewer — canManageUsers = userRole in {owner, admin}
+- RutasApiService: users_list, user_invite, user_update_role, user_deactivate endpoints
 
-### S15 — PENDIENTE ⏳ — IA (depende S08+S10+S11)
+### PENDIENTE ⏳
+
+#### S15 — IA (depende S08+S09+S11)
 - Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)
 - Asesor pre-visita por PDV: risk score + objetivo
 - Contexto: historial KpiDefinition + JornadaSession
+
+#### RELEASE — Firmado + icono definitivo + Play Store
+- Keystore de producción + build release firmado
+- Icono y splash definitivos (reemplazar placeholders)
+- Privacy policy + ficha Play Store
 
 ---
 
@@ -190,274 +199,155 @@ sealed class AuthResult<out T> {
     data class Error(val message: String, val code: Int = 0) : AuthResult<Nothing>()
 }
 ```
-Usar este mismo sealed class para todos los repositorios nuevos.
 
 ### `SessionManager` — propiedades disponibles
 ```kotlin
-session.token           // String? — token JWT cifrado
-session.isLoggedIn      // Boolean
-session.userId          // Int
-session.userName        // String
-session.userEmail       // String
-session.userRole        // String ("owner"|"admin"|"manager"|"agent"|"viewer")
-session.userDisplayName // String
-session.accountId       // Int
-session.accountType     // String ("individual"|"company")
-session.accountName     // String
-session.isCompany       // Boolean
-session.deviceId        // String — ANDROID_ID
-session.lastSyncTimestamp // String — ISO8601, usado para delta_sync
-session.saveAuth(...)   // persiste todos los campos de sesión
-session.clear()         // logout completo
+session.token, session.isLoggedIn, session.userId, session.userName
+session.userEmail, session.userRole  // "owner"|"admin"|"manager"|"agent"|"viewer"
+session.userDisplayName, session.accountId, session.accountType
+session.accountName, session.isCompany, session.deviceId
+session.lastSyncTimestamp  // ISO8601, usado para delta_sync
+session.saveAuth(...), session.clear()
 ```
 
-### `RutasApiService` — endpoints existentes S01
-```kotlin
-api.registerIndividual(action, body)
-api.registerCompany(action, body)
-api.registerWithInvite(action, body)
-api.login(action, body)
-api.logout(action, token, body)
-api.me(action, token)
-api.health(action)
-```
-La constante `API_PATH = "rutasproapk/api.php"` está en `RutasApiService.kt`.
-Todos los nuevos endpoints usan el mismo path con `@Query("action")`.
-
-### `Screen` — rutas de navegación existentes
-```kotlin
-Screen.Auth, Screen.Home, Screen.Rutas, Screen.Mapa,
-Screen.Kpis, Screen.Calendario, Screen.Perfil, Screen.Admin,
-Screen.Visita (con param stopUid)
-```
-
-### `NetworkModule` — BASE_URL
+### `RutasApiService` — BASE_URL
 ```kotlin
 private const val BASE_URL = "https://mejoresiagratis.com/"
+// API_PATH = "rutasproapk/api.php" — todos los endpoints usan @Query("action")
 ```
-No cambiar. Los paths de endpoint son relativos desde aquí.
+
+### `BusinessProfileRepository` — API disponible
+```kotlin
+profileRepo.getOrCreateProfile()              // suspend → BusinessProfileEntity
+profileRepo.setSector(sector)                 // suspend — cambia sector + siembra KPIs
+profileRepo.getVisibleKpisForSector(sector)   // suspend → List<KpiDefinitionEntity>
+profileRepo.observeProfile()                  // Flow<BusinessProfileEntity?>
+profileRepo.observeActiveKpis(sector)         // Flow<List<KpiDefinitionEntity>>
+profileRepo.seedKpisIfNeeded(sector)          // suspend — inserta KPIs si no existen
+profileRepo.setKpiVisible(id, visible)        // suspend
+profileRepo.addCustomKpi(...)                 // suspend
+profileRepo.deleteCustomKpi(id)              // suspend
+profileRepo.sectors                           // listOf("telco","farma","distribucion","retail","custom")
+profileRepo.sectorLabel(sector)               // String localizado
+```
+
+### `StopRepository` — API disponible
+```kotlin
+stopRepo.createStop(routeUid, name, externalId?, address?, lat?, lng?, orderIndex, notes?, contactName?, contactPhone?)
+stopRepo.observeByRoute(routeUid)             // Flow<List<StopEntity>>
+stopRepo.observeByRouteUids(routeUids)        // Flow<List<StopEntity>>
+stopRepo.observeAll(accountId)                // Flow<List<StopEntity>>
+stopRepo.observeWithoutGps(accountId)         // Flow<List<StopEntity>>
+stopRepo.observeOrphaned(accountId)           // Flow<List<StopEntity>>
+stopRepo.getByUid(uid)                        // suspend → StopEntity?
+stopRepo.saveVisitResult(uid, result, notes?, nextAction?)
+stopRepo.reorderStops(stops)                  // suspend
+stopRepo.reorderByGps(routeUid, userLat, userLng) // suspend
+stopRepo.reorderGreedy(routeUid, userLat, userLng) // suspend
+```
+
+### `RouteRepository` — API disponible
+```kotlin
+routeRepo.createRoute(name, dateAssigned)     // suspend → RouteEntity
+routeRepo.observeAll()                        // Flow<List<RouteEntity>>
+routeRepo.observeToday()                      // Flow<List<RouteEntity>>
+routeRepo.getByUid(uid)                       // suspend → RouteEntity?
+```
 
 ---
 
 ## Reglas de desarrollo
 
 ### Patrón offline-first obligatorio
-Todo repositorio que acceda a datos de negocio DEBE:
 1. Leer primero de Room (respuesta inmediata)
 2. Lanzar sync en background si hay red
-3. Emitir `Flow<T>` para que la UI se actualice automáticamente cuando llegan datos del servidor
+3. Emitir `Flow<T>` para que la UI se actualice automáticamente
 
 ### Inyección de dependencias
 - Todos los repositorios: `@Singleton` con `@Inject constructor`
-- I/O en constructores Singleton: siempre `by lazy {}` (ver ERROR 2)
+- I/O en constructores Singleton: siempre `by lazy {}`
 - Room database: `by lazy {}` en el módulo Hilt
 
 ### Convenciones de código
 - Un ViewModel por feature screen
-- `UiState` data class por ViewModel (igual que `AuthUiState`)
+- `UiState` data class por ViewModel
 - `StateFlow<UiState>` expuesto como `val ui: StateFlow<UiState>`
-- Funciones de mutación en ViewModel, nunca en Composable
 - `@JsonClass(generateAdapter = true)` en todos los DTOs de Moshi
 - `@Json(name = "snake_case")` para campos con nombre distinto al JSON
 
 ---
 
-## Errores históricos de build — NO repetir
+## Errores históricos — NO repetir
 
 ### ERROR 1: @OptIn faltante en APIs experimentales de Material 3
-APIs que requieren `@OptIn(ExperimentalMaterial3Api::class)`:
-`TopAppBar`, `LargeTopAppBar`, `MediumTopAppBar`, `ModalBottomSheet`,
-`rememberModalBottomSheetState`, `SearchBar`, `DockedSearchBar`,
-`SwipeToDismissBox`, `rememberSwipeToDismissBoxState`, `TooltipBox`,
-`DatePicker`, `TimePicker`, `ExposedDropdownMenuBox`
-
 ```kotlin
-// Opción preferida — nivel de fichero:
 @file:OptIn(ExperimentalMaterial3Api::class)
-package com.pabl3st.rutapp.feature.mipantalla
 ```
+APIs que lo requieren: `TopAppBar`, `ModalBottomSheet`, `SearchBar`, `SwipeToDismissBox`, `DatePicker`, `TimePicker`, `ExposedDropdownMenuBox`
 
 ### ERROR 2: I/O en constructor de @Singleton
 ```kotlin
-// NUNCA — crash en Application.onCreate() en hilo principal:
-@Singleton class MiRepo @Inject constructor(ctx: Context) {
-    private val db = Room.databaseBuilder(...).build()  // CRASH
-}
-
 // SIEMPRE lazy:
-@Singleton class MiRepo @Inject constructor(ctx: Context) {
-    private val db by lazy { Room.databaseBuilder(...).build() }
-}
+private val db by lazy { Room.databaseBuilder(...).build() }
 ```
 
 ### ERROR 3: Retrofit baseUrl sin trailing slash
 ```kotlin
-// ROMPE: .baseUrl("https://mejoresiagratis.com/rutasproapk/api.php")
-// CORRECTO: .baseUrl("https://mejoresiagratis.com/")
+.baseUrl("https://mejoresiagratis.com/")  // CORRECTO — termina en /
 ```
 
-### ERROR 4: Regex con backslash en .kts
-```kotlin
-// ROMPE: includeGroupByRegex("com\.android.*")
-// CORRECTO: includeGroupByRegex("""com\.android.*""")
-```
+### ERROR 4: Regex con backslash en .kts → usar triple-quote
 
 ### ERROR 5: Módulos en settings.gradle.kts sin build.gradle.kts
-Solo declarar `include(":modulo")` cuando existe `modulo/build.gradle.kts`.
 
-### ERROR 6: security-crypto versión incorrecta
-```toml
-securityCrypto = "1.1.0"   # CORRECTO
-# NO: 1.0.0 (sin MasterKeys), NO: alphas
-```
+### ERROR 6: security-crypto = "1.1.0" — no usar alphas ni 1.0.0
 
-### ERROR 7: Iconos mipmap faltantes
-Densidades requeridas: `mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi` + `anydpi-v26`
+### ERROR 7: Iconos mipmap — densidades: mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi + anydpi-v26
 
-### ERROR 8: gradle-wrapper.jar faltante
-Subir el binario real (43KB), no un stub.
+### ERROR 8: gradle-wrapper.jar — subir binario real (43KB), no stub
 
-### ERROR 9: Caracteres UTF-8 no estándar en PHP
-Non-breaking spaces (`U+00A0`, bytes `\xc2\xa0`) y em-dashes (`U+2014`) en comentarios
-o alineación de código PHP causan `PHP Parse error: syntax error, unexpected identifier`.
-Al generar o editar `api.php`, siempre limpiar con:
+### ERROR 9: PHP — caracteres UTF-8 no estándar (U+00A0, em-dash) causan parse error
 ```python
 content = content.replace(b'\xc2\xa0', b' ')
 content = content.replace(b'\xe2\x80\x94', b'--')
 ```
 
-### ERROR 10: prefs como array en lugar de objeto (PHP → Kotlin)
-`json_decode($json, true)` en PHP convierte `{}` en `array()`, que serializa como `[]`.
-Moshi en Kotlin espera `Map<String,Any>` (objeto JSON `{}`).
+### ERROR 10: PHP — prefs como array en lugar de objeto
 ```php
-// CORRECTO — forzar cast a objeto:
 'prefs' => $row['prefs'] ? (object)json_decode($row['prefs'], true) : (object)[],
 ```
 
----
+### ERROR 11: Plugins TOML fuera de su sección `[plugins]`
 
-### ERROR 11: Plugins TOML fuera de su sección
-**Build Firebase** — `Invalid TOML catalog definition: Unexpected type for bundle`
-Al añadir entries al final de `libs.versions.toml` con scripts, pueden acabar
-fuera de `[plugins]` si el script concatena después de `[bundles]`.
+### ERROR 12: Composables privados no pueden capturar lambdas del scope exterior — propagar por toda la cadena
 
-```toml
-# ROMPE — si esto queda en [bundles]:
-google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+### ERROR 13: Imports duplicados por edición con scripts replace — reescribir el fichero completo si >3 replace
 
-# CORRECTO — siempre dentro de [plugins], antes de [bundles]:
-[plugins]
-...
-google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+### ERROR 14: MapLibre 11.x — isZoomControlsEnabled no existe. Usar `isZoomGesturesEnabled = true`
 
-[bundles]
-...
+### ERROR 15: Archivos TTF corruptos → crash "Could not load font". Verificar magic bytes antes de commit.
+
+### ERROR 15b: MapLibreConfigurationException — inicializar en Application.onCreate(), NO en LaunchedEffect
+
+### ERROR 16: `import` es palabra reservada Kotlin — NUNCA usar como segmento de package
 ```
-Regla: al modificar el TOML con scripts, verificar siempre la posición relativa
-a las secciones `[versions]`, `[libraries]`, `[plugins]`, `[bundles]`.
-
----
-
-### ERROR 12: Composables privados no pueden capturar lambdas del scope exterior
-**Build S03** — `Unresolved reference 'onRouteClick'`
-Una función `@Composable private fun` es un scope cerrado. No puede capturar
-variables o lambdas del composable padre. Toda dependencia debe declararse como parámetro.
-
-```kotlin
-// ROMPE — RouteCard captura onRouteClick del padre sin recibirlo:
-@Composable
-fun HomeScreen(onRouteClick: (String) -> Unit) {
-    RoutesList(routes)
-}
-@Composable
-private fun RoutesList(routes: List<RouteEntity>) {
-    RouteCard(route)           // RouteCard usa onRouteClick — ERROR
-}
-@Composable
-private fun RouteCard(route: RouteEntity) {
-    Card(modifier = Modifier.clickable { onRouteClick(route.uid) })  // FALLA
-}
-
-// CORRECTO — propagar el lambda por toda la cadena:
-@Composable
-fun HomeScreen(onRouteClick: (String) -> Unit) {
-    RoutesList(routes, onRouteClick)
-}
-@Composable
-private fun RoutesList(routes: List<RouteEntity>, onRouteClick: (String) -> Unit) {
-    RouteCard(route, onClick = { onRouteClick(route.uid) })
-}
-@Composable
-private fun RouteCard(route: RouteEntity, onClick: () -> Unit) {
-    Card(modifier = Modifier.clickable(onClick = onClick))  // OK
-}
+// ROMPE:
+package com.pabl3st.rutapp.core.import
+// CORRECTO:
+package com.pabl3st.rutapp.core.importer
 ```
-
-Regla: al añadir un lambda a una función, buscar TODOS los composables privados
-que la llaman en la cadena y propagar el parámetro hasta el último que lo use.
-
----
-
-## Protocolo de diagnóstico ante errores de build
-
-Cuando se recibe un log con errores de compilación o runtime:
-
-**1. Leer TODOS los errores del log, no solo el primero.**
-Un log puede contener N errores. Leer el fichero completo antes de aplicar cualquier fix.
-
-**2. Antes de fixear, auditar el patrón en todos los ficheros afectados.**
-Si el error es "Unresolved reference X en FileA.kt", buscar el mismo patrón en
-FileB.kt, FileC.kt y todos los ficheros modificados en el mismo commit.
-
-**3. Propagar fixes derivados.**
-Si un fix cambia la firma de una función (añade parámetro, cambia tipo), buscar
-TODAS las llamadas a esa función en el proyecto y actualizarlas en el mismo commit.
-No hacer commits parciales que rompan otros ficheros.
-
-**4. Un solo commit con todos los fixes.**
-Nunca subir un fix que resuelve el error reportado pero deja otros errores latentes.
-Verificar con grep/auditoría antes de commitear.
-
-**Checklist de auditoría ante error de compilación:**
-- [ ] Leer log completo (no solo primera línea de error)
-- [ ] Grep del patrón roto en todos los .kt del proyecto
-- [ ] Si se cambia firma de función: grep de todas sus llamadas
-- [ ] Si es error de scope en Composable: auditar toda la cadena padre→hijo
-- [ ] Verificar balance de llaves `{` vs `}` en ficheros modificados
-- [ ] Un commit con TODOS los fixes, no uno por error
+Si un script genera ficheros en `core/import/`, el build falla con "Expecting a top level declaration".
+La carpeta `core/import/` fue eliminada. Solo existe `core/importer/`.
 
 ---
 
-### ERROR 13: Imports duplicados por edición con scripts replace
-**Build S04** — `Conflicting import: imported name 'Font' is ambiguous`
-Editar imports con scripts `replace` encadenados puede insertar duplicados
-cuando el import ya existe en el fichero.
+## Flujo de commit obligatorio — Git Data API atómica
 
-```kotlin
-// ROMPE — si Font ya existe y el script añade otro:
-import androidx.compose.ui.text.font.Font   // ya estaba
-import androidx.compose.ui.text.font.Font   // añadido por script → conflicto
-```
+**NUNCA** `PUT /contents/{file}` en bucle.
 
-**Regla:** cuando un fichero necesita cambios en imports Y en el cuerpo,
-reescribirlo COMPLETO desde cero en lugar de aplicar múltiples `replace`.
-Los scripts de replace encadenados acumulan errores invisibles.
-
-**Checklist antes de commit con ficheros editados por script:**
-- Leer el fichero resultante completo
-- `grep "^import" fichero | sort | uniq -d` para detectar duplicados
-- Si hay más de 3 replace sobre el mismo fichero → reescribir completo
-
----
-
-## Flujo de commit obligatorio — Git Data API
-
-**NUNCA** `PUT /contents/{file}` en bucle (genera N commits, N builds CI).
-
-**SIEMPRE** Git Data API atómica:
 ```
 1. POST /git/blobs      → sha por cada fichero modificado
-2. POST /git/trees      → base_tree = SHA HEAD actual + todos los blobs
+2. POST /git/trees      → base_tree = SHA HEAD actual
 3. POST /git/commits    → apunta al nuevo tree
 4. PATCH /git/refs/heads/main → actualiza la rama
 ```
@@ -467,121 +357,36 @@ Resultado: 1 commit, 1 build CI.
 
 ## Checklist pre-commit
 
-- [ ] Toda función con API experimental Material3 tiene `@OptIn` (o `@file:OptIn`)
+- [ ] `@file:OptIn(ExperimentalMaterial3Api::class)` en todas las screens con TopAppBar/ModalBottomSheet/etc.
 - [ ] Ningún `@Singleton` hace I/O en constructor — usar `by lazy {}`
 - [ ] `BASE_URL` de Retrofit termina en `/`
 - [ ] Regex en `.kts` usan triple-quote
 - [ ] Solo módulos con `build.gradle.kts` están en `settings.gradle.kts`
 - [ ] `security-crypto = "1.1.0"`
 - [ ] KSP version empieza igual que Kotlin version
-- [ ] `api.php` generado sin caracteres UTF-8 no estándar
+- [ ] `api.php` sin caracteres UTF-8 no estándar
 - [ ] `prefs` en PHP devuelve `(object)` no `array()`
-- [ ] Commit es atómico (Git Data API, no PUT en bucle)
-- [ ] No hay clases/funciones duplicadas respecto al código existente
+- [ ] Commit atómico (Git Data API, no PUT en bucle)
+- [ ] No hay clases/funciones duplicadas
 - [ ] Nuevos repositorios usan `AuthResult<T>` del mismo sealed class
+- [ ] NO crear carpetas con `import` en el nombre del package
+- [ ] Imports duplicados: `grep "^import" fichero | sort | uniq -d`
+
+---
+
+## Protocolo de diagnóstico ante errores de build
+
+1. Leer TODOS los errores del log, no solo el primero
+2. Auditar el patrón en todos los ficheros afectados antes de fixear
+3. Propagar fixes derivados (si cambia firma de función, actualizar todas las llamadas)
+4. Un solo commit con todos los fixes
 
 ---
 
 ## Metodología de trabajo
 
-1. **Antes de cada sprint**: leer todos los `.kt` relevantes del repo + `api.php` completo
-2. **Escribir plan detallado** con rutas exactas de ficheros antes de ejecutar
+1. **Antes de cada sprint**: leer CLAUDE.md + todos los `.kt` relevantes + `api.php`
+2. **Escribir plan detallado** con rutas exactas antes de ejecutar
 3. **Revisión del plan** por el usuario antes de escribir código
 4. **Commits atómicos** por tarea lógica
 5. **Verificar CI verde** antes de dar tarea por terminada
-
-
-
-
----
-
-### ERROR 14: isZoomControlsEnabled / isZoomButtonsEnabled no existen en MapLibre 11.x
-**Build S05** — `Unresolved reference 'isZoomControlsEnabled'` / `isZoomButtonsEnabled`
-MapLibre Android 11.x **no tiene botones de zoom** en `UiSettings`. Ni `isZoomControlsEnabled`
-ni `isZoomButtonsEnabled` son propiedades válidas.
-
-El control de zoom del usuario se hace exclusivamente con:
-```kotlin
-map.uiSettings.isZoomGesturesEnabled = true   // pinch, doble tap
-```
-
-Si se necesitan botones +/- visuales, deben implementarse como Composables propios
-sobre el mapa, llamando a `map.animateCamera(CameraUpdateFactory.zoomIn())`.
-
----
-
-### ERROR 15: Archivos de fuente corruptos en res/font/ → crash "Could not load font"
-**Runtime crash al inicio** — `IllegalStateException: Could not load font`
-Los archivos `dm_sans_medium.ttf`, `dm_sans_semibold.ttf`, `dm_sans_bold.ttf` eran stubs
-con bytes `0a0a0a0a` (newlines), no TTFs reales. Android los carga síncronamente en el
-primer frame de Compose y crashea inmediatamente.
-
-**Diagnóstico:**
-```python
-with open("res/font/archivo.ttf", "rb") as f:
-    magic = f.read(4).hex()
-# TTF válido: 00010000 o 74727565 (true) o 4f54544f (OTF)
-# Corrupto:   0a0a0a0a (newlines/stub) → CRASH
-```
-
-**Fix:** sustituir por el variable font real con eje `wght`.
-DM Sans variable: `https://github.com/google/fonts/raw/main/ofl/dmsans/DMSans%5Bopsz%2Cwght%5D.ttf`
-
-**Regla:** al añadir fuentes al proyecto, verificar siempre los magic bytes antes de commit.
-
----
-
-### ERROR 15: MapLibreConfigurationException — getInstance antes de MapView
-**Crash en producción** — `MapLibreConfigurationException: Using MapView requires calling MapLibre.getInstance()`
-
-`LaunchedEffect(Unit) { MapLibre.getInstance(ctx) }` es asíncrono — se ejecuta
-**después** del primer frame, pero `AndroidView.factory` necesita MapLibre inicializado
-**en el mismo frame**. Resultado: crash en el primer compose del MapView.
-
-**Fixes aplicados:**
-1. `RutasApp.onCreate()` — `MapLibre.getInstance(this)` en Application, garantiza init antes de cualquier Activity
-2. `MapLibreProvider.MapView` — `remember(ctx) { MapLibre.getInstance(ctx) }` en lugar de `LaunchedEffect`
-
-**Regla:** Cualquier SDK nativo que requiera init antes de crear una View debe inicializarse
-en `Application.onCreate()`, NO en `LaunchedEffect` dentro de un Composable.
-
----
-
-### ERROR 16: Palabra reservada Kotlin como segmento de nombre de paquete
-**Build S13** — `e: Expecting a top level declaration` reportado en NavGraph.kt:247 (fichero sin relación)
-
-El directorio `core/import/` generaba `package com.pabl3st.rutapp.core.import`.
-`import` es palabra reservada de Kotlin — el parser la encuentra en la declaración de paquete,
-descarrila silenciosamente, y reporta el error en el PRIMER composable que importa alguna clase
-de ese paquete (en este caso `ImportarScreen` en `NavGraph.kt:247`), no en el fichero problemático.
-
-**Palabras reservadas Kotlin prohibidas como segmentos de package:**
-`as`, `break`, `class`, `continue`, `do`, `else`, `false`, `for`, `fun`, `if`, `in`,
-`interface`, `is`, `null`, `object`, `package`, `return`, `super`, `this`, `throw`,
-`true`, `try`, `type`, `typealias`, `typeof`, `val`, `var`, `when`, `while`, **`import`**
-
-**Fix aplicado:** renombrar `core/import/` → `core/importer/` en package declaration e imports.
-
-**Regla:** al crear un directorio, verificar que su nombre no coincida con ninguna palabra
-reservada de Kotlin. Usar sufijos si es necesario: `importer`, `util`, `helper`, `tools`.
-
-
----
-
-### ERROR 16: Palabra reservada Kotlin como segmento de nombre de paquete
-**Build S13** -- `e: Expecting a top level declaration` reportado en NavGraph.kt:247 (fichero sin relacion)
-
-El directorio `core/import/` generaba `package com.pabl3st.rutapp.core.import`.
-`import` es palabra reservada de Kotlin -- el parser la encuentra en la declaracion de paquete,
-descarrila silenciosamente, y reporta el error en el PRIMER composable que importa alguna clase
-de ese paquete (en este caso `ImportarScreen` en `NavGraph.kt:247`), no en el fichero problematico.
-
-**Palabras reservadas Kotlin prohibidas como segmentos de package:**
-`as`, `break`, `class`, `continue`, `do`, `else`, `false`, `for`, `fun`, `if`, `in`,
-`interface`, `is`, `null`, `object`, `package`, `return`, `super`, `this`, `throw`,
-`true`, `try`, `type`, `typealias`, `typeof`, `val`, `var`, `when`, `while`, `import`
-
-**Fix aplicado:** renombrar `core/import/` -> `core/importer/` en package declaration e imports.
-
-**Regla:** al crear un directorio, verificar que su nombre no coincida con ninguna palabra
-reservada de Kotlin. Usar sufijos si es necesario: `importer`, `util`, `helper`, `tools`.

@@ -243,6 +243,50 @@ data class KpiValueDto(
     @Json(name = "updated_at")  val updatedAt: String?,
 )
 
+
+// ── S14 Admin DTOs ───────────────────────────────────────────
+
+@JsonClass(generateAdapter = true)
+data class AccountUserDto(
+    @Json(name = "user_id")      val userId: Int,
+    @Json(name = "username")     val username: String,
+    @Json(name = "display_name") val displayName: String,
+    @Json(name = "email")        val email: String,
+    @Json(name = "role")         val role: String,
+    @Json(name = "is_active")    val isActive: Boolean = true,
+    @Json(name = "created_at")   val createdAt: String = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class UsersListResponse(
+    val success: Boolean,
+    val users:   List<AccountUserDto> = emptyList(),
+    val message: String = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class InviteUserRequest(
+    val email: String,
+    val role:  String = "agent",
+)
+
+@JsonClass(generateAdapter = true)
+data class UpdateRoleRequest(
+    @Json(name = "target_user_id") val targetUserId: Int,
+    val role: String,
+)
+
+@JsonClass(generateAdapter = true)
+data class DeactivateUserRequest(
+    @Json(name = "target_user_id") val targetUserId: Int,
+)
+
+@JsonClass(generateAdapter = true)
+data class AdminActionResponse(
+    val success: Boolean,
+    val message: String = "",
+)
+
 // ── Retrofit interface ───────────────────────────────────────
 
 interface RutasApiService {
@@ -317,5 +361,34 @@ interface RutasApiService {
         @Header("X-Auth-Token") token: String,
         @Body body: BatchSyncRequest,
     ): Response<BatchSyncResponse>
+
+    // ── S14 Admin endpoints ───────────────────────────────────
+    @GET(API_PATH)
+    suspend fun usersList(
+        @Query("action") action: String = "users_list",
+        @Header("X-Auth-Token") token: String,
+    ): Response<UsersListResponse>
+
+    @POST(API_PATH)
+    suspend fun inviteUser(
+        @Query("action") action: String = "invite_user",
+        @Header("X-Auth-Token") token: String,
+        @Body body: InviteUserRequest,
+    ): Response<AdminActionResponse>
+
+    @POST(API_PATH)
+    suspend fun updateRole(
+        @Query("action") action: String = "update_role",
+        @Header("X-Auth-Token") token: String,
+        @Body body: UpdateRoleRequest,
+    ): Response<AdminActionResponse>
+
+    @POST(API_PATH)
+    suspend fun deactivateUser(
+        @Query("action") action: String = "deactivate_user",
+        @Header("X-Auth-Token") token: String,
+        @Body body: DeactivateUserRequest,
+    ): Response<AdminActionResponse>
+
 
 }
