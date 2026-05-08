@@ -126,42 +126,21 @@ Solo existe `:app`. Los módulos feature se añaden por sprint cuando se crea su
 - RutasDatabase v3→v4 — MIGRATION_3_4 crea tabla day_sessions
 - DatabaseModule — addMigrations(3,4) + provideDaySessionDao
 
-### S09 — SIGUIENTE 🚧 — Perfil de negocio + configuración de formulario
-**Prerequisito duro de S10, S11, S13 y S15. Sin este sprint, S10 y S11 quedan hardcodeados para un sector.**
-
-Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formularios de visita y paneles de KPIs adaptados a su negocio. La web tiene esto hardcodeado para telco — aquí se hace genérico desde el principio.
-
-**Entidades Room nuevas (migration v4→v5):**
-- `BusinessProfileEntity` — perfil activo del account: uid, name, sector, createdAt
-- `KpiDefinitionEntity` — cada campo del formulario: uid, profileUid, key (slug), label, type (int/decimal/bool/text/yesno/select), section (visita/objetivos/pedidos/acciones/notas), enabled, required, orderIndex, isSystem (predefinido vs custom), options (JSON para select), lowerIsBad
-- `VisitaReportEntity` — informe por stop+fecha: uid, stopUid, dateStr, visitResult, storeOpen, kpiValues (JSON Map<kpiKey,value>), createdAt
-
-**Ficheros nuevos:**
-- 3 entidades + 3 DAOs + `BusinessProfileRepository.kt`
-- `KpiCatalog.kt` — catálogo de perfiles predefinidos hardcoded (sin BD)
-- `BusinessProfileScreen.kt` + `BusinessProfileViewModel.kt`
-- `Screen.BusinessProfile` en nav
-
-**Perfiles predefinidos en KpiCatalog:**
-- Telco: activaciones, churns, portabilidades, bonos €, stock SIMs, TV
-- Farma: referencias activas, sell-in €, sell-out, visibilidad, formación
-- Distribución: pedido €, referencias, devoluciones, lineal, caducidades
-- Retail: ventas €, unidades, ticket medio, merma, ocupación lineal
-- Servicios: propuestas, conversiones, tiempo visita, satisfacción (1-5)
-- Libre: sin campos predefinidos, el usuario construye desde cero
-
-**Tres niveles de configuración en UI:**
-1. Elegir perfil de sector → carga KPIs predefinidos automáticamente
-2. Toggle por campo → activar/desactivar dentro del perfil
-3. Editor custom → añadir campo, tipo, sección, requerido, ordenar con drag
-
-**KPIs comunes siempre presentes** (isSystem=true, no eliminables):
-- Resultado visita (contactado/no_estaba/volvemos/rechazado)
-- Notas (texto)
-- Próxima acción (texto)
-- Duración visita (minutos, calculada desde JornadaSession)
-
-**Nota sobre AccountDto:** el servidor ya envía `form_config` y `plus_config` en `me` y `AuthResponse`. En S09 el cliente ignora estos campos del servidor y usa Room como fuente de verdad local. La sincronización servidor↔cliente del perfil se hace en S14 (admin).
+### S09 — COMPLETADO ✅ — Perfil de negocio + configuración de formulario
+- `BusinessProfileEntity` (Room v5) — sector, name, updatedAt por accountId
+- `KpiDefinitionEntity` (Room v5) — id, accountId, sector, label, type, unit, options, required, visible, orderIndex, section, isSystem
+- `KpiValueEntity` (Room v6) — PK compuesta stopUid+kpiId, valueText, syncStatus=pending
+- `KpiCatalog.kt` — COMMON + TELCO + FARMA + DISTRIBUCION + RETAIL; `forSector()` devuelve COMMON+sector
+- `BusinessProfileDao`, `KpiDefinitionDao`, `KpiValueDao` + MIGRATION_4_5 + MIGRATION_5_6 en `RutasDatabase` (v6)
+- `BusinessProfileRepository` — `getOrCreateProfile()`, `setSector()`, `seedKpisIfNeeded()`, `ensureCommonKpis()`, `addCustomKpi()`, `deleteCustomKpi()`, `setKpiVisible()`, `getVisibleKpisForSector()`
+- `BusinessProfileScreen` — selector de sector + toggle visible por KPI + diálogo nuevo KPI custom (label/tipo/unidad/sección/requerido)
+- `BusinessProfileViewModel` — `flatMapLatest` profile→kpis, `onSelectSector()`, `saveCustomKpi()`, `deleteCustomKpi()`
+- `VisitaScreen` — sección KPIs dinámicos: `KpiField` por cada `KpiDefinitionEntity` activo (number/boolean/select/text)
+- `VisitaViewModel` — `loadKpiFields()` desde `BusinessProfileRepository`, `onKpiValueChange()`, `saveVisit()` persiste `KpiValueEntity` con syncStatus=pending
+- `KpisScreen` — `SectorKpisGrid` agrega `KpiValueEntity` por `KpiDefinition` activos del período
+- `KpisViewModel` — `buildSectorKpis()` suspend: suma números, cuenta booleanos
+- Sync: `SyncRepository` procesa `kpi_values` en `downloadDelta` y `uploadPending`; `api.php` acepta `entity=kpi_value` y `entity=business_profile` en `batch_sync`
+- `Screen.BusinessProfile` en nav; entrada desde `PerfilScreen`
 
 ### S10b — COMPLETADO ✅ — Ordenación de paradas
 - `StopSortMode` enum: MANUAL / GPS / GREEDY
@@ -183,30 +162,12 @@ Objetivo: el usuario elige su sector (o crea uno custom) y la app genera formula
 - Navegación desde `PerfilScreen` y desde `BottomNavBar` (no en bottom nav pero sí accesible)
 - **Pendiente**: festivos nacionales vía API pública (no implementado)
 
-### S13 — SIGUIENTE 🚧 — XLS Import + generación automática de rutas
-**Prerequisito: S09 ✅ (BusinessProfile + KpiDefinition activos)**
-
-Objetivo: el usuario importa un Excel con sus PDVs y la app genera rutas optimizadas geográficamente y las asigna al calendario.
-
-**Flujo completo:**
-1. Picker de fichero `.xlsx`/`.csv` → parse columnas
-2. Mapeo de columnas a campos de `StopEntity` + `KpiDefinition` del perfil activo
-3. Vista previa de paradas importadas con errores destacados
-4. Algoritmo de clustering geográfico (K-means simple o radio fijo) → grupos = rutas
-5. Nombrar rutas generadas + asignar fechas en calendario
-6. Guardar stops + routes en Room + sync queue
-
-**Ficheros nuevos:**
-- `feature/importar/ImportarScreen.kt` + `ImportarViewModel.kt`
-- `feature/importar/ColumnMappingScreen.kt` — mapeo interactivo de columnas
-- `core/import/ExcelParser.kt` — Apache POI o lectura CSV manual
-- `core/import/GeoCluster.kt` — algoritmo de agrupación por coordenadas
-- `Screen.Importar` en nav
-- Botón en `RutasScreen` (FAB secundario o menú)
-
-**Dependencias Android:**
-- Apache POI Android (`poi-android`) o leer CSV con `BufferedReader` (más ligero)
-- `ActivityResultContracts.OpenDocument` para el file picker
+### S13 — COMPLETADO ✅ — CSV Import + generación automática de rutas
+- `feature/importar/ImportarScreen.kt` + `ImportarViewModel.kt` — file picker CSV, columnas mapeadas, vista previa, clustering y creación de rutas
+- `core/importer/CsvParser.kt` — lectura CSV con `BufferedReader`, detección delimitador, encoding UTF-8
+- `core/importer/GeoCluster.kt` — K-means simple por coordenadas, radio configurable
+- `Screen.Importar` en nav + `RutasScreen` navega a ImportarScreen via `onImport`
+- **Pendiente**: soporte real XLSX (Apache POI) — actualmente solo CSV
 
 ### S14 — PENDIENTE ⏳ — Admin panel completo (depende S09+S10)
 - `AdminScreen` actual muestra stats básicas (rutas, paradas, sync pendiente) — funcional pero limitado
