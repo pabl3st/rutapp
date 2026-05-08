@@ -2,6 +2,7 @@ package com.pabl3st.rutapp.feature.perfil
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.pabl3st.rutapp.BuildConfig
 import com.pabl3st.rutapp.data.repository.AuthRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,6 +21,7 @@ data class PerfilUiState(
     val accountName: String  = "",
     val accountType: String  = "",
     val plan: String         = "",
+    val appVersion: String        = "",
     val showLogoutDialog: Boolean = false,
     val isLoggingOut: Boolean    = false,
 )
@@ -39,6 +41,7 @@ class PerfilViewModel @Inject constructor(
             accountName = session.accountName,
             accountType = session.accountType,
             plan        = "free",
+            appVersion  = BuildConfig.VERSION_NAME,
         )
     )
     val ui: StateFlow<PerfilUiState> = _ui.asStateFlow()
