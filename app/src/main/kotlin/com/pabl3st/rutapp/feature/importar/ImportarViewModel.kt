@@ -216,21 +216,35 @@ class ImportarViewModel @Inject constructor(
 
     private fun autoMap(headers: List<String>): Map<StopField, String?> {
         val h = headers.map { it.lowercase().trim() }
-        fun best(vararg kw: String): String? =
-            headers.getOrNull(kw.firstNotNullOfOrNull { k -> h.indexOfFirst { it.contains(k) }.takeIf { it >= 0 } } ?: -1)
+        // exact() busca coincidencia exacta primero, luego contains
+        fun best(vararg kw: String): String? {
+            // 1. exact match
+            for (k in kw) {
+                val idx = h.indexOfFirst { it == k }
+                if (idx >= 0) return headers[idx]
+            }
+            // 2. contains match
+            for (k in kw) {
+                val idx = h.indexOfFirst { it.contains(k) }
+                if (idx >= 0) return headers[idx]
+            }
+            return null
+        }
+        // Dirección: preferir full_address > address > direccion para máxima info
+        val addressCol = best("full_address","direccion","address","calle","domicilio","addr")
         return mapOf(
-            StopField.NAME          to (best("nombre","name","pdv","cliente","razon") ?: headers.firstOrNull()),
-            StopField.EXTERNAL_ID   to best("codigo","code","id","ref","external","external_id"),
-            StopField.ADDRESS       to best("direccion","address","calle","domicilio","addr"),
+            StopField.NAME          to (best("name","nombre","pdv","cliente","razon") ?: headers.firstOrNull()),
+            StopField.EXTERNAL_ID   to best("external_id","codigo","code","ref","external"),
+            StopField.ADDRESS       to addressCol,
             StopField.LAT           to best("lat","latitud","latitude"),
             StopField.LNG           to best("lng","lon","longitud","longitude"),
-            StopField.CONTACT_NAME  to best("contacto","contact","responsable","persona","contact_name"),
-            StopField.CONTACT_PHONE to best("telefono","phone","tel","movil","contact_phone"),
-            StopField.NOTES         to best("notas","notes","observaciones","comentario"),
-            StopField.ROUTE_NAME    to best("ruta","route","route_name","name"),
-            StopField.VISIT_FREQUENCY to best("frecuencia","frequency","visit_frequency","informes"),
-            StopField.PRIORITY      to best("prioridad","priority"),
-            StopField.SEGMENT       to best("segmento","segment"),
+            StopField.CONTACT_NAME  to best("contact_name","contacto","contact","responsable","persona"),
+            StopField.CONTACT_PHONE to best("contact_phone","telefono","phone","tel","movil"),
+            StopField.NOTES         to best("notes","notas","observaciones","comentario"),
+            StopField.ROUTE_NAME    to best("route_name","ruta","route"),
+            StopField.VISIT_FREQUENCY to best("visit_frequency","frecuencia","frequency","informes"),
+            StopField.PRIORITY      to best("priority","prioridad"),
+            StopField.SEGMENT       to best("segment","segmento"),
         )
     }
 
