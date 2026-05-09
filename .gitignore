@@ -18,3 +18,4 @@ local.properties
 # Secrets — NUNCA al repo
 google-services.json
 .kotlin/
+app/build/
