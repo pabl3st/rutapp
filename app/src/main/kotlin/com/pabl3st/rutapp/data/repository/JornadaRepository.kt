@@ -2,7 +2,11 @@ package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.core.location.LocationManager
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
+import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
+import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import javax.inject.Inject
@@ -10,9 +14,14 @@ import javax.inject.Singleton
 
 @Singleton
 class JornadaRepository @Inject constructor(
-    private val dao:         DaySessionDao,
-    private val locationMgr: LocationManager,
+    private val dao:          DaySessionDao,
+    private val syncQueueDao: SyncQueueDao,
+    private val locationMgr:  LocationManager,
+    private val moshi:        Moshi,
 ) {
+    private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
+    private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
+
     fun observe(routeUid: String, dateStr: String): Flow<DaySessionEntity?> =
         dao.observe(routeUid, dateStr)
 
@@ -20,9 +29,9 @@ class JornadaRepository @Inject constructor(
         dao.get(routeUid, dateStr)
 
     suspend fun start(routeUid: String, dateStr: String) {
-        val now     = System.currentTimeMillis()
+        val now      = System.currentTimeMillis()
         val existing = dao.get(routeUid, dateStr)
-        val session = existing?.copy(
+        val session  = existing?.copy(
             state     = "running",
             startedAt = existing.startedAt ?: now,
             pausedAt  = null,
@@ -35,6 +44,7 @@ class JornadaRepository @Inject constructor(
             updatedAt = now,
         )
         dao.upsert(session)
+        enqueueSession(session)
     }
 
     suspend fun pause(routeUid: String, dateStr: String) {
@@ -43,6 +53,7 @@ class JornadaRepository @Inject constructor(
         if (session.state != "running") return
         val elapsed = session.elapsedMs + (now - (session.pausedAt ?: session.startedAt ?: now))
         dao.updateState(routeUid, dateStr, "paused", now, elapsed, now)
+        dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
     suspend fun resume(routeUid: String, dateStr: String) {
@@ -50,6 +61,7 @@ class JornadaRepository @Inject constructor(
         if (session.state != "paused") return
         val now = System.currentTimeMillis()
         dao.updateState(routeUid, dateStr, "running", null, session.elapsedMs, now)
+        dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
     suspend fun finish(routeUid: String, dateStr: String) {
@@ -60,6 +72,7 @@ class JornadaRepository @Inject constructor(
             else      -> session.elapsedMs
         }
         dao.updateState(routeUid, dateStr, "done", null, elapsed, now)
+        dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
     suspend fun updateGps(routeUid: String, dateStr: String, lat: Double, lng: Double) {
@@ -70,6 +83,8 @@ class JornadaRepository @Inject constructor(
         } else 0.0
         val newKm = session.distanceKm + added
         dao.updateDistance(routeUid, dateStr, newKm, lat, lng, System.currentTimeMillis())
+        // GPS updates son frecuentes — no encolamos cada uno para evitar flood en SyncQueue
+        // Solo se encola en start/pause/resume/finish
     }
 
     // Tiempo transcurrido en ms (calculado en tiempo real sin leer BD)
@@ -81,4 +96,35 @@ class JornadaRepository @Inject constructor(
     }
 
     fun todayStr(): String = LocalDate.now().toString()
+
+    // ── Encolar session en SyncQueue ──────────────────────────
+    // api.php batch_sync entity="day_session": data con campos de la sesión
+    private suspend fun enqueueSession(session: DaySessionEntity) {
+        val payload = mapAdapter.toJson(
+            mapOf(
+                "routeUid"   to session.routeUid,
+                "dateStr"    to session.dateStr,
+                "state"      to session.state,
+                "startedAt"  to session.startedAt,
+                "elapsedMs"  to session.elapsedMs,
+                "distanceKm" to session.distanceKm,
+                "lastLat"    to session.lastLat,
+                "lastLng"    to session.lastLng,
+                "updatedAt"  to session.updatedAt,
+            )
+        )
+        // Usar routeUid+dateStr como entityUid para que upserts sucesivos se sobreescriban en cola
+        val entityUid = "${session.routeUid}|${session.dateStr}"
+        // Si ya hay una entrada pendiente para esta sesión, eliminarla antes de reencolar
+        // para evitar acumulación de duplicados (la cola es FIFO y puede crecer mucho)
+        // Solución simple: el servidor usa ON DUPLICATE KEY UPDATE, así que duplicados no dañan
+        syncQueueDao.enqueue(
+            SyncQueueEntity(
+                entity    = "day_session",
+                entityUid = entityUid,
+                operation = "upsert",
+                payload   = payload,
+            )
+        )
+    }
 }

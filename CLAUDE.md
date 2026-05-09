@@ -166,10 +166,10 @@ Screen.Importar        // importar
 
 ### PENDIENTES ⏳
 
-#### S12 — Calendario (INDEPENDIENTE — sin dependencias)
-- CalendarioScreen existe (305 líneas) con grid mensual, selección de día, asignación de rutas
-- CalendarioViewModel existe — revisar si está completo o necesita pulido
-- Pendiente: festivos nacionales vía API pública
+### S12 — COMPLETADO ✅ (Calendario)
+- CalendarioScreen: grid mensual, selección de día, festivos ES vía date.nager.at
+- CalendarioViewModel: pulsación larga → selector de rutas para asignar al día; unassignDate/assignDate
+- RouteRepository: assignDate(uid, dateStr) + unassignDate(uid)
 
 #### S14 — Admin panel completo (depende S09)
 - AdminScreen existe (170 líneas) — base con gestión básica
@@ -235,8 +235,8 @@ stopRepo.observeOrphaned(accountId)           // Flow<List<StopEntity>>
 stopRepo.getByUid(uid)                        // suspend → StopEntity?
 stopRepo.saveVisitResult(uid, result, notes?, nextAction?)
 stopRepo.reorderStops(stops)                  // suspend
-stopRepo.reorderByGps(routeUid, userLat, userLng) // suspend
-stopRepo.reorderGreedy(routeUid, userLat, userLng) // suspend
+stopRepo.reorderStops(stops)                  // suspend — bulk update orderIndex
+// Nota: sorting GPS/Greedy se implementa en RouteDetailViewModel
 ```
 
 ### `RouteRepository` — API disponible

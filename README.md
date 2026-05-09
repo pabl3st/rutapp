@@ -153,10 +153,11 @@ app/src/main/kotlin/com/pabl3st/rutapp/
 | S07 — Creador paradas | ✅ Completado | CrearParadaScreen, geocoding, routing OSRM |
 | S08 — Jornada laboral | ✅ Completado | Timer, km Haversine, GPS trail, DaySession Room |
 | S09 — Perfil de negocio | ✅ Completado | BusinessProfile, KpiDefinition, KpiValue, CalendarioScreen, AdminScreen |
-| S10 — Formulario extendido | ⏳ Pendiente | Secciones colapsables, estado PDV completo |
-| S11 — KPIs biblioteca | ⏳ Pendiente | BibliotecaScreen, gráficas avanzadas |
-| S12 — XLS Import | ⏳ Pendiente | Import Excel → KpiDefinition |
-| S13 — Roles | ⏳ Pendiente | empViewPrefs, perfil por empleado |
-| S14 — IA | ⏳ Pendiente | Gemini/Groq — reoptimización + asesor PDV |
-| S15 — Polish | ⏳ Pendiente | UI/UX refinado |
-| S16 — Play Store | ⏳ Pendiente | Publicación producción |
+| S10b — Ordenación paradas | ✅ Completado | RouteDetailScreen chips Manual/GPS/Greedy, saveCurrentOrder |
+| S11b — Biblioteca paradas | ✅ Completado | BibliotecaScreen tabs Todas/Sin GPS/Sin ruta, búsqueda tiempo real |
+| S12 — Calendario | ✅ Completado | CalendarioScreen grid mensual, festivos ES, asignar rutas a días |
+| S13 — Import CSV/XLSX | ✅ Completado | CsvParser, XlsxParser, GeoCluster K-means++, wizard 6 pasos |
+| S14 — Admin panel | ⏳ Pendiente | Roles completos, empViewPrefs, perfil por empleado |
+| S15 — IA | ⏳ Pendiente | Gemini/Groq — reoptimización + asesor PDV |
+| S16 — Polish | ⏳ Pendiente | UI/UX refinado |
+| S17 — Play Store | ⏳ Pendiente | Publicación producción |
