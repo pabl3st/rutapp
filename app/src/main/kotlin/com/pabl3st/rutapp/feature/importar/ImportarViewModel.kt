@@ -165,9 +165,28 @@ class ImportarViewModel @Inject constructor(
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    val stream = ctx.contentResolver.openInputStream(uri)
+                    val rawStream = ctx.contentResolver.openInputStream(uri)
                         ?: error("No se pudo abrir el fichero")
-                    val isXlsx = fileName.lowercase().let { it.endsWith(".xlsx") || it.endsWith(".xls") }
+
+                    // Detectar formato de forma robusta:
+                    // uri.lastPathSegment puede ser "primary:Downloads/file.xlsx",
+                    // "document/msf:12345" o similar — no fiarse solo del nombre.
+                    // Magic bytes: XLSX/ZIP siempre empieza con PK (0x50 0x4B).
+                    val peekBytes  = rawStream.readNBytes(2)
+                    val isXlsxMagic = peekBytes.size >= 2 &&
+                                      peekBytes[0] == 0x50.toByte() &&
+                                      peekBytes[1] == 0x4B.toByte()
+                    val nameLower   = fileName.lowercase()
+                    val isXlsxName  = nameLower.contains(".xlsx") || nameLower.contains(".xls")
+                    val mimeType    = ctx.contentResolver.getType(uri) ?: ""
+                    val isXlsxMime  = mimeType.contains("spreadsheet") || mimeType.contains("excel")
+                    val isXlsx = isXlsxMagic || isXlsxName || isXlsxMime
+
+                    // Reconstruir stream completo con los 2 bytes ya leídos
+                    val stream = java.io.SequenceInputStream(
+                        java.io.ByteArrayInputStream(peekBytes),
+                        rawStream
+                    )
 
                     if (isXlsx) {
                         // Intentar leer hoja PARADAS o CSV_PARADAS primero, luego la primera hoja
