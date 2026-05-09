@@ -105,11 +105,11 @@ class StopRepository @Inject constructor(
             pdvOpen     -> "active"
             else        -> null  // cerrado hoy — no cambiar accountStatus
         }
-        val stop = stopDao.getByUid(uid)
-        val accountStatus = newAccountStatus ?: (stop?.accountStatus ?: "active")
+        val stopBefore = stopDao.getByUid(uid)
+        val accountStatus = newAccountStatus ?: (stopBefore?.accountStatus ?: "active")
         stopDao.updateVisitResult(uid, result, notes, nextAction, pdvOpen, pdvInactive, accountStatus, now)
-        val stop = stopDao.getByUid(uid) ?: return
-        enqueue("stop", uid, "update", stopToMap(stop))
+        val stopAfter = stopDao.getByUid(uid) ?: return
+        enqueue("stop", uid, "update", stopToMap(stopAfter))
     }
 
 
@@ -196,5 +196,6 @@ class StopRepository @Inject constructor(
         ))
     }
 }
+
 
 
