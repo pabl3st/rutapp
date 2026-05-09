@@ -117,9 +117,7 @@ class RouteDetailViewModel @Inject constructor(
         }
     }
 
-    fun markStopVisited(uid: String) {
-        viewModelScope.launch { stopRepo.markVisited(uid) }
-    }
+    // markStopVisited eliminado — el marcado solo ocurre al guardar el formulario de visita
 
     fun clearError() = _ui.update { it.copy(error = null) }
 
@@ -132,3 +130,4 @@ class RouteDetailViewModel @Inject constructor(
         return r * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 }
+
