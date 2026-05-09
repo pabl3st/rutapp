@@ -31,6 +31,8 @@ data class VisitaUiState(
     val nextAction: String                   = "",
     // null = sin selección; true/false = estado PDV seleccionado
     val storeOpen: Boolean?                  = null,
+    // PDV inactivo permanente (distinto de cerrado hoy)
+    val pdvInactive: Boolean                 = false,
     val isEditingPreviousVisit: Boolean      = false, // true si el stop ya era 'done'
     val photos: List<Uri>                    = emptyList(),
     val showCamera: Boolean                  = false,
@@ -118,6 +120,7 @@ class VisitaViewModel @Inject constructor(
                         notes                = stop.notes       ?: "",
                         nextAction           = stop.nextAction  ?: "",
                         storeOpen            = stop.pdvOpen,
+                        pdvInactive          = stop.pdvInactive,
                         isEditingPreviousVisit = true,
                     )
                 }
@@ -143,7 +146,8 @@ class VisitaViewModel @Inject constructor(
     fun onResultChange(result: String)   = _ui.update { it.copy(selectedResult = result) }
     fun onNotesChange(v: String)         = _ui.update { it.copy(notes = v) }
     fun onNextActionChange(v: String)    = _ui.update { it.copy(nextAction = v) }
-    fun onStoreOpenChange(v: Boolean?)   = _ui.update { it.copy(storeOpen = v) }
+    fun onStoreOpenChange(v: Boolean?)   = _ui.update { it.copy(storeOpen = v, pdvInactive = false) }
+    fun onPdvInactiveToggle()              = _ui.update { it.copy(pdvInactive = !it.pdvInactive, storeOpen = if (!it.pdvInactive) false else it.storeOpen) }
 
     fun onShowCamera()                  = _ui.update { it.copy(showCamera = true) }
     fun onHideCamera()                  = _ui.update { it.copy(showCamera = false) }
@@ -162,11 +166,12 @@ class VisitaViewModel @Inject constructor(
 
             // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
             stopRepo.saveVisitResult(
-                uid        = stopUid,
-                result     = _ui.value.selectedResult,
-                notes      = _ui.value.notes.trim().ifEmpty { null },
-                nextAction = _ui.value.nextAction.trim().ifEmpty { null },
-                pdvOpen    = _ui.value.storeOpen ?: true,
+                uid         = stopUid,
+                result      = _ui.value.selectedResult,
+                notes       = _ui.value.notes.trim().ifEmpty { null },
+                nextAction  = _ui.value.nextAction.trim().ifEmpty { null },
+                pdvOpen     = _ui.value.storeOpen ?: true,
+                pdvInactive = _ui.value.pdvInactive,
             )
 
             // 2. Persistir valores KPI en Room
@@ -235,5 +240,6 @@ class VisitaViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 }
+
 
 

@@ -87,10 +87,27 @@ class StopRepository @Inject constructor(
         enqueue("stop", uid, "update", stopToMap(stop))
     }
 
-    suspend fun saveVisitResult(uid: String, result: String, notes: String?, nextAction: String?, pdvOpen: Boolean = true) {
+    suspend fun saveVisitResult(
+        uid:         String,
+        result:      String,
+        notes:       String?,
+        nextAction:  String?,
+        pdvOpen:     Boolean = true,
+        pdvInactive: Boolean = false,
+    ) {
         val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        stopDao.updateVisitResult(uid, result, notes, nextAction, pdvOpen, now)
+        // accountStatus se actualiza automáticamente:
+        // pdvInactive=true → "inactive"  |  pdvOpen=false → mantiene "active" (cerrado hoy)
+        // Si vuelve a abrir tras inactivo → "active"
+        val newAccountStatus = when {
+            pdvInactive -> "inactive"
+            pdvOpen     -> "active"
+            else        -> null  // cerrado hoy — no cambiar accountStatus
+        }
+        val stop = stopDao.getByUid(uid)
+        val accountStatus = newAccountStatus ?: (stop?.accountStatus ?: "active")
+        stopDao.updateVisitResult(uid, result, notes, nextAction, pdvOpen, pdvInactive, accountStatus, now)
         val stop = stopDao.getByUid(uid) ?: return
         enqueue("stop", uid, "update", stopToMap(stop))
     }
@@ -162,6 +179,7 @@ class StopRepository @Inject constructor(
         "visit_result" to s.visitResult,
         "next_action"  to s.nextAction,
         "pdv_open"     to if (s.pdvOpen) 1 else 0,
+        "pdv_inactive"  to if (s.pdvInactive) 1 else 0,
         "created_at"      to s.createdAt,
         "visit_frequency" to s.visitFrequency,
         "priority"        to s.priority,
@@ -178,4 +196,5 @@ class StopRepository @Inject constructor(
         ))
     }
 }
+
 

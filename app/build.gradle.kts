@@ -16,8 +16,8 @@ android {
         applicationId = "com.pabl3st.rutapp"
         minSdk        = libs.versions.minSdk.get().toInt()
         targetSdk     = libs.versions.targetSdk.get().toInt()
-        versionCode   = 28
-        versionName   = "1.0.0-s17"
+        versionCode   = 29
+        versionName   = "1.0.0-s18"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "API_BASE_URL",
@@ -145,6 +145,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
 
 
 

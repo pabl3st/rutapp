@@ -59,7 +59,7 @@ interface StopDao {
 
     @Query("""
         UPDATE stops SET status = 'pending', visitResult = NULL, visitedAt = NULL,
-        notes = NULL, nextAction = NULL, updatedAt = :at, syncStatus = 'pending'
+        notes = NULL, nextAction = NULL, pdvInactive = 0, updatedAt = :at, syncStatus = 'pending'
         WHERE uid = :uid
     """)
     suspend fun resetForNewVisit(uid: String, at: String)
@@ -72,13 +72,19 @@ interface StopDao {
 
     @Query("""
         UPDATE stops SET status = 'done', visitedAt = :at, visitResult = :result,
-        notes = :notes, nextAction = :nextAction, pdvOpen = :pdvOpen, updatedAt = :at, syncStatus = 'pending'
+        notes = :notes, nextAction = :nextAction, pdvOpen = :pdvOpen,
+        pdvInactive = :pdvInactive, accountStatus = :accountStatus,
+        updatedAt = :at, syncStatus = 'pending'
         WHERE uid = :uid
     """)
-    suspend fun updateVisitResult(uid: String, result: String, notes: String?, nextAction: String?, pdvOpen: Boolean, at: String)
+    suspend fun updateVisitResult(
+        uid: String, result: String, notes: String?, nextAction: String?,
+        pdvOpen: Boolean, pdvInactive: Boolean, accountStatus: String, at: String
+    )
 
     // ── Reordenación bulk ─────────────────────────────────────
     @Query("UPDATE stops SET orderIndex = :orderIndex, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateOrderIndex(uid: String, orderIndex: Int, at: String)
 }
+
 

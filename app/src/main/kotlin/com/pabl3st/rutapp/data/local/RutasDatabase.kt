@@ -29,7 +29,7 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         BusinessProfileEntity::class,
         KpiValueEntity::class,
     ],
-    version      = 7,
+    version      = 8,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -124,9 +124,16 @@ abstract class RutasDatabase : RoomDatabase() {
         }
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Añadir campo pdvOpen a stops — persiste si el PDV estaba abierto en la visita
                 db.execSQL("ALTER TABLE stops ADD COLUMN pdvOpen INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Bloque 2: PDV inactivo permanente (distinto de cerrado hoy)
+                db.execSQL("ALTER TABLE stops ADD COLUMN pdvInactive INTEGER NOT NULL DEFAULT 0")
             }
         }
     }
 }
+

@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -176,49 +177,111 @@ fun VisitaScreen(
                         }
                     }
 
-                    // ── Estado PDV ─────────────────────────────────
+                    // ── Estado PDV — 3 estados ─────────────────────
                     Text("Estado del PDV", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+
+                    // Banner PDV inactivo cuando está marcado
+                    if (ui.pdvInactive) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors   = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.Block, null, Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("PDV marcado como inactivo",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.error)
+                                    Text("El estado del account se actualizará a 'inactivo'",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
                     Row(
-                        modifier            = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         // Botón Abierto
-                        val openSelected = ui.storeOpen == true
+                        val openSel = ui.storeOpen == true && !ui.pdvInactive
                         OutlinedButton(
                             onClick  = { vm.onStoreOpenChange(true) },
                             modifier = Modifier.weight(1f),
                             colors   = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (openSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                containerColor = if (openSel) MaterialTheme.colorScheme.primaryContainer
+                                                 else MaterialTheme.colorScheme.surface,
                             ),
                             border = BorderStroke(
-                                if (openSelected) 2.dp else 1.dp,
-                                if (openSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                if (openSel) 2.dp else 1.dp,
+                                if (openSel) MaterialTheme.colorScheme.primary
+                                             else MaterialTheme.colorScheme.outlineVariant,
                             ),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         ) {
-                            Icon(Icons.Default.Store, null, Modifier.size(16.dp),
-                                tint = if (openSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Abierto", style = MaterialTheme.typography.labelMedium,
-                                color = if (openSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Default.Store, null, Modifier.size(14.dp),
+                                tint = if (openSel) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(3.dp))
+                            Text("Abierto", style = MaterialTheme.typography.labelSmall,
+                                color = if (openSel) MaterialTheme.colorScheme.primary
+                                         else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        // Botón Cerrado
-                        val closedSelected = ui.storeOpen == false
+                        // Botón Cerrado hoy
+                        val closedSel = ui.storeOpen == false && !ui.pdvInactive
                         OutlinedButton(
                             onClick  = { vm.onStoreOpenChange(false) },
                             modifier = Modifier.weight(1f),
                             colors   = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (closedSelected) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+                                containerColor = if (closedSel) MaterialTheme.colorScheme.errorContainer
+                                                  else MaterialTheme.colorScheme.surface,
                             ),
                             border = BorderStroke(
-                                if (closedSelected) 2.dp else 1.dp,
-                                if (closedSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
+                                if (closedSel) 2.dp else 1.dp,
+                                if (closedSel) MaterialTheme.colorScheme.error
+                                               else MaterialTheme.colorScheme.outlineVariant,
                             ),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                         ) {
-                            Icon(Icons.Default.StoreMallDirectory, null, Modifier.size(16.dp),
-                                tint = if (closedSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Cerrado", style = MaterialTheme.typography.labelMedium,
-                                color = if (closedSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Default.StoreMallDirectory, null, Modifier.size(14.dp),
+                                tint = if (closedSel) MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(3.dp))
+                            Text("Hoy cerrado", style = MaterialTheme.typography.labelSmall,
+                                color = if (closedSel) MaterialTheme.colorScheme.error
+                                         else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        // Botón PDV Inactivo
+                        OutlinedButton(
+                            onClick  = { vm.onPdvInactiveToggle() },
+                            modifier = Modifier.weight(1f),
+                            colors   = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (ui.pdvInactive)
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                                    else MaterialTheme.colorScheme.surface,
+                            ),
+                            border = BorderStroke(
+                                if (ui.pdvInactive) 2.dp else 1.dp,
+                                if (ui.pdvInactive) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.outlineVariant,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        ) {
+                            Icon(Icons.Default.Block, null, Modifier.size(14.dp),
+                                tint = if (ui.pdvInactive) MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(3.dp))
+                            Text("Inactivo", style = MaterialTheme.typography.labelSmall,
+                                color = if (ui.pdvInactive) MaterialTheme.colorScheme.error
+                                         else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
@@ -438,5 +501,6 @@ private fun KpiField(
         )
     }
 }
+
 
 

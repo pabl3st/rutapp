@@ -655,7 +655,7 @@ if ($action === 'delta_sync') {
                 s.name, s.address, s.lat, s.lng, s.order_index,
                 s.external_id, s.contact_name, s.contact_phone,
                 s.visit_frequency, s.priority, s.segment, s.account_status, s.opening_hours,
-                s.status, s.notes, s.visited_at, s.visit_result, s.next_action, s.pdv_open,
+                s.status, s.notes, s.visited_at, s.visit_result, s.next_action, s.pdv_open, s.pdv_inactive,
                 s.created_at, s.updated_at, s.deleted_at
          FROM stops s
          JOIN routes r ON r.id = s.route_id
@@ -831,9 +831,9 @@ if ($action === 'batch_sync') {
                                 (uid, route_id, account_id, name, address, lat, lng,
                                  order_index, status, notes, visited_at,
                                  external_id, contact_name, contact_phone,
-                                 visit_result, next_action, pdv_open,
+                                 visit_result, next_action, pdv_open, pdv_inactive,
                                  created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                              ON DUPLICATE KEY UPDATE
                                 name=VALUES(name), address=VALUES(address),
                                 lat=VALUES(lat), lng=VALUES(lng),
@@ -845,6 +845,8 @@ if ($action === 'batch_sync') {
                                 visit_result=VALUES(visit_result),
                                 next_action=VALUES(next_action),
                                 pdv_open=VALUES(pdv_open),
+                                pdv_inactive=VALUES(pdv_inactive),
+                                account_status=IF(VALUES(pdv_inactive)=1,'inactive',account_status),
                                 updated_at=VALUES(updated_at)'
                         )->execute([
                             $clientUid, $routeId, $aid,
@@ -862,6 +864,7 @@ if ($action === 'batch_sync') {
                             san($data['visit_result'] ?? '', 20) ?: null,
                             san($data['next_action'] ?? '', 5000) ?: null,
                             isset($data['pdv_open']) ? (int)(bool)$data['pdv_open'] : 1,
+                            isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
                             san($data['created_at'] ?? date('c'), 30),
                             date('c'),
                         ]);
@@ -1159,5 +1162,6 @@ if ($action === 'god_set_role') {
 }
 
 err("Acción desconocida: {$action}", 404);
+
 
 
