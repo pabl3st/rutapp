@@ -393,9 +393,17 @@ class ImportarViewModel @Inject constructor(
             val routeKey  = stops.firstOrNull()?.routeName?.trim() ?: ""
             val datesForRoute = calSheetByRoute[routeKey]
 
-            // Fecha principal = primera fecha de visita, o primer día laborable si no hay sheet
-            val primaryDate = datesForRoute?.firstOrNull() ?: preloadedDates[idx] ?: firstWorkday
-            val allDates    = datesForRoute ?: listOfNotNull(preloadedDates[idx])
+            // Filtrar fechas al mes seleccionado — el XLS puede tener fechas de varios meses
+            val effectiveMonth2 = importedMonthFromSheet ?: _ui.value.selectedMonth
+            val datesInMonth = datesForRoute?.filter { d ->
+                java.time.YearMonth.from(d) == effectiveMonth2
+            }?.takeIf { it.isNotEmpty() }
+
+            // Fecha principal = primera fecha del mes, o primer día laborable si no hay sheet
+            val primaryDate = datesInMonth?.firstOrNull()
+                ?: preloadedDates[idx]?.takeIf { java.time.YearMonth.from(it) == effectiveMonth2 }
+                ?: firstWorkday
+            val allDates = datesInMonth ?: listOfNotNull(preloadedDates[idx])
 
             entries.add(RouteCalendarEntry(
                 clusterIndex        = idx,
@@ -584,20 +592,27 @@ class ImportarViewModel @Inject constructor(
 
     fun onMonthChange(month: java.time.YearMonth) {
         _ui.update { it.copy(selectedMonth = month) }
-        if (_ui.value.calendarEntries.isNotEmpty()) rebuildCalendarEntries()
+        rebuildCalendarEntries()  // siempre recalcular — filtra fechas al mes elegido
     }
 
     private fun rebuildCalendarEntries() {
         val month = _ui.value.selectedMonth
         val first = firstWorkdayOfImportWeek(java.time.LocalDate.now(), month)
         val entries = _ui.value.calendarEntries.mapIndexed { i, entry ->
-            val newDate = if (entry.scheduledDates.isNotEmpty()) entry.scheduledDates.first()
+            // Filtrar scheduledDates al mes seleccionado
+            val datesInMonth = entry.scheduledDates.filter { d ->
+                java.time.YearMonth.from(d) == month
+            }
+            val newDate = if (datesInMonth.isNotEmpty()) datesInMonth.first()
                           else {
                               var d = first.plusDays(i.toLong())
                               while (d.dayOfWeek.value > 5) d = d.plusDays(1)
                               d
                           }
-            entry.copy(date = newDate)
+            entry.copy(
+                date           = newDate,
+                scheduledDates = datesInMonth.ifEmpty { entry.scheduledDates },
+            )
         }
         _ui.update { it.copy(calendarEntries = entries) }
     }
@@ -706,6 +721,7 @@ class ImportarViewModel @Inject constructor(
     fun getRawRows(): List<Map<String, String>> = _rawRows
     fun reset() { _ui.value = ImportarUiState(); _rawRows = emptyList(); _kpiRawRows = emptyList() }
 }
+
 
 
 

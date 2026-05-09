@@ -75,7 +75,7 @@ class GodDashboardViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.update { it.copy(isLoadingStats = true) }
             runCatching {
-                val resp = api.godStats(token = "Bearer ${session.token}")
+                val resp = api.godStats(token = session.token ?: "")
                 if (resp.isSuccessful) {
                     val body = resp.body()
                     if (body?.success == true) {
@@ -110,7 +110,7 @@ class GodDashboardViewModel @Inject constructor(
                 if (s.roleFilter.isNotBlank()) put("role", s.roleFilter)
             }
             runCatching {
-                val resp = api.godUsersAll(token = "Bearer ${session.token}", body = body)
+                val resp = api.godUsersAll(token = session.token ?: "", body = body)
                 if (resp.isSuccessful && resp.body()?.success == true) {
                     _ui.update { it.copy(allUsers = resp.body()!!.users, isLoadingUsers = false) }
                 } else {
@@ -170,4 +170,5 @@ class GodDashboardViewModel @Inject constructor(
     fun clearError()    = _ui.update { it.copy(error = null) }
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
 }
+
 

@@ -456,25 +456,26 @@ interface RutasApiService {
     // ── God Dashboard ─────────────────────────────────────────
     @GET(API_PATH)
     suspend fun godStats(
-        @Header("Authorization") token: String,
+        @Header("X-Auth-Token") token: String,
         @Query("action") action: String = "god_stats",
     ): Response<GodStatsResponse>
 
     @POST(API_PATH)
     suspend fun godUsersAll(
-        @Header("Authorization") token: String,
+        @Header("X-Auth-Token") token: String,
         @Query("action") action: String = "god_users_all",
         @Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap(),
     ): Response<GodUsersResponse>
 
     @POST(API_PATH)
     suspend fun godSetRole(
-        @Header("Authorization") token: String,
+        @Header("X-Auth-Token") token: String,
         @Query("action") action: String = "god_set_role",
         @Body body: GodSetRoleRequest,
     ): Response<AdminActionResponse>
 
 }
+
 
 
 

@@ -27,7 +27,7 @@ data class StopEntity(
 
     // ── Campos universales (S05) ─────────────────────────────
     val visitFrequency: Int?    = null,    // días entre visitas (7, 14, 30...)
-    val priority: Int           = 3,       // 1=máxima 5=mínima
+    val priority: Int           = 0,       // 0=sin asignar, 1=máxima, 5=mínima
     val segment: String?        = null,    // A/B/C o tier personalizado
     val accountStatus: String   = "active",// prospect|active|inactive|churned
     val openingHours: String?   = null,    // JSON {"mon":"9-18","tue":"9-18"...}
@@ -50,4 +50,5 @@ data class StopEntity(
     val syncStatus: String  = "pending",
     val syncedAt: String?   = null,
 )
+
 

@@ -739,11 +739,12 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
                         }
                     }
                     // Mostrar las fechas de visita programadas si hay más de una
-                    if (entry.scheduledDates.size > 1) {
+                    if (entry.scheduledDates.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
                             if (entry.datesFromImport) {
                                 Surface(
@@ -759,22 +760,13 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
                                 }
                             }
                             Text(
-                                entry.scheduledDates.joinToString(" · ") { it.format(fmtDay) },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    } else if (entry.datesFromImport && entry.scheduledDates.size == 1) {
-                        Spacer(Modifier.height(2.dp))
-                        Surface(
-                            shape = MaterialTheme.shapes.extraSmall,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                        ) {
-                            Text(
-                                "Del fichero",
-                                style    = MaterialTheme.typography.labelSmall,
-                                color    = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                // Solo mostrar fechas del mes seleccionado
+                                entry.scheduledDates
+                                    .filter { java.time.YearMonth.from(it) == ui.selectedMonth }
+                                    .ifEmpty { entry.scheduledDates }
+                                    .joinToString(" · ") { it.format(fmtDay) },
+                                style  = MaterialTheme.typography.labelSmall,
+                                color  = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
@@ -965,6 +957,7 @@ private fun StepDone(ui: ImportarUiState, onDone: () -> Unit) {
         }
     }
 }
+
 
 
 
