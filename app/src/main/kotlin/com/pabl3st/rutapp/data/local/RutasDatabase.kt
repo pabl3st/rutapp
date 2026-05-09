@@ -29,7 +29,7 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         BusinessProfileEntity::class,
         KpiValueEntity::class,
     ],
-    version      = 9,
+    version      = 8,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -124,23 +124,16 @@ abstract class RutasDatabase : RoomDatabase() {
         }
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Añadir campo pdvOpen a stops — persiste si el PDV estaba abierto en la visita
                 db.execSQL("ALTER TABLE stops ADD COLUMN pdvOpen INTEGER NOT NULL DEFAULT 1")
             }
         }
-
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE stops ADD COLUMN pdvInactive INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // Fechas de visita programadas por ruta (JSON array)
-                db.execSQL("ALTER TABLE routes ADD COLUMN scheduledDates TEXT DEFAULT NULL")
+                // scheduledDates: JSON array con todas las fechas programadas de la ruta
+                // p.e. ["2026-05-12","2026-05-26","2026-06-09","2026-06-23"]
+                db.execSQL("ALTER TABLE routes ADD COLUMN scheduledDates TEXT NOT NULL DEFAULT ''")
             }
         }
     }
 }
-
-

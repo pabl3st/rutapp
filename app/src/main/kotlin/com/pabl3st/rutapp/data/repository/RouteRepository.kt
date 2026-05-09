@@ -87,21 +87,25 @@ class RouteRepository @Inject constructor(
         name: String,
         dateAssigned: String,
         notes: String? = null,
-        scheduledDates: String? = null,
+        scheduledDates: List<String> = emptyList(),
     ): RouteEntity {
         val now   = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        // scheduledDates JSON: ["2026-05-12","2026-05-26",...] o null
+        val datesJson: String? = if (scheduledDates.isNotEmpty())
+            "[" + scheduledDates.joinToString(",") { ""$it"" } + "]"
+        else null
         val route = RouteEntity(
-            uid          = UUID.randomUUID().toString(),
-            accountId    = session.accountId,
-            userId       = session.userId,
-            name         = name,
-            dateAssigned = dateAssigned,
+            uid             = UUID.randomUUID().toString(),
+            accountId       = session.accountId,
+            userId          = session.userId,
+            name            = name,
+            dateAssigned    = dateAssigned,
+            scheduledDates  = datesJson,
             notes           = notes,
-            scheduledDates  = scheduledDates,
             createdAt       = now,
-            updatedAt    = now,
-            syncStatus   = "pending",
+            updatedAt       = now,
+            syncStatus      = "pending",
         )
         routeDao.upsert(route)
         enqueue("route", route.uid, "create", routeToMap(route))
@@ -157,11 +161,12 @@ class RouteRepository @Inject constructor(
 
     // ── Helpers ───────────────────────────────────────────────
     private fun routeToMap(r: RouteEntity): Map<String, Any?> = mapOf(
-        "name"          to r.name,
-        "date_assigned" to r.dateAssigned,
-        "status"        to r.status,
-        "notes"         to r.notes,
-        "created_at"    to r.createdAt,
+        "name"             to r.name,
+        "date_assigned"    to r.dateAssigned,
+        "scheduled_dates"  to r.scheduledDates,
+        "status"           to r.status,
+        "notes"            to r.notes,
+        "created_at"       to r.createdAt,
     )
 
     private suspend fun enqueue(entity: String, uid: String, op: String, data: Map<String, Any?>) {
@@ -175,4 +180,3 @@ class RouteRepository @Inject constructor(
         )
     }
 }
-

@@ -61,15 +61,33 @@ class CalendarioViewModel @Inject constructor(
             routeRepo.observeAll()
                 .catch { }
                 .collect { routes ->
-                    val byDate = routes
-                        .filter { it.deletedAt == null }
-                        .groupBy { it.dateAssigned }
+                    val active = routes.filter { it.deletedAt == null }
+                    // Una ruta aparece en el calendario en su dateAssigned
+                    // Y también en todas sus scheduledDates (fechas recurrentes)
+                    val byDate = mutableMapOf<String, MutableList<com.pabl3st.rutapp.data.local.entity.RouteEntity>>()
+                    active.forEach { route ->
+                        // Fecha principal
+                        byDate.getOrPut(route.dateAssigned) { mutableListOf() }.add(route)
+                        // Fechas adicionales programadas (JSON array)
+                        if (!route.scheduledDates.isNullOrEmpty()) {
+                            runCatching {
+                                org.json.JSONArray(route.scheduledDates)
+                            }.getOrNull()?.let { arr ->
+                                (0 until arr.length()).forEach { i ->
+                                    val d = arr.optString(i)
+                                    if (d.isNotEmpty() && d != route.dateAssigned) {
+                                        byDate.getOrPut(d) { mutableListOf() }.add(route)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     val selected = _ui.value.selectedDay?.format(fmt)
                     _ui.update {
                         it.copy(
                             routesByDate   = byDate,
                             selectedRoutes = if (selected != null) byDate[selected] ?: emptyList() else emptyList(),
-                            allRoutes      = routes.filter { r -> r.deletedAt == null },
+                            allRoutes      = active,
                             isLoading      = false,
                         )
                     }

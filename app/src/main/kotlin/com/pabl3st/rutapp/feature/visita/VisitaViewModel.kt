@@ -5,7 +5,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
-import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
@@ -15,7 +14,6 @@ import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.UserPrefs
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
-import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,15 +25,10 @@ data class VisitaUiState(
     val stop: StopEntity?                    = null,
     val isLoading: Boolean                   = true,
     val isSaving: Boolean                    = false,
-    // "" = sin selección (formulario nuevo); valor = edición de visita existente
-    val selectedResult: String               = "",
+    val selectedResult: String               = "contactado",
     val notes: String                        = "",
     val nextAction: String                   = "",
-    // null = sin selección; true/false = estado PDV seleccionado
-    val storeOpen: Boolean?                  = null,
-    // PDV inactivo permanente (distinto de cerrado hoy)
-    val pdvInactive: Boolean                 = false,
-    val isEditingPreviousVisit: Boolean      = false, // true si el stop ya era 'done'
+    val storeOpen: Boolean                   = true,
     val photos: List<Uri>                    = emptyList(),
     val showCamera: Boolean                  = false,
     val saved: Boolean                       = false,
@@ -51,8 +44,6 @@ class VisitaViewModel @Inject constructor(
     private val stopRepo:     StopRepository,
     private val profileRepo:  BusinessProfileRepository,
     private val kpiValueDao:  KpiValueDao,
-    private val stopDao:      StopDao,
-    private val session:      SessionManager,
     private val syncQueueDao: SyncQueueDao,
     private val prefsRepo:    UserPrefsRepository,
     private val moshi:        Moshi,
@@ -75,83 +66,25 @@ class VisitaViewModel @Inject constructor(
 
     private fun loadStop() {
         viewModelScope.launch {
-            val stop = stopRepo.getByUid(stopUid) ?: run {
-                _ui.update { it.copy(isLoading = false) }
-                return@launch
-            }
-
-            // ── Reset por visitFrequency ──────────────────────────────────
-            // Si el stop está 'done' y han pasado ≥ visitFrequency días desde
-            // la última visita → resetear a 'pending' para una nueva visita limpia.
-            val shouldReset = stop.status == "done"
-                && stop.visitFrequency != null
-                && stop.visitedAt != null
-                && run {
-                    val visitedDate = runCatching {
-                        java.time.LocalDate.parse(stop.visitedAt.substring(0, 10))
-                    }.getOrNull()
-                    val today = java.time.LocalDate.now()
-                    visitedDate != null && java.time.temporal.ChronoUnit.DAYS.between(visitedDate, today) >= stop.visitFrequency
-                }
-
-            if (shouldReset) {
-                stopRepo.resetForNewVisit(stopUid)
-                // Tras el reset el stop quede 'pending' — abrir formulario en blanco
-                _ui.update {
-                    it.copy(
-                        stop                 = stop.copy(status = "pending", visitResult = null,
-                                                          visitedAt = null, notes = null),
-                        isLoading            = false,
-                        selectedResult       = "",
-                        notes                = "",
-                        nextAction           = "",
-                        storeOpen            = null,
-                        isEditingPreviousVisit = false,
-                    )
-                }
-                stopRepo.markVisiting(stopUid)
-                return@launch
-            }
-
-            // ── Estado 'done': edición de visita existente ────────────────
-            // Pre-cargar datos previos y mostrar banner informativo.
-            if (stop.status == "done") {
-                _ui.update {
-                    it.copy(
-                        stop                 = stop,
-                        isLoading            = false,
-                        selectedResult       = stop.visitResult ?: "",
-                        notes                = stop.notes       ?: "",
-                        nextAction           = stop.nextAction  ?: "",
-                        storeOpen            = stop.pdvOpen,
-                        pdvInactive          = stop.pdvInactive,
-                        isEditingPreviousVisit = true,
-                    )
-                }
-                return@launch
-            }
-
-            // ── Estado 'pending' / 'visiting': formulario nuevo en blanco ─
-            stopRepo.markVisiting(stopUid)
+            // NO llamar markVisiting aquí — solo saveVisit() marca el stop como done
+            val stop = stopRepo.getByUid(stopUid)
             _ui.update {
                 it.copy(
-                    stop                 = stop,
-                    isLoading            = false,
-                    selectedResult       = "",
-                    notes                = "",
-                    nextAction           = "",
-                    storeOpen            = null,
-                    isEditingPreviousVisit = false,
+                    stop           = stop,
+                    isLoading      = false,
+                    selectedResult = "contactado", // siempre limpio al abrir
+                    notes          = "",
+                    nextAction     = "",
+                    storeOpen      = true,         // por defecto abierto
                 )
             }
         }
     }
 
-    fun onResultChange(result: String)   = _ui.update { it.copy(selectedResult = result) }
-    fun onNotesChange(v: String)         = _ui.update { it.copy(notes = v) }
-    fun onNextActionChange(v: String)    = _ui.update { it.copy(nextAction = v) }
-    fun onStoreOpenChange(v: Boolean?)   = _ui.update { it.copy(storeOpen = v, pdvInactive = false) }
-    fun onPdvInactiveToggle()              = _ui.update { it.copy(pdvInactive = !it.pdvInactive, storeOpen = if (!it.pdvInactive) false else it.storeOpen) }
+    fun onResultChange(result: String)  = _ui.update { it.copy(selectedResult = result) }
+    fun onNotesChange(v: String)        = _ui.update { it.copy(notes = v) }
+    fun onNextActionChange(v: String)   = _ui.update { it.copy(nextAction = v) }
+    fun onStoreOpenChange(v: Boolean)   = _ui.update { it.copy(storeOpen = v) }
 
     fun onShowCamera()                  = _ui.update { it.copy(showCamera = true) }
     fun onHideCamera()                  = _ui.update { it.copy(showCamera = false) }
@@ -170,12 +103,11 @@ class VisitaViewModel @Inject constructor(
 
             // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
             stopRepo.saveVisitResult(
-                uid         = stopUid,
-                result      = _ui.value.selectedResult,
-                notes       = _ui.value.notes.trim().ifEmpty { null },
-                nextAction  = _ui.value.nextAction.trim().ifEmpty { null },
-                pdvOpen     = _ui.value.storeOpen ?: true,
-                pdvInactive = _ui.value.pdvInactive,
+                uid        = stopUid,
+                result     = _ui.value.selectedResult,
+                notes      = _ui.value.notes.trim().ifEmpty { null },
+                nextAction = _ui.value.nextAction.trim().ifEmpty { null },
+                pdvOpen    = _ui.value.storeOpen,
             )
 
             // 2. Persistir valores KPI en Room
@@ -213,72 +145,11 @@ class VisitaViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Carga KPIs con lógica acumulativa mensual:
-     *
-     * 1. Busca todos los stops del mismo PDV (mismo externalId) ya visitados
-     *    en el mes actual (YYYY-MM) — excluye el stop actual.
-     * 2. Agrega sus KpiValues tomando el valor MÁXIMO por KPI
-     *    (los KPIs son acumulativos: activaciones del mes siempre crecen).
-     * 3. Superpone encima los valores del stop actual si ya tiene visita previa
-     *    (edición) — tienen prioridad sobre el histórico del mes.
-     *
-     * Resultado: el formulario muestra los datos más actualizados del mes.
-     */
     private fun loadExistingKpiValues() {
         viewModelScope.launch {
-            val stop = _ui.value.stop ?: stopDao.getByUid(stopUid) ?: return@launch
-            val externalId = stop.externalId
-
-            // Mes actual en formato "YYYY-MM"
-            val monthPrefix = java.time.LocalDate.now()
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
-
-            // Paso 1: stops del mismo PDV visitados este mes (anteriores a este)
-            val monthlyKpis = mutableMapOf<String, String>()
-            if (externalId != null) {
-                val siblingStops = stopDao.getDoneByExternalIdInMonth(
-                    accountId   = session.accountId,
-                    externalId  = externalId,
-                    monthPrefix = monthPrefix,
-                    excludeUid  = stopUid,
-                )
-                if (siblingStops.isNotEmpty()) {
-                    val siblingUids = siblingStops.map { it.uid }
-                    val siblingKpis = kpiValueDao.getByStops(siblingUids)
-
-                    // Tomar el valor máximo por KPI (acumulativo)
-                    siblingKpis.forEach { kv ->
-                        val current = monthlyKpis[kv.kpiId]
-                        val candidate = kv.valueText
-                        monthlyKpis[kv.kpiId] = when {
-                            current == null -> candidate
-                            // Para booleanos: true > false
-                            candidate.lowercase() == "true" -> "true"
-                            current.lowercase()   == "true" -> "true"
-                            // Para numéricos: tomar el mayor
-                            else -> {
-                                val curNum  = current.toDoubleOrNull()
-                                val candNum = candidate.toDoubleOrNull()
-                                when {
-                                    curNum != null && candNum != null ->
-                                        if (candNum > curNum) candidate else current
-                                    else -> candidate
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Paso 2: valores del stop actual (edición — tienen prioridad)
-            val ownKpis = kpiValueDao.getByStop(stopUid)
+            val existing = kpiValueDao.getByStop(stopUid)
                 .associate { it.kpiId to it.valueText }
-
-            // Fusionar: mensual como base, propio encima
-            val merged = monthlyKpis + ownKpis
-
-            _ui.update { it.copy(kpiValues = it.kpiValues + merged) }
+            _ui.update { it.copy(kpiValues = it.kpiValues + existing) }
         }
     }
 
@@ -305,7 +176,3 @@ class VisitaViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 }
-
-
-
-

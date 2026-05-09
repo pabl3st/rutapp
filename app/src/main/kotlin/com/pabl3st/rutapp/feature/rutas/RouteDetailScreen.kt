@@ -15,12 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.data.local.entity.StopEntity
-import com.pabl3st.rutapp.data.local.entity.StopTagConfig
-import com.pabl3st.rutapp.data.local.entity.evaluateTag
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.ui.graphics.Color
-import androidx.compose.material.icons.filled.GpsOff
 
 @Composable
 fun RouteDetailScreen(
@@ -109,8 +103,6 @@ fun RouteDetailScreen(
                     items(ui.stops, key = { it.uid }) { stop ->
                         StopCard(
                             stop         = stop,
-                            stopTags     = ui.stopTags,
-                            kpiValues    = ui.kpiByStop[stop.uid] ?: emptyMap(),
                             onOpenVisita = { onStopClick(stop.uid) },
                         )
                     }
@@ -210,118 +202,61 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun StopCard(
-    stop:        StopEntity,
-    stopTags:    List<StopTagConfig> = emptyList(),
-    kpiValues:   Map<String, String> = emptyMap(),
-    onOpenVisita: () -> Unit = {},
-) {
-    val isDone     = stop.status == "done"
-    val isVisiting = stop.status == "visiting"
-    val noGps      = stop.lat == null || stop.lng == null
-
-    // Evaluar tags configurados por el owner
-    val activeTags = stopTags.filter { evaluateTag(it, stop, kpiValues) }
-
-    // Tag de sistema: SIN GPS
-    val systemTags = buildList {
-        if (noGps) add(Triple("SIN GPS", "#fee2e2", "#dc2626"))
-    }
-
-    val cardColor = when {
-        isVisiting -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        isDone     -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        else       -> CardDefaults.cardColors()
-    }
-
-    Card(modifier = Modifier.fillMaxWidth(), colors = cardColor) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Número de orden
-                Surface(
-                    shape    = MaterialTheme.shapes.small,
-                    color    = when {
-                        isDone     -> MaterialTheme.colorScheme.tertiaryContainer
-                        isVisiting -> MaterialTheme.colorScheme.primaryContainer
-                        else       -> MaterialTheme.colorScheme.secondaryContainer
-                    },
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text  = "${stop.orderIndex + 1}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = when {
-                                isDone     -> MaterialTheme.colorScheme.onTertiaryContainer
-                                isVisiting -> MaterialTheme.colorScheme.onPrimaryContainer
-                                else       -> MaterialTheme.colorScheme.onSecondaryContainer
-                            },
-                        )
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    stop.externalId?.let {
-                        Text(it, style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                    }
+private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}) {
+    val isDone = stop.status == "done"
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier          = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                shape    = MaterialTheme.shapes.small,
+                color    = if (isDone) MaterialTheme.colorScheme.tertiaryContainer
+                           else MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(32.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text  = stop.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
-                                else MaterialTheme.colorScheme.onSurface,
+                        text  = "${stop.orderIndex + 1}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isDone) MaterialTheme.colorScheme.onTertiaryContainer
+                                else MaterialTheme.colorScheme.onPrimaryContainer,
                     )
-                    stop.address?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                if (!isDone) {
-                    IconButton(onClick = onOpenVisita) {
-                        Icon(Icons.Default.Edit, "Registrar visita",
-                            tint = MaterialTheme.colorScheme.primary)
-                    }
-                } else {
-                    Icon(Icons.Default.CheckCircle, null,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.padding(12.dp))
                 }
             }
-
-            // ── Tags ──────────────────────────────────────────
-            if (activeTags.isNotEmpty() || systemTags.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement   = Arrangement.spacedBy(4.dp),
-                ) {
-                    systemTags.forEach { (name, bg, fg) ->
-                        StopTagChip(name, bg, fg)
-                    }
-                    activeTags.forEach { tag ->
-                        StopTagChip(tag.name, tag.colorHex, tag.textColorHex)
-                    }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                stop.externalId?.let { extId ->
+                    Text(
+                        text  = extId,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    )
                 }
+                Text(
+                    text  = stop.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSurface,
+                )
+                stop.address?.let { addr ->
+                    Text(addr, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (!isDone) {
+                IconButton(onClick = onOpenVisita) {
+                    Icon(Icons.Default.Edit,
+                        contentDescription = "Registrar visita",
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+            } else {
+                Icon(Icons.Default.CheckCircle, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.padding(12.dp))
             }
         }
     }
 }
-
-@Composable
-private fun StopTagChip(name: String, colorHex: String, textColorHex: String) {
-    val bg  = runCatching { Color(android.graphics.Color.parseColor(colorHex)) }.getOrDefault(Color.LightGray)
-    val fg  = runCatching { Color(android.graphics.Color.parseColor(textColorHex)) }.getOrDefault(Color.Black)
-    Surface(shape = MaterialTheme.shapes.extraSmall, color = bg) {
-        Text(
-            text     = name,
-            style    = MaterialTheme.typography.labelSmall,
-            color    = fg,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
-}
-
-

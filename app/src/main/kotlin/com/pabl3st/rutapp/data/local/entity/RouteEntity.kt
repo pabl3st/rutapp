@@ -10,7 +10,7 @@ data class RouteEntity(
     val accountId: Int,
     val userId: Int,
     val name: String,
-    val dateAssigned: String,              // ISO8601 "YYYY-MM-DD"
+    val dateAssigned: String,              // ISO8601 "YYYY-MM-DD" — primera ejecución
     val status: String     = "pending",    // pending|active|done|cancelled
     val notes: String?     = null,
     val createdAt: String,
