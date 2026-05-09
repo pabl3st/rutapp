@@ -157,42 +157,29 @@ Screen.Importar        // importar
 - BibliotecaScreen: tabs Todas/Sin GPS/Sin ruta, búsqueda en tiempo real, bulk actions
 - BibliotecaViewModel: combine(_tab, _query.debounce(200)) + flatMapLatest
 
-### S13 — COMPLETADO ✅ (Import CSV + XLSX)
+### S13 — COMPLETADO ✅ (Import CSV)
 - CsvParser: auto-detecta separador, maneja comillas, UTF-8
-- XlsxParser: parser OOXML sin dependencias externas (ZIP+XML, primera hoja, shared strings)
 - GeoCluster: K-means++ geográfico con estrategias AUTO/FIXED_K/RADIUS
 - ImportarScreen: stepper 4 pasos (Seleccionar → Mapear → Preview+Clustering → Guardar)
 - ImportarViewModel: autoMap(), buildClusters(), onSaveConfirm() crea rutas+stops en Room
-- Soporta .csv, .txt, .xlsx — selección automática de parser por extensión
 - RutasScreen: botón import en TopAppBar → navega a Screen.Importar
 
-### S12 — COMPLETADO ✅ (Calendario)
-- CalendarioScreen: grid mensual, selección de día, lista de rutas del día con estado
-- CalendarioViewModel: observeAll() + groupBy fecha + festivos via date.nager.at/api/v3/ES (cache por año)
-- Festivos renderizados: fondo errorContainer en celda, punto rojo bajo número, nombre festivo en panel inferior
-- Fines de semana en color onSurfaceVariant; días con ruta: punto verde (pendiente) o secundario (completada)
-- Sin red: calendario funciona sin festivos (catch silencioso)
-- Festivos: cache por año, merge de múltiples años, fallback silencioso si no hay red
+### PENDIENTES ⏳
 
-### S14 — COMPLETADO ✅ (Admin panel + roles)
-- AdminScreen (373 líneas): stats de cuenta, lista de usuarios, invite + cambio de rol, deactivate
-- AdminViewModel: loadUsers(), inviteUser(), updateRole(), deactivateUser()
-- AdminRepository: listUsers, inviteUser, updateRole, deactivateUser + roleLabel()
-- Roles: owner/admin/manager/agent/viewer — canManageUsers = userRole in {owner, admin}
-- RutasApiService: DTOs AccountUserDto, UsersListResponse, InviteUserRequest, UpdateRoleRequest, DeactivateUserRequest
-- api.php: users_list, invite_user (invite_codes), update_role, deactivate_user — roleLevel guards, owner protegido
+#### S12 — Calendario (INDEPENDIENTE — sin dependencias)
+- CalendarioScreen existe (305 líneas) con grid mensual, selección de día, asignación de rutas
+- CalendarioViewModel existe — revisar si está completo o necesita pulido
+- Pendiente: festivos nacionales vía API pública
 
-### PENDIENTE ⏳
+#### S14 — Admin panel completo (depende S09)
+- AdminScreen existe (170 líneas) — base con gestión básica
+- Pendiente: roles completos owner/admin/manager/agent/viewer, gestión de empleados/invites,
+  asignación de perfil de negocio por empleado, empViewPrefs
 
 #### S15 — IA (depende S08+S09+S11)
 - Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)
 - Asesor pre-visita por PDV: risk score + objetivo
 - Contexto: historial KpiDefinition + JornadaSession
-
-#### RELEASE — Firmado + icono definitivo + Play Store
-- Keystore de producción + build release firmado
-- Icono y splash definitivos (reemplazar placeholders)
-- Privacy policy + ficha Play Store
 
 ---
 

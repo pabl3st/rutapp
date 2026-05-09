@@ -1,0 +1,78 @@
+[
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/font_dm_sans_semibold.ttf.flat",
+        "source": "com.pabl3st.rutapp-main-8:/font/dm_sans_semibold.ttf"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.pabl3st.rutapp-main-8:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/font_dm_sans_bold.ttf.flat",
+        "source": "com.pabl3st.rutapp-main-8:/font/dm_sans_bold.ttf"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.pabl3st.rutapp-main-8:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/font_dm_sans.ttf.flat",
+        "source": "com.pabl3st.rutapp-main-8:/font/dm_sans.ttf"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/font_dm_sans_medium.ttf.flat",
+        "source": "com.pabl3st.rutapp-main-8:/font/dm_sans_medium.ttf"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/font_jetbrains_mono.ttf.flat",
+        "source": "com.pabl3st.rutapp-main-8:/font/jetbrains_mono.ttf"
+    },
+    {
+        "merged": "com.pabl3st.rutapp-debug-6:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.pabl3st.rutapp-main-8:/mipmap-xxhdpi/ic_launcher_round.png"
+    }
+]

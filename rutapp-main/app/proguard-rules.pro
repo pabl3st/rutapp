@@ -1,4 +1,0 @@
--keep class com.pabl3st.rutapp.** { *; }
--keepattributes *Annotation*
--dontwarn okhttp3.**
--dontwarn retrofit2.**
