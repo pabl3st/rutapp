@@ -721,15 +721,18 @@ if ($action === 'batch_sync') {
                         $db = db();
                         $db->prepare(
                             'INSERT INTO routes
-                                (uid, account_id, user_id, name, date_assigned, status, notes, created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?)
+                                (uid, account_id, user_id, name, date_assigned, scheduled_dates, status, notes, created_at, updated_at)
+                             VALUES (?,?,?,?,?,?,?,?,?,?)
                              ON DUPLICATE KEY UPDATE
-                                name=VALUES(name), status=VALUES(status),
+                                name=VALUES(name), date_assigned=VALUES(date_assigned),
+                                scheduled_dates=VALUES(scheduled_dates),
+                                status=VALUES(status),
                                 notes=VALUES(notes), updated_at=VALUES(updated_at)'
                         )->execute([
                             $clientUid, $aid, $uid,
                             san($data['name'] ?? '', 255),
                             san($data['date_assigned'] ?? date('Y-m-d'), 10),
+                            isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
                             san($data['status'] ?? 'pending', 20),
                             san($data['notes'] ?? '', 5000) ?: null,
                             san($data['created_at'] ?? date('c'), 30),
@@ -832,8 +835,9 @@ if ($action === 'batch_sync') {
                                  order_index, status, notes, visited_at,
                                  external_id, contact_name, contact_phone,
                                  visit_result, next_action, pdv_open, pdv_inactive,
+                                 visit_frequency, priority, segment,
                                  created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                              ON DUPLICATE KEY UPDATE
                                 name=VALUES(name), address=VALUES(address),
                                 lat=VALUES(lat), lng=VALUES(lng),
@@ -846,6 +850,9 @@ if ($action === 'batch_sync') {
                                 next_action=VALUES(next_action),
                                 pdv_open=VALUES(pdv_open),
                                 pdv_inactive=VALUES(pdv_inactive),
+                                visit_frequency=VALUES(visit_frequency),
+                                priority=VALUES(priority),
+                                segment=VALUES(segment),
                                 account_status=IF(VALUES(pdv_inactive)=1,\'inactive\',account_status),
                                 updated_at=VALUES(updated_at)'
                         )->execute([
@@ -865,6 +872,9 @@ if ($action === 'batch_sync') {
                             san($data['next_action'] ?? '', 5000) ?: null,
                             isset($data['pdv_open']) ? (int)(bool)$data['pdv_open'] : 1,
                             isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
+                            san($data['visit_frequency'] ?? '', 20) ?: null,
+                            isset($data['priority']) ? (int)$data['priority'] : 0,
+                            san($data['segment'] ?? '', 50) ?: null,
                             san($data['created_at'] ?? date('c'), 30),
                             date('c'),
                         ]);

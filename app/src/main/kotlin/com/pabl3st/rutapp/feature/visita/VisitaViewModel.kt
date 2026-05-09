@@ -88,6 +88,7 @@ class VisitaViewModel @Inject constructor(
     fun onNotesChange(v: String)        = _ui.update { it.copy(notes = v) }
     fun onNextActionChange(v: String)   = _ui.update { it.copy(nextAction = v) }
     fun onStoreOpenChange(v: Boolean)   = _ui.update { it.copy(storeOpen = v) }
+    fun onPdvInactiveToggle()            = _ui.update { it.copy(pdvInactive = !it.pdvInactive) }
 
     fun onShowCamera()                  = _ui.update { it.copy(showCamera = true) }
     fun onHideCamera()                  = _ui.update { it.copy(showCamera = false) }
@@ -106,11 +107,12 @@ class VisitaViewModel @Inject constructor(
 
             // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
             stopRepo.saveVisitResult(
-                uid        = stopUid,
-                result     = _ui.value.selectedResult,
-                notes      = _ui.value.notes.trim().ifEmpty { null },
-                nextAction = _ui.value.nextAction.trim().ifEmpty { null },
-                pdvOpen    = _ui.value.storeOpen,
+                uid         = stopUid,
+                result      = _ui.value.selectedResult,
+                notes       = _ui.value.notes.trim().ifEmpty { null },
+                nextAction  = _ui.value.nextAction.trim().ifEmpty { null },
+                pdvOpen     = _ui.value.storeOpen,
+                pdvInactive = _ui.value.pdvInactive,
             )
 
             // 2. Persistir valores KPI en Room
