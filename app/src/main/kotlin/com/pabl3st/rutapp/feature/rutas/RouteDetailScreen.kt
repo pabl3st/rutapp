@@ -102,9 +102,8 @@ fun RouteDetailScreen(
                 ) {
                     items(ui.stops, key = { it.uid }) { stop ->
                         StopCard(
-                            stop          = stop,
-                            onMarkVisited = { vm.markStopVisited(stop.uid) },
-                            onOpenVisita  = { onStopClick(stop.uid) },
+                            stop         = stop,
+                            onOpenVisita = { onStopClick(stop.uid) },
                         )
                     }
                 }
@@ -203,7 +202,7 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: () -> Unit = {}) {
+private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}) {
     val isDone = stop.status == "done"
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -247,16 +246,12 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
                         overflow = TextOverflow.Ellipsis)
                 }
             }
+            // Solo el botón de visita — el marcado rápido sin formulario se elimina
             if (!isDone) {
                 IconButton(onClick = onOpenVisita) {
                     Icon(Icons.Default.Edit,
                         contentDescription = "Registrar visita",
                         tint = MaterialTheme.colorScheme.primary)
-                }
-                IconButton(onClick = onMarkVisited) {
-                    Icon(Icons.Default.CheckCircleOutline,
-                        contentDescription = "Marcar visitado",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 Icon(Icons.Default.CheckCircle, contentDescription = null,
@@ -266,3 +261,4 @@ private fun StopCard(stop: StopEntity, onMarkVisited: () -> Unit, onOpenVisita: 
         }
     }
 }
+
