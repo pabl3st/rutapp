@@ -299,7 +299,7 @@ data class BaseResponse(
 
 // ── God Dashboard DTOs ────────────────────────────────────────
 data class GodStatsResponse(
-    @Json(name = "success")        val success:       Boolean,
+    @Json(name = "ok")             val success:       Boolean,
     @Json(name = "message")        val message:       String  = "",
     @Json(name = "total_accounts") val totalAccounts: Int     = 0,
     @Json(name = "total_users")    val totalUsers:    Int     = 0,
@@ -317,6 +317,7 @@ data class GodAccountDto(
     @Json(name = "user_count")    val userCount:    Int     = 0,
     @Json(name = "route_count")   val routeCount:   Int     = 0,
     @Json(name = "last_activity") val lastActivity: String? = null,
+    @Json(name = "plan")          val plan:         String  = "free",
 )
 
 data class GodUserDto(
@@ -328,11 +329,13 @@ data class GodUserDto(
     @Json(name = "is_active")    val isActive:    Boolean = true,
     @Json(name = "created_at")   val createdAt:   String,
     @Json(name = "account_id")   val accountId:   Int     = 0,
-    @Json(name = "account_name") val accountName: String  = "",
+    @Json(name = "account_name")  val accountName:  String  = "",
+    @Json(name = "last_login_at") val lastLoginAt:  String? = null,
+    @Json(name = "avatar_url")    val avatarUrl:    String? = null,
 )
 
 data class GodUsersResponse(
-    @Json(name = "success") val success: Boolean,
+    @Json(name = "ok")      val success: Boolean,
     @Json(name = "users")   val users:   List<GodUserDto> = emptyList(),
 )
 
@@ -451,20 +454,20 @@ interface RutasApiService {
 
 
     // ── God Dashboard ─────────────────────────────────────────
-    @GET("api.php")
+    @GET(API_PATH)
     suspend fun godStats(
         @Header("Authorization") token: String,
         @Query("action") action: String = "god_stats",
     ): Response<GodStatsResponse>
 
-    @POST("api.php")
+    @POST(API_PATH)
     suspend fun godUsersAll(
         @Header("Authorization") token: String,
         @Query("action") action: String = "god_users_all",
         @Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap(),
     ): Response<GodUsersResponse>
 
-    @POST("api.php")
+    @POST(API_PATH)
     suspend fun godSetRole(
         @Header("Authorization") token: String,
         @Query("action") action: String = "god_set_role",
@@ -472,5 +475,6 @@ interface RutasApiService {
     ): Response<AdminActionResponse>
 
 }
+
 
 

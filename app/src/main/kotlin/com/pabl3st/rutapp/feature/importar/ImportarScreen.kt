@@ -650,48 +650,46 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
     ) {
         // ── Header: fechas del import o selector de mes ─────
         item {
-            if (ui.hasCalendarSheet) {
-                // Hay hoja CALENDARIO en el XLS — mostrar info, no selector de mes
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CalendarMonth, null,
-                        Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Fechas del fichero importado",
-                        style = MaterialTheme.typography.titleSmall)
+            // Selector de mes — SIEMPRE visible
+            // Si hay hoja CALENDARIO las fechas vienen del import pero el usuario puede cambiar el mes
+            Text("Mes de importación", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (ui.hasCalendarSheet)
+                    "Fechas del fichero pre-rellenadas. Cambia el mes si necesitas ajustarlas."
+                else
+                    "Sin fechas en el fichero — asigna el mes y las fechas manualmente.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Spacing.sm))
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.minusMonths(1)) }) {
+                    Icon(Icons.Default.ChevronLeft, null)
                 }
-                Spacer(Modifier.height(2.dp))
                 Text(
-                    "Las fechas de visita vienen del fichero. Puedes ajustar cada una si es necesario.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ui.selectedMonth.atDay(1).format(fmtMonth).replaceFirstChar { it.uppercase() },
+                    style     = MaterialTheme.typography.titleMedium,
+                    modifier  = Modifier.widthIn(min = 160.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
-            } else {
-                // Sin hoja CALENDARIO — mostrar selector de mes manual
-                Text("Mes de importación", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "No se encontraron fechas en el fichero. Elige el mes y asigna las fechas manualmente.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(Spacing.sm))
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.minusMonths(1)) }) {
-                        Icon(Icons.Default.ChevronLeft, null)
-                    }
-                    Text(
-                        ui.selectedMonth.atDay(1).format(fmtMonth).replaceFirstChar { it.uppercase() },
-                        style     = MaterialTheme.typography.titleMedium,
-                        modifier  = Modifier.widthIn(min = 160.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
-                    IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.plusMonths(1)) }) {
-                        Icon(Icons.Default.ChevronRight, null)
-                    }
+                IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.plusMonths(1)) }) {
+                    Icon(Icons.Default.ChevronRight, null)
+                }
+            }
+            if (ui.hasCalendarSheet) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, null,
+                        Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Fechas del fichero cargadas",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary)
                 }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
@@ -967,5 +965,6 @@ private fun StepDone(ui: ImportarUiState, onDone: () -> Unit) {
         }
     }
 }
+
 
 

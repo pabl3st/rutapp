@@ -360,9 +360,15 @@ class ImportarViewModel @Inject constructor(
     }
 
     fun onPreviewConfirm() {
-        // Construir entradas de calendario: una por cluster, sin fecha asignada
-        // (o pre-rellenada si había hoja CALENDARIO en el xlsx)
+        // Construir entradas de calendario
         val preloadedDates = buildCalendarFromSheet()
+
+        // Detectar el mes de las fechas importadas para pre-seleccionar el selector de mes
+        val importedMonthFromSheet = _calRows
+            .mapNotNull { it["date"]?.trim() }
+            .mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            .minOrNull()
+            ?.let { java.time.YearMonth.from(it) }
 
         // 1 ruta por nombre (cluster) — sus múltiples fechas son scheduledDates, no rutas separadas
         // Ej: PS06 con visitas el 12 y 21 → 1 RouteCalendarEntry con scheduledDates=[12,21]
@@ -377,7 +383,7 @@ class ImportarViewModel @Inject constructor(
 
         // Calcular primer día laborable del mes seleccionado desde la fecha de importación
         val month = _ui.value.selectedMonth
-        val importDay = java.time.LocalDate.now()
+        val importDay = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
         // Si estamos dentro del mes, empezar por el primer L-V de la semana actual
         val firstWorkday = firstWorkdayOfImportWeek(importDay, month)
 
@@ -403,11 +409,13 @@ class ImportarViewModel @Inject constructor(
 
         // Preparar KPI mapping si hay hoja de KPIs
         val kpiAutoMap = if (_ui.value.kpiHeaders.isNotEmpty()) autoMapKpi(_ui.value.kpiHeaders) else emptyMap()
+        val effectiveMonth = importedMonthFromSheet ?: _ui.value.selectedMonth
         _ui.update { it.copy(
             calendarEntries    = entries,
             kpiMapping         = kpiAutoMap,
             step               = ImportStep.CALENDAR,
             hasCalendarSheet   = _calRows.isNotEmpty(),
+            selectedMonth      = effectiveMonth,
         )}
     }
 
@@ -600,14 +608,31 @@ class ImportarViewModel @Inject constructor(
     ): java.time.LocalDate {
         val monthStart = month.atDay(1)
         val monthEnd   = month.atEndOfMonth()
-        val candidate = if (month.isAfter(java.time.YearMonth.now())) {
-            var d = monthStart
-            while (d.dayOfWeek.value > 5) d = d.plusDays(1)
-            d
-        } else {
-            var d = importDay
-            while (d.dayOfWeek.value > 1) d = d.minusDays(1)
-            d
+        val today = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
+        val candidate = when {
+            month.isAfter(java.time.YearMonth.now()) -> {
+                // Mes futuro → primer lunes del mes
+                var d = monthStart
+                while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                d
+            }
+            month.isBefore(java.time.YearMonth.now()) -> {
+                // Mes pasado → primer lunes del mes
+                var d = monthStart
+                while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                d
+            }
+            else -> {
+                // Mes actual → lunes de la semana de hoy
+                var d = today
+                while (d.dayOfWeek.value > 1) d = d.minusDays(1)
+                // Si el lunes calculado cae antes del inicio del mes, usar primer lunes del mes
+                if (d.isBefore(monthStart)) {
+                    d = monthStart
+                    while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                }
+                d
+            }
         }
         return when {
             candidate.isBefore(monthStart) -> { var d = monthStart; while (d.dayOfWeek.value > 5) d = d.plusDays(1); d }
@@ -681,6 +706,7 @@ class ImportarViewModel @Inject constructor(
     fun getRawRows(): List<Map<String, String>> = _rawRows
     fun reset() { _ui.value = ImportarUiState(); _rawRows = emptyList(); _kpiRawRows = emptyList() }
 }
+
 
 
 

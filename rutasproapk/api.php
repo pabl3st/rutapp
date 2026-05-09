@@ -1068,7 +1068,7 @@ if ($action === 'god_stats') {
     $ts = (int)db()->query('SELECT COUNT(*) FROM stops WHERE deleted_at IS NULL')->fetchColumn();
     $tk = (int)db()->query('SELECT COUNT(*) FROM kpi_values')->fetchColumn();
     $topAccounts = db()->query(
-        'SELECT a.id, a.name, a.type,
+        'SELECT a.id, a.name, a.type, a.plan,
                 COUNT(DISTINCT u.id) AS user_count,
                 COUNT(DISTINCT r.id) AS route_count,
                 MAX(s.updated_at) AS last_activity
@@ -1103,7 +1103,8 @@ if ($action === 'god_users_all') {
     if ($roleFilter) { $where[] = 'u.role=?';                 $params[] = $roleFilter; }
     $stmt = db()->prepare(
         "SELECT u.id, u.username, u.name AS display_name, u.email, u.role,
-                u.active AS is_active, u.created_at, a.id AS account_id, a.name AS account_name
+                u.active AS is_active, u.created_at, u.last_login_at, u.avatar_url,
+                a.id AS account_id, a.name AS account_name
          FROM users u JOIN accounts a ON a.id=u.account_id
          WHERE ".implode(' AND ',$where)." ORDER BY u.created_at DESC LIMIT 100"
     );
@@ -1126,6 +1127,7 @@ if ($action === 'god_set_role') {
 }
 
 err("Acción desconocida: {$action}", 404);
+
 
 
 
