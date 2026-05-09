@@ -66,8 +66,11 @@ class VisitaViewModel @Inject constructor(
 
     private fun loadStop() {
         viewModelScope.launch {
-            stopRepo.markVisiting(stopUid)
             val stop = stopRepo.getByUid(stopUid)
+            // Solo marcar como 'visiting' si estaba pending — no pisar un stop ya done
+            if (stop?.status == "pending") {
+                stopRepo.markVisiting(stopUid)
+            }
             _ui.update {
                 it.copy(
                     stop           = stop,
@@ -176,3 +179,4 @@ class VisitaViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 }
+
