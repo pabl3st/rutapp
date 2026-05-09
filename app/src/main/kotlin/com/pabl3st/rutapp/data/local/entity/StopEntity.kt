@@ -31,6 +31,7 @@ data class StopEntity(
     val segment: String?        = null,    // A/B/C o tier personalizado
     val accountStatus: String   = "active",// prospect|active|inactive|churned
     val openingHours: String?   = null,    // JSON {"mon":"9-18","tue":"9-18"...}
+    val pdvOpen: Boolean        = true,        // estado apertura PDV en la última visita
 
     // ── Estado y visita ───────────────────────────────────────
     val status: String      = "pending",   // pending|visiting|done|skipped

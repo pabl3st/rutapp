@@ -165,6 +165,7 @@ data class StopDto(
     @Json(name = "visited_at")    val visitedAt: String?,
     @Json(name = "visit_result")  val visitResult: String?  = null,
     @Json(name = "next_action")   val nextAction: String?   = null,
+    @Json(name = "pdv_open")      val pdvOpen: Boolean       = true,
     @Json(name = "created_at")    val createdAt: String,
     @Json(name = "updated_at")    val updatedAt: String,
     @Json(name = "deleted_at")    val deletedAt: String?    = null,

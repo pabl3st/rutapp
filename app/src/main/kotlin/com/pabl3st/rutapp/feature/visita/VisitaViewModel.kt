@@ -97,6 +97,7 @@ class VisitaViewModel @Inject constructor(
                 result     = _ui.value.selectedResult,
                 notes      = _ui.value.notes.trim().ifEmpty { null },
                 nextAction = _ui.value.nextAction.trim().ifEmpty { null },
+                pdvOpen    = _ui.value.storeOpen,
             )
 
             // 2. Persistir valores KPI en Room + marcar pendiente de sync

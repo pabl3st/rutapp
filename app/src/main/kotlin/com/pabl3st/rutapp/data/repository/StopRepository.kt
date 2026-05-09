@@ -78,10 +78,10 @@ class StopRepository @Inject constructor(
         enqueue("stop", uid, "update", stopToMap(stop))
     }
 
-    suspend fun saveVisitResult(uid: String, result: String, notes: String?, nextAction: String?) {
+    suspend fun saveVisitResult(uid: String, result: String, notes: String?, nextAction: String?, pdvOpen: Boolean = true) {
         val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        stopDao.updateVisitResult(uid, result, notes, nextAction, now)
+        stopDao.updateVisitResult(uid, result, notes, nextAction, pdvOpen, now)
         val stop = stopDao.getByUid(uid) ?: return
         enqueue("stop", uid, "update", stopToMap(stop))
     }
@@ -152,7 +152,12 @@ class StopRepository @Inject constructor(
         "visited_at"   to s.visitedAt,
         "visit_result" to s.visitResult,
         "next_action"  to s.nextAction,
-        "created_at"   to s.createdAt,
+        "pdv_open"     to if (s.pdvOpen) 1 else 0,
+        "created_at"      to s.createdAt,
+        "visit_frequency" to s.visitFrequency,
+        "priority"        to s.priority,
+        "segment"         to s.segment,
+        "account_status"  to s.accountStatus,
     )
 
     private suspend fun enqueue(entity: String, uid: String, op: String, data: Map<String, Any?>) {

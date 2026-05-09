@@ -57,8 +57,9 @@ class BusinessProfileRepository @Inject constructor(
 
     /** Devuelve lista síncrona de KPIs visibles del sector — usado en buildSectorKpis */
     suspend fun getVisibleKpisForSector(sector: String): List<KpiDefinitionEntity> {
-        val flow = kpiDao.observeActive(accountId, sector)
-        return flow.firstOrNull() ?: emptyList()
+        // Sembrar KPIs predefinidos si el sector no tiene ninguno aún (primer uso)
+        seedKpisIfNeeded(sector)
+        return kpiDao.getVisible(accountId, sector)
     }
 
     /** Semilla: inserta KPIs predefinidos del sector si no existen */

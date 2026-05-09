@@ -43,6 +43,7 @@ fun StopDto.toEntity(accountId: Int): StopEntity? {
         visitedAt    = visitedAt,
         visitResult  = visitResult,
         nextAction   = nextAction,
+        pdvOpen      = pdvOpen,
         createdAt    = createdAt,
         updatedAt    = updatedAt,
         deletedAt    = deletedAt,

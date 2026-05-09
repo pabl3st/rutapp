@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.data.repository
 
+import com.pabl3st.rutapp.data.local.dao.DaySessionDao
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
@@ -95,7 +97,34 @@ class RouteRepository @Inject constructor(
             ?.let { routeDao.upsertAll(it) }
         body.stops?.mapNotNull { it.toEntity(session.accountId) }
             ?.let { if (it.isNotEmpty()) stopDao.upsertAll(it) }
+        body.daySessions?.mapNotNull { toEntity(it) }
+            ?.let { if (it.isNotEmpty()) it.forEach { s -> daySessionDao.upsert(s) } }
+        body.kpiValues?.mapNotNull { toKpiEntity(it) }
+            ?.let { if (it.isNotEmpty()) kpiValueDao.upsertAll(it) }
         body.serverTime?.let { session.lastSyncTimestamp = it }
+    }
+
+    private fun toEntity(dto: com.pabl3st.rutapp.data.network.DaySessionDto) =
+        com.pabl3st.rutapp.data.local.entity.DaySessionEntity(
+            routeUid   = dto.routeUid,
+            dateStr    = dto.dateStr,
+            state      = dto.state,
+            startedAt  = dto.startedAt,
+            elapsedMs  = dto.elapsedMs,
+            distanceKm = dto.distanceKm,
+            lastLat    = dto.lastLat,
+            lastLng    = dto.lastLng,
+            updatedAt  = dto.updatedAt,
+        )
+
+    private fun toKpiEntity(dto: com.pabl3st.rutapp.data.network.KpiValueDto): com.pabl3st.rutapp.data.local.entity.KpiValueEntity? {
+        if (dto.stopUid.isBlank() || dto.kpiId.isBlank()) return null
+        return com.pabl3st.rutapp.data.local.entity.KpiValueEntity(
+            stopUid    = dto.stopUid,
+            kpiId      = dto.kpiId,
+            valueText  = dto.valueText ?: "",
+            syncStatus = "synced",
+        )
     }
 
     // ── Helpers ───────────────────────────────────────────────

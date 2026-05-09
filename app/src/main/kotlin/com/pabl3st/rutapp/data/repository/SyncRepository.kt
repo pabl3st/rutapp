@@ -130,6 +130,7 @@ class SyncRepository @Inject constructor(
             ?.let { if (it.isNotEmpty()) it.forEach { s -> daySessionDao.upsert(s) } }
         // Sincronizar KPI values desde servidor
         body.kpiValues?.mapNotNull { it.toEntity() }
+            ?.filter { it.valueText.isNotBlank() }
             ?.let { if (it.isNotEmpty()) kpiValueDao.upsertAll(it) }
         body.serverTime?.let { session.lastSyncTimestamp = it }
         return true
@@ -155,10 +156,12 @@ fun DaySessionDto.toEntity(): DaySessionEntity? {
 
 fun KpiValueDto.toEntity(): KpiValueEntity? {
     if (stopUid.isBlank() || kpiId.isBlank()) return null
+    val v = valueText?.trim() ?: return null   // null o vacío del servidor = ignorar
+    if (v.isEmpty()) return null
     return KpiValueEntity(
         stopUid    = stopUid,
         kpiId      = kpiId,
-        valueText  = valueText ?: "",
+        valueText  = v,
         syncStatus = "synced",
     )
 }

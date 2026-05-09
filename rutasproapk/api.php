@@ -633,24 +633,36 @@ if ($action === 'delta_sync') {
     $uid = (int)$sess['uid'];
     $aid = (int)$sess['account_id'];
 
-    $stR = db()->prepare(
-        'SELECT * FROM routes WHERE user_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
-    );
-    $stR->execute([$uid, $since]);
+    // Managers y owners ven rutas de todo el account
+    $roleLevel = roleLevel($sess['role']);
+    if ($roleLevel >= 3) {
+        $stR = db()->prepare(
+            'SELECT * FROM routes WHERE account_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
+        );
+        $stR->execute([$aid, $since]);
+    } else {
+        $stR = db()->prepare(
+            'SELECT * FROM routes WHERE user_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
+        );
+        $stR->execute([$uid, $since]);
+    }
 
+    // Stops: managers ven todos los del account
+    $stopsWhere = ($roleLevel >= 3) ? 'r.account_id=?' : 'r.user_id=?';
+    $stopsParam = ($roleLevel >= 3) ? $aid : $uid;
     $stS = db()->prepare(
-        'SELECT s.id, s.uid, s.route_id, r.uid AS route_uid, s.account_id,
+        "SELECT s.id, s.uid, s.route_id, r.uid AS route_uid, s.account_id,
                 s.name, s.address, s.lat, s.lng, s.order_index,
                 s.external_id, s.contact_name, s.contact_phone,
                 s.visit_frequency, s.priority, s.segment, s.account_status, s.opening_hours,
-                s.status, s.notes, s.visited_at, s.visit_result, s.next_action,
+                s.status, s.notes, s.visited_at, s.visit_result, s.next_action, s.pdv_open,
                 s.created_at, s.updated_at, s.deleted_at
          FROM stops s
          JOIN routes r ON r.id = s.route_id
-         WHERE r.user_id=? AND s.updated_at > ?
-         ORDER BY s.updated_at ASC LIMIT 500'
+         WHERE {$stopsWhere} AND s.updated_at > ?
+         ORDER BY s.updated_at ASC LIMIT 500"
     );
-    $stS->execute([$uid, $since]);
+    $stS->execute([$stopsParam, $since]);
 
     // Jornadas del usuario en el período
     $stD = db()->prepare(
@@ -660,7 +672,9 @@ if ($action === 'delta_sync') {
          WHERE user_id=? AND updated_at > ?
          ORDER BY updated_at ASC LIMIT 200'
     );
-    $stD->execute([$uid, (int)(strtotime($since) * 1000)]);
+    // updated_at en day_sessions es epoch ms; convertir $since (ISO8601) a ms
+    $sinceMs = (int)(strtotime($since) * 1000);
+    $stD->execute([$uid, $sinceMs]);
 
     // KPI values de stops actualizados en el período
     $stK = db()->prepare(
@@ -805,8 +819,8 @@ if ($action === 'batch_sync') {
 
                 } elseif ($entity === 'stop') {
                     if ($operation === 'create' || $operation === 'update') {
-                        $st = db()->prepare('SELECT id FROM routes WHERE uid=? AND user_id=? LIMIT 1');
-                        $st->execute([san($data['route_uid'] ?? '', 36), $uid]);
+                        $st = db()->prepare('SELECT id FROM routes WHERE uid=? AND account_id=? LIMIT 1');
+                        $st->execute([san($data['route_uid'] ?? '', 36), $aid]);
                         $routeId = $st->fetchColumn();
                         if (!$routeId) {
                             $errors[] = ['uid' => $clientUid, 'entity' => 'stop', 'error' => 'route_uid no encontrado'];
@@ -817,9 +831,9 @@ if ($action === 'batch_sync') {
                                 (uid, route_id, account_id, name, address, lat, lng,
                                  order_index, status, notes, visited_at,
                                  external_id, contact_name, contact_phone,
-                                 visit_result, next_action,
+                                 visit_result, next_action, pdv_open,
                                  created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                              ON DUPLICATE KEY UPDATE
                                 name=VALUES(name), address=VALUES(address),
                                 lat=VALUES(lat), lng=VALUES(lng),
@@ -830,6 +844,7 @@ if ($action === 'batch_sync') {
                                 contact_phone=VALUES(contact_phone),
                                 visit_result=VALUES(visit_result),
                                 next_action=VALUES(next_action),
+                                pdv_open=VALUES(pdv_open),
                                 updated_at=VALUES(updated_at)'
                         )->execute([
                             $clientUid, $routeId, $aid,
@@ -846,6 +861,7 @@ if ($action === 'batch_sync') {
                             san($data['contact_phone'] ?? '', 50) ?: null,
                             san($data['visit_result'] ?? '', 20) ?: null,
                             san($data['next_action'] ?? '', 5000) ?: null,
+                            isset($data['pdv_open']) ? (int)(bool)$data['pdv_open'] : 1,
                             san($data['created_at'] ?? date('c'), 30),
                             date('c'),
                         ]);
@@ -1007,8 +1023,6 @@ if ($action === 'deactivate_user') {
     ok(['success' => true, 'message' => 'Usuario desactivado correctamente']);
 }
 
-err("Acción desconocida: {$action}", 404);
-
 // ── update_user_prefs ─────────────────────────────────────────
 if ($action === 'update_user_prefs') {
     $sess = requireAuth();
@@ -1036,4 +1050,6 @@ if ($action === 'update_user_prefs') {
     apiLog($action, $uid, $aid);
     ok(['updated' => true]);
 }
+
+err("Acción desconocida: {$action}", 404);
 

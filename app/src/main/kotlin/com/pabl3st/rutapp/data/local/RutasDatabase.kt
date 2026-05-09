@@ -29,7 +29,7 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         BusinessProfileEntity::class,
         KpiValueEntity::class,
     ],
-    version      = 6,
+    version      = 7,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -118,6 +118,14 @@ abstract class RutasDatabase : RoomDatabase() {
                         PRIMARY KEY (stopUid, kpiId)
                     )
                 """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_kpi_values_stop ON kpi_values (stopUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_kpi_values_sync ON kpi_values (syncStatus)")
+            }
+        }
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Añadir campo pdvOpen a stops — persiste si el PDV estaba abierto en la visita
+                db.execSQL("ALTER TABLE stops ADD COLUMN pdvOpen INTEGER NOT NULL DEFAULT 1")
             }
         }
     }
