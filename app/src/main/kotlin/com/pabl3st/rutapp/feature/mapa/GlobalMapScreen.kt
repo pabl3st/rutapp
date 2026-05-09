@@ -66,13 +66,29 @@ fun GlobalMapScreen(
                                 .padding(end = Spacing.xs),
                             strokeWidth = 2.dp,
                         )
-                    } else if (ui.userLocation != null) {
-                        Icon(
-                            imageVector        = Icons.Default.MyLocation,
-                            contentDescription = "GPS activo",
-                            tint               = MaterialTheme.colorScheme.primary,
-                            modifier           = Modifier.padding(end = Spacing.sm),
-                        )
+                    } else {
+                        // Botón fit-bounds
+                        IconButton(onClick = vm::fitBoundsToAllStops) {
+                            Icon(
+                                imageVector        = Icons.Default.FitScreen,
+                                contentDescription = "Ver todos los stops",
+                                tint               = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // Botón centrar en usuario
+                        IconButton(
+                            onClick  = vm::centerOnUser,
+                            enabled  = ui.userLocation != null,
+                        ) {
+                            Icon(
+                                imageVector        = Icons.Default.MyLocation,
+                                contentDescription = "Mi posición",
+                                tint               = if (ui.userLocation != null)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            )
+                        }
                     }
                 }
             )

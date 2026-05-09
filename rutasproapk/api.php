@@ -1120,7 +1120,13 @@ if ($action === 'god_users_all') {
     );
     $stmt->execute($params);
     apiLog($action, $sess['uid'], $sess['account_id']);
-    ok(['users' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Castear tinyint a bool para que Kotlin/Moshi no falle
+    $rows = array_map(function($u) {
+        $u['is_active'] = (bool)$u['is_active'];
+        return $u;
+    }, $rows);
+    ok(['users' => $rows]);
 }
 
 if ($action === 'god_set_role') {

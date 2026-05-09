@@ -13,6 +13,7 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng as MLLatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -55,6 +56,41 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         else       -> opts.pendingColor.toHexColor()
     }
 
+    // Cache de la última localización para detectar cuándo cambia
+    private var _lastCenteredLocation: MapLatLng? = null
+    private var _mapReadyRef: MapLibreMap? = null
+
+    fun centerOnLocation(loc: MapLatLng) {
+        _mapReadyRef?.animateCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder()
+                    .target(MLLatLng(loc.lat, loc.lng))
+                    .zoom(15.0)
+                    .build()
+            ), 600
+        )
+    }
+
+    fun fitBoundsToStops(stops: List<StopMapMarker>) {
+        val pts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
+        if (pts.isEmpty()) return
+        val map = _mapReadyRef ?: return
+        if (pts.size == 1) {
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                MLLatLng(pts[0].latLng.lat, pts[0].latLng.lng), 14.0), 600)
+            return
+        }
+        val latMin = pts.minOf { it.latLng.lat }
+        val latMax = pts.maxOf { it.latLng.lat }
+        val lngMin = pts.minOf { it.latLng.lng }
+        val lngMax = pts.maxOf { it.latLng.lng }
+        val sw = MLLatLng(latMin, lngMin)
+        val ne = MLLatLng(latMax, lngMax)
+        val bounds = org.maplibre.android.geometry.LatLngBounds.from(
+            ne.latitude, ne.longitude, sw.latitude, sw.longitude)
+        map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80), 800)
+    }
+
     @Composable
     override fun MapView(
         modifier: Modifier,
@@ -66,14 +102,37 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         onMapClick: (MapLatLng) -> Unit,
         onCameraIdle: (center: MapLatLng, zoom: Float) -> Unit,
     ) {
-        val ctx     = LocalContext.current
-        val isDark  = androidx.compose.foundation.isSystemInDarkTheme()
+        val ctx    = LocalContext.current
+        val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
-        // Inicializar MapLibre síncronamente antes de que AndroidView.factory lo necesite.
-        // LaunchedEffect es asíncrono y llega tarde — causa MapLibreConfigurationException.
         remember(ctx) { MapLibre.getInstance(ctx) }
 
         var mlMap by remember { mutableStateOf<MapLibreMap?>(null) }
+        // Rastrear si ya hemos hecho el fit inicial (una sola vez por composición)
+        var didInitialFit by remember { mutableStateOf(false) }
+
+        // Cuando llega una nueva localización del usuario → centrar automáticamente
+        // Solo la primera vez que llega, o cuando cambia radicalmente (> 50 km)
+        LaunchedEffect(userLocation) {
+            val map = mlMap ?: return@LaunchedEffect
+            val loc = userLocation ?: return@LaunchedEffect
+            val prev = _lastCenteredLocation
+            val distFar = prev == null || run {
+                val dlat = loc.lat - prev.lat; val dlng = loc.lng - prev.lng
+                (dlat * dlat + dlng * dlng) > 0.2  // ~50 km
+            }
+            if (distFar) {
+                _lastCenteredLocation = loc
+                map.animateCamera(
+                    CameraUpdateFactory.newCameraPosition(
+                        CameraPosition.Builder()
+                            .target(MLLatLng(loc.lat, loc.lng))
+                            .zoom(14.0)
+                            .build()
+                    ), 600
+                )
+            }
+        }
 
         AndroidView(
             modifier = modifier,
@@ -82,13 +141,16 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                     onCreate(null)
                     getMapAsync { map ->
                         mlMap = map
+                        _mapReadyRef = map
 
                         map.setStyle(styleUrl(config.style, isDark)) {
-                            // Estilo cargado — ahora es seguro mover cámara y añadir markers
-                            val target = userLocation?.let { MLLatLng(it.lat, it.lng) }
-                                ?: stops.firstOrNull { it.status != "done" && it.latLng.lat != 0.0 }
-                                    ?.let { MLLatLng(it.latLng.lat, it.latLng.lng) }
-                                ?: MLLatLng(40.4168, -3.7038)  // Madrid como fallback
+                            // Cámara inicial: prioridad → stops con GPS → Madrid fallback
+                            // La localización GPS llega después via LaunchedEffect
+                            val firstStop = stops.firstOrNull {
+                                it.status != "done" && it.latLng.lat != 0.0 && it.latLng.lng != 0.0
+                            }
+                            val target = firstStop?.let { MLLatLng(it.latLng.lat, it.latLng.lng) }
+                                ?: MLLatLng(40.4168, -3.7038)
 
                             map.moveCamera(
                                 CameraUpdateFactory.newCameraPosition(
@@ -102,40 +164,26 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                         }
 
                         map.uiSettings.apply {
-                            isCompassEnabled          = config.layers.showCompass
-                            // isZoomControlsEnabled no existe en MapLibre 11.x — zoom UI se gestiona vía isZoomGesturesEnabled
-                            isRotateGesturesEnabled   = config.camera.rotationEnabled
-                            isTiltGesturesEnabled     = config.camera.tiltEnabled
-                            isScrollGesturesEnabled   = config.camera.scrollEnabled
-                            isZoomGesturesEnabled     = config.camera.zoomEnabled
+                            isCompassEnabled        = config.layers.showCompass
+                            isRotateGesturesEnabled = config.camera.rotationEnabled
+                            isTiltGesturesEnabled   = config.camera.tiltEnabled
+                            isScrollGesturesEnabled = config.camera.scrollEnabled
+                            isZoomGesturesEnabled   = config.camera.zoomEnabled
                         }
-
                         map.setMinZoomPreference(config.camera.minZoom.toDouble())
                         map.setMaxZoomPreference(config.camera.maxZoom.toDouble())
 
                         map.addOnMapClickListener { latLng ->
-                            onMapClick(MapLatLng(latLng.latitude, latLng.longitude))
-                            true
+                            onMapClick(MapLatLng(latLng.latitude, latLng.longitude)); true
                         }
-
                         map.addOnCameraIdleListener {
-                            val pos = map.cameraPosition
-                            val target = pos.target  // puede ser null
-                            if (target != null) {
-                                onCameraIdle(
-                                    MapLatLng(target.latitude, target.longitude),
-                                    pos.zoom.toFloat()
-                                )
+                            map.cameraPosition.target?.let { t ->
+                                onCameraIdle(MapLatLng(t.latitude, t.longitude), map.cameraPosition.zoom.toFloat())
                             }
                         }
-
                         map.setOnMarkerClickListener { marker ->
-                            val uid = marker.snippet ?: return@setOnMarkerClickListener false
-                            onStopClick(uid)
-                            true
+                            marker.snippet?.let { onStopClick(it) }; true
                         }
-
-                        // Cámara y markers se inicializan en el callback de setStyle (arriba)
                     }
                 }
             },
@@ -143,41 +191,38 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                 mlMap?.let { map ->
                     map.clear()
                     addStopMarkers(map, stops, config.markers)
-                    // Dibujar polilínea de ruta OSRM si existe
                     if (polyline.size >= 2) {
                         map.addPolyline(
                             MLPolylineOptions()
                                 .addAll(polyline.map { MLLatLng(it.lat, it.lng) })
                                 .color(android.graphics.Color.parseColor("#2563EB"))
-                                .width(3f)
-                                .alpha(0.85f)
+                                .width(3f).alpha(0.85f)
                         )
                     }
-                    // Si la cámara sigue en el fallback (0,0 o Madrid) y ahora hay stops con GPS,
-                    // centrar en el primer stop pendiente
-                    val camPos = map.cameraPosition.target
-                    val atFallback = camPos == null ||
-                        (camPos.latitude > 40.3 && camPos.latitude < 40.5 &&
-                         camPos.longitude > -3.8 && camPos.longitude < -3.6)
-                    val firstWithGps = stops.firstOrNull {
-                        it.status != "done" && it.latLng.lat != 0.0 && it.latLng.lng != 0.0
-                    }
-                    if (atFallback && firstWithGps != null) {
-                        map.animateCamera(
-                            CameraUpdateFactory.newCameraPosition(
-                                CameraPosition.Builder()
-                                    .target(MLLatLng(firstWithGps.latLng.lat, firstWithGps.latLng.lng))
-                                    .zoom(config.camera.initialZoom.toDouble())
-                                    .build()
-                            ), 800
-                        )
+                    // Fit bounds la primera vez que llegan stops con GPS
+                    if (!didInitialFit && stops.any { it.latLng.lat != 0.0 }) {
+                        didInitialFit = true
+                        // Si ya tenemos localización del usuario, incluirla en el bounds
+                        val allPts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
+                        if (allPts.size >= 2) {
+                            val latMin = allPts.minOf { it.latLng.lat }
+                            val latMax = allPts.maxOf { it.latLng.lat }
+                            val lngMin = allPts.minOf { it.latLng.lng }
+                            val lngMax = allPts.maxOf { it.latLng.lng }
+                            val bounds = org.maplibre.android.geometry.LatLngBounds.from(
+                                latMax, lngMax, latMin, lngMin)
+                            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80), 800)
+                        } else if (allPts.size == 1) {
+                            map.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                                MLLatLng(allPts[0].latLng.lat, allPts[0].latLng.lng), 14.0), 600)
+                        }
                     }
                 }
             }
         )
     }
 
-    private fun addStopMarkers(
+        private fun addStopMarkers(
         map: MapLibreMap,
         stops: List<StopMapMarker>,
         opts: com.pabl3st.rutapp.core.map.MarkerOptions,

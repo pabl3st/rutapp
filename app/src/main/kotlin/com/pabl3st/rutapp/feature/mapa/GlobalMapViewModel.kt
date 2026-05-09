@@ -262,6 +262,20 @@ class GlobalMapViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 
+    /** Centra la cámara en la posición del usuario si está disponible */
+    fun centerOnUser() {
+        val loc = _ui.value.userLocation ?: return
+        (mapProvider as? com.pabl3st.rutapp.core.map.MapLibreProvider)
+            ?.centerOnLocation(loc)
+    }
+
+    /** Ajusta la cámara para ver todos los stops del día */
+    fun fitBoundsToAllStops() {
+        val stops = _ui.value.visibleStops.ifEmpty { _ui.value.allStops }
+        (mapProvider as? com.pabl3st.rutapp.core.map.MapLibreProvider)
+            ?.fitBoundsToStops(stops)
+    }
+
     // ── Extensión local: Float metros → label ─────────────────
     private fun Float.formatAsDistance(): String = when {
         this < 1_000f -> "${toInt()} m"
