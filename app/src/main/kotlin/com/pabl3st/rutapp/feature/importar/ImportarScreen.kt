@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.importer.GeoCluster
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -638,35 +639,64 @@ private fun StopPreviewCard(stop: StopPreview, index: Int) {
 
 @Composable
 private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
-    val fmt = DateTimeFormatter.ofPattern("dd MMM yyyy", java.util.Locale("es"))
+    val fmtDay   = DateTimeFormatter.ofPattern("dd MMM", java.util.Locale("es"))
+    val fmtMonth = DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale("es"))
+    val now      = java.time.YearMonth.now()
+
     LazyColumn(
-        modifier        = Modifier.fillMaxSize(),
-        contentPadding  = PaddingValues(Spacing.lg),
+        modifier            = Modifier.fillMaxSize(),
+        contentPadding      = PaddingValues(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        // ── Selector de mes ──────────────────────────────────
         item {
+            Text("Mes de importación", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(Spacing.xs))
             Text(
-                "Asigna un día a cada ruta",
-                style = MaterialTheme.typography.titleSmall,
+                "Las fechas de visita se distribuyen desde el primer día laborable de la semana de hoy en el mes elegido.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(Spacing.sm))
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.minusMonths(1)) }) {
+                    Icon(Icons.Default.ChevronLeft, null)
+                }
+                Text(
+                    ui.selectedMonth.atDay(1).format(fmtMonth).replaceFirstChar { it.uppercase() },
+                    style    = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.widthIn(min = 160.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.plusMonths(1)) }) {
+                    Icon(Icons.Default.ChevronRight, null)
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+            Text("Rutas a importar", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(2.dp))
             Text(
-                "Opcional — las rutas sin fecha se crean con la fecha de hoy. Puedes cambiarlas desde el calendario después.",
+                "${ui.calendarEntries.size} rutas · ${ui.calendarEntries.sumOf { it.stopCount }} paradas totales",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(Spacing.sm))
         }
 
+        // ── Una card por ruta (no por fecha) ─────────────────
         itemsIndexed(ui.calendarEntries) { idx, entry ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(Spacing.md)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier              = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment     = Alignment.CenterVertically,
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(Modifier.weight(1f)) {
                             Text(entry.routeName, style = MaterialTheme.typography.titleSmall,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
@@ -675,23 +705,33 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        // Selector de fecha simple: botones − +
+                        // Fecha principal (primer día de visita)
                         val currentDate = entry.date ?: LocalDate.now()
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                         ) {
                             IconButton(onClick = {
                                 vm.onCalendarDateChange(idx, currentDate.minusDays(1))
-                            }) { Icon(Icons.Default.ChevronLeft, null, Modifier.size(20.dp)) }
-                            Text(
-                                currentDate.format(fmt),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
+                            }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.ChevronLeft, null, Modifier.size(18.dp))
+                            }
+                            Text(currentDate.format(fmtDay), style = MaterialTheme.typography.labelMedium)
                             IconButton(onClick = {
                                 vm.onCalendarDateChange(idx, currentDate.plusDays(1))
-                            }) { Icon(Icons.Default.ChevronRight, null, Modifier.size(20.dp)) }
+                            }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
+                            }
                         }
+                    }
+                    // Mostrar las fechas de visita programadas si hay más de una
+                    if (entry.scheduledDates.size > 1) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Visitas: " + entry.scheduledDates.joinToString(" · ") { it.format(fmtDay) },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
             }
@@ -699,6 +739,18 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
 
         item {
             Spacer(Modifier.height(Spacing.sm))
+            // Mostrar saveError si existe
+            ui.saveError?.let { err ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(err, modifier = Modifier.padding(Spacing.md),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(Modifier.height(Spacing.sm))
+            }
             Button(
                 onClick  = vm::onCalendarConfirm,
                 modifier = Modifier.fillMaxWidth(),
@@ -712,9 +764,7 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
             OutlinedButton(
                 onClick  = vm::skipCalendarStep,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Saltar — usar fechas por defecto")
-            }
+            ) { Text("Saltar — usar fechas por defecto") }
         }
     }
 }
@@ -870,3 +920,4 @@ private fun StepDone(ui: ImportarUiState, onDone: () -> Unit) {
         }
     }
 }
+

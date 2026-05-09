@@ -26,6 +26,7 @@ object DatabaseModule {
                 RutasDatabase.MIGRATION_5_6,
                 RutasDatabase.MIGRATION_6_7,
                 RutasDatabase.MIGRATION_7_8,
+                RutasDatabase.MIGRATION_8_9,
             )
             .build()
 
@@ -37,4 +38,5 @@ object DatabaseModule {
     @Provides fun provideBusinessProfileDao(db: RutasDatabase) = db.businessProfileDao()
     @Provides fun provideKpiValueDao(db: RutasDatabase)        = db.kpiValueDao()
 }
+
 

@@ -87,6 +87,7 @@ class RouteRepository @Inject constructor(
         name: String,
         dateAssigned: String,
         notes: String? = null,
+        scheduledDates: String? = null,
     ): RouteEntity {
         val now   = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -96,8 +97,9 @@ class RouteRepository @Inject constructor(
             userId       = session.userId,
             name         = name,
             dateAssigned = dateAssigned,
-            notes        = notes,
-            createdAt    = now,
+            notes           = notes,
+            scheduledDates  = scheduledDates,
+            createdAt       = now,
             updatedAt    = now,
             syncStatus   = "pending",
         )
@@ -173,3 +175,4 @@ class RouteRepository @Inject constructor(
         )
     }
 }
+
