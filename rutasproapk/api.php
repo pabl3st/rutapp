@@ -846,7 +846,7 @@ if ($action === 'batch_sync') {
                                 next_action=VALUES(next_action),
                                 pdv_open=VALUES(pdv_open),
                                 pdv_inactive=VALUES(pdv_inactive),
-                                account_status=IF(VALUES(pdv_inactive)=1,'inactive',account_status),
+                                account_status=IF(VALUES(pdv_inactive)=1,\'inactive\',account_status),
                                 updated_at=VALUES(updated_at)'
                         )->execute([
                             $clientUid, $routeId, $aid,
@@ -1094,9 +1094,9 @@ if ($action === 'god_stats') {
 if ($action === 'god_users_all') {
     $sess = requireAuth();
     if ($sess['role'] !== 'god') err('Solo god puede listar todos los usuarios', 403);
-    $accountId  = isset($b['account_id']) ? (int)$b['account_id'] : null;
-    $search     = isset($b['search'])     ? '%'.san($b['search'],100).'%' : null;
-    $roleFilter = isset($b['role'])       ? san($b['role'],20) : null;
+    $accountId  = isset($body['account_id']) ? (int)$body['account_id'] : null;
+    $search     = isset($body['search'])     ? '%'.san($body['search'],100).'%' : null;
+    $roleFilter = isset($body['role'])       ? san($body['role'],20) : null;
     $where = ['1=1']; $params = [];
     if ($accountId)  { $where[] = 'u.account_id=?';          $params[] = $accountId; }
     if ($search)     { $where[] = '(u.username LIKE ? OR u.email LIKE ? OR u.name LIKE ?)'; $params = array_merge($params,[$search,$search,$search]); }
@@ -1115,8 +1115,8 @@ if ($action === 'god_users_all') {
 if ($action === 'god_set_role') {
     $sess = requireAuth();
     if ($sess['role'] !== 'god') err('Solo god puede usar god_set_role', 403);
-    $targetId = (int)($b['user_id'] ?? 0);
-    $newRole  = san($b['role'] ?? '', 20);
+    $targetId = (int)($body['user_id'] ?? 0);
+    $newRole  = san($body['role'] ?? '', 20);
     if (!$targetId) err('user_id requerido');
     if (!in_array($newRole,['god','owner','admin','manager','agent','viewer'])) err('Rol invalido');
     if ($targetId === (int)$sess['uid']) err('No puedes cambiar tu propio rol');
@@ -1126,5 +1126,6 @@ if ($action === 'god_set_role') {
 }
 
 err("Acción desconocida: {$action}", 404);
+
 
 
