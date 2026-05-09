@@ -354,15 +354,47 @@ class ImportarViewModel @Inject constructor(
         // Construir entradas de calendario: una por cluster, sin fecha asignada
         // (o pre-rellenada si había hoja CALENDARIO en el xlsx)
         val preloadedDates = buildCalendarFromSheet()
-        val entries = _ui.value.clusters.mapIndexed { idx, stops ->
-            val name = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
-            RouteCalendarEntry(
-                clusterIndex = idx,
-                routeName    = name,
-                date         = preloadedDates[idx],
-                stopCount    = stops.size,
-            )
+
+        // Si el CALENDARIO tiene múltiples filas para el mismo route_name,
+        // expandir ese cluster en N entradas (una por fecha), dividiendo las paradas
+        val calSheetByRoute: Map<String, List<LocalDate>> = _calRows
+            .groupBy { it["route_name"]?.trim() ?: "" }
+            .filterKeys { it.isNotBlank() }
+            .mapValues { (_, rows) ->
+                rows.mapNotNull { r ->
+                    runCatching { LocalDate.parse(r["date"]?.trim() ?: "") }.getOrNull()
+                }.distinct().sorted()
+            }
+
+        val entries = mutableListOf<RouteCalendarEntry>()
+        _ui.value.clusters.forEachIndexed { idx, stops ->
+            val baseName  = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
+            // routeName real = el del primer stop del cluster (si viene del CSV)
+            val routeKey  = stops.firstOrNull()?.routeName?.trim() ?: ""
+            val datesForRoute = calSheetByRoute[routeKey]
+
+            if (!datesForRoute.isNullOrEmpty() && datesForRoute.size > 1) {
+                // Dividir paradas en N sublotes iguales, una entrada por fecha
+                val chunkSize = (stops.size + datesForRoute.size - 1) / datesForRoute.size
+                val chunks    = stops.chunked(chunkSize)
+                datesForRoute.forEachIndexed { di, date ->
+                    entries.add(RouteCalendarEntry(
+                        clusterIndex = idx,
+                        routeName    = if (di == 0) baseName else "$baseName (${di + 1})",
+                        date         = date,
+                        stopCount    = chunks.getOrNull(di)?.size ?: 0,
+                    ))
+                }
+            } else {
+                entries.add(RouteCalendarEntry(
+                    clusterIndex = idx,
+                    routeName    = baseName,
+                    date         = preloadedDates[idx],
+                    stopCount    = stops.size,
+                ))
+            }
         }
+
         // Preparar KPI mapping si hay hoja de KPIs
         val kpiAutoMap = if (_ui.value.kpiHeaders.isNotEmpty()) autoMapKpi(_ui.value.kpiHeaders) else emptyMap()
         _ui.update { it.copy(
@@ -440,42 +472,75 @@ class ImportarViewModel @Inject constructor(
 
     fun onSaveConfirm() {
         val clusters     = _ui.value.clusters
-        val clusterNames = _ui.value.clusterNames
         val calEntries   = _ui.value.calendarEntries
         val kpiReports   = if (_ui.value.skipKpi) emptyList() else _ui.value.kpiReports
-        val total        = clusters.sumOf { it.size }
+        val total        = calEntries.sumOf { it.stopCount }.coerceAtLeast(clusters.sumOf { it.size })
 
         _ui.update { it.copy(isLoading = true, saveProgress = 0, saveTotal = total) }
 
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                // Mapa externalId → stopUid (para asignar KPIs)
                 val externalIdToStopUid = mutableMapOf<String, String>()
                 var saved = 0
 
-                clusters.forEachIndexed { idx, stops ->
-                    val routeName = clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
-                    // Fecha: del calendario o hoy por defecto
-                    val date = calEntries.getOrNull(idx)?.date?.toString()
-                        ?: LocalDate.now().toString()
-                    val route = routeRepo.createRoute(name = routeName, dateAssigned = date)
+                if (calEntries.isNotEmpty()) {
+                    // Caso normal: iterar por entradas de calendario
+                    // Si hay múltiples entradas para el mismo clusterIndex, repartir paradas
+                    val countByCluster = calEntries.groupBy { it.clusterIndex }
+                        .mapValues { it.value.size }
 
-                    stops.forEachIndexed { stopIdx, preview ->
-                        val stop = stopRepo.createStop(
-                            routeUid      = route.uid,
-                            name          = preview.name,
-                            externalId    = preview.externalId,
-                            address       = preview.address,
-                            lat           = preview.lat,
-                            lng           = preview.lng,
-                            orderIndex    = stopIdx,
-                            notes         = preview.notes,
-                            contactName   = preview.contactName,
-                            contactPhone  = preview.contactPhone,
-                        )
-                        preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
-                        saved++
-                        _ui.update { it.copy(saveProgress = saved) }
+                    calEntries.forEachIndexed { entryIdx, entry ->
+                        val allStops    = clusters.getOrNull(entry.clusterIndex) ?: return@forEachIndexed
+                        val splitCount  = countByCluster[entry.clusterIndex] ?: 1
+                        val chunkSize   = (allStops.size + splitCount - 1) / splitCount
+                        val entryOffset = calEntries.take(entryIdx)
+                            .count { it.clusterIndex == entry.clusterIndex }
+                        val stopsChunk  = allStops.drop(entryOffset * chunkSize).take(chunkSize)
+
+                        val date  = entry.date?.toString() ?: LocalDate.now().toString()
+                        val route = routeRepo.createRoute(name = entry.routeName, dateAssigned = date)
+
+                        stopsChunk.forEachIndexed { stopIdx, preview ->
+                            val stop = stopRepo.createStop(
+                                routeUid      = route.uid,
+                                name          = preview.name,
+                                externalId    = preview.externalId,
+                                address       = preview.address,
+                                lat           = preview.lat,
+                                lng           = preview.lng,
+                                orderIndex    = stopIdx,
+                                notes         = preview.notes,
+                                contactName   = preview.contactName,
+                                contactPhone  = preview.contactPhone,
+                            )
+                            preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
+                            saved++
+                            _ui.update { it.copy(saveProgress = saved) }
+                        }
+                    }
+                } else {
+                    // Fallback: sin calendario, una ruta por cluster
+                    clusters.forEachIndexed { idx, stops ->
+                        val routeName = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
+                        val date      = LocalDate.now().toString()
+                        val route     = routeRepo.createRoute(name = routeName, dateAssigned = date)
+                        stops.forEachIndexed { stopIdx, preview ->
+                            val stop = stopRepo.createStop(
+                                routeUid      = route.uid,
+                                name          = preview.name,
+                                externalId    = preview.externalId,
+                                address       = preview.address,
+                                lat           = preview.lat,
+                                lng           = preview.lng,
+                                orderIndex    = stopIdx,
+                                notes         = preview.notes,
+                                contactName   = preview.contactName,
+                                contactPhone  = preview.contactPhone,
+                            )
+                            preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
+                            saved++
+                            _ui.update { it.copy(saveProgress = saved) }
+                        }
                     }
                 }
 
@@ -514,12 +579,17 @@ class ImportarViewModel @Inject constructor(
     private fun buildCalendarFromSheet(): Map<Int, LocalDate?> {
         if (_calRows.isEmpty()) return emptyMap()
         val result = mutableMapOf<Int, LocalDate?>()
-        // El sheet tiene route_name + date — matchear por nombre de cluster
-        val clusterNames = _ui.value.clusterNames
+        // El sheet tiene route_name + date.
+        // Matchear contra el routeName REAL de cada cluster (el del CSV/route_name),
+        // NO contra clusterNames que contiene "Ruta N — dd/MM/yyyy".
+        val clusters = _ui.value.clusters
         _calRows.forEach { row ->
-            val rName = row["route_name"]?.trim() ?: return@forEach
-            val dateStr = row["date"]?.trim() ?: return@forEach
-            val idx = clusterNames.indexOfFirst { it == rName }
+            val rName   = row["route_name"]?.trim() ?: return@forEach
+            val dateStr = row["date"]?.trim()        ?: return@forEach
+            // Buscar el cluster cuyas paradas tengan ese routeName
+            val idx = clusters.indexOfFirst { stops ->
+                stops.any { it.routeName?.trim() == rName }
+            }
             if (idx >= 0) {
                 runCatching { LocalDate.parse(dateStr) }.getOrNull()?.let {
                     result[idx] = it
@@ -560,3 +630,4 @@ class ImportarViewModel @Inject constructor(
     fun getRawRows(): List<Map<String, String>> = _rawRows
     fun reset() { _ui.value = ImportarUiState(); _rawRows = emptyList(); _kpiRawRows = emptyList() }
 }
+
