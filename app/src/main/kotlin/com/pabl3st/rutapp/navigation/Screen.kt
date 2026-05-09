@@ -25,5 +25,6 @@ sealed class Screen(val route: String) {
     object Biblioteca      : Screen("biblioteca")
     object Importar        : Screen("importar")
     object GodDashboard    : Screen("god-dashboard")
+    object Onboarding      : Screen("onboarding")
 }
 

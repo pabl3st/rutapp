@@ -9,7 +9,20 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- BACKGROUND_LOCATION se añade en S06 con ForegroundService -->
+    <!-- Almacenamiento: necesario para importar/exportar XLS en Android < 13 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <!-- Android 13+: acceso a imágenes para importar XLS y adjuntar fotos -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Localización en background para tracking de jornada -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- ForegroundService para tracking GPS activo -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Relanzar SyncWorker tras reinicio del dispositivo -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".RutasApp"
@@ -66,4 +79,5 @@
 
     </application>
 </manifest>
+
 

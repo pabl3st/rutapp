@@ -50,9 +50,22 @@ class AuthViewModel @Inject constructor(
                 _ui.update { it.copy(screen = AuthScreen.CHOOSE_TYPE) }
                 return@launch
             }
-            when (repo.verifySession()) {
+            when (val r = repo.verifySession()) {
                 is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true) }
-                is AuthResult.Error   -> _ui.update { it.copy(screen = AuthScreen.LOGIN) }
+                is AuthResult.Error   -> {
+                    // Si es error de red (sin conexión) y tenemos sesión cacheada → dejar pasar
+                    // Solo forzar re-login si el servidor rechaza explícitamente el token (401/403)
+                    if (r.code == 401 || r.code == 403) {
+                        _ui.update { it.copy(screen = AuthScreen.CHOOSE_TYPE) }
+                    } else {
+                        // Error de red u otro — usar sesión cacheada si existe
+                        if (session.isLoggedIn) {
+                            _ui.update { it.copy(isAuthenticated = true) }
+                        } else {
+                            _ui.update { it.copy(screen = AuthScreen.CHOOSE_TYPE) }
+                        }
+                    }
+                }
             }
         }
     }
@@ -187,3 +200,4 @@ class AuthViewModel @Inject constructor(
             else               -> true
         }
 }
+

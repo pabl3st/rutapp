@@ -21,6 +21,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import com.pabl3st.rutapp.feature.auth.AuthRoot
+import com.pabl3st.rutapp.feature.onboarding.OnboardingScreen
 import com.pabl3st.rutapp.feature.auth.ExitAppDialog
 import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.perfil.BusinessProfileScreen
@@ -69,13 +70,31 @@ fun RutasNavGraph(
     ) { scaffoldPadding ->
         NavHost(
             navController       = navController,
-            startDestination    = Screen.Auth.route,
+            startDestination    = Screen.Onboarding.route,
             modifier            = Modifier.padding(scaffoldPadding),
             enterTransition     = { enterFade },
             exitTransition      = { exitFade },
             popEnterTransition  = { enterFade },
             popExitTransition   = { exitFade },
         ) {
+
+            composable(Screen.Onboarding.route) {
+                OnboardingScreen(
+                    onComplete = { isLoggedIn ->
+                        if (isLoggedIn) {
+                            // Ya tiene sesión — ir directo a home
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            }
+                        } else {
+                            // Sin sesión — ir a login
+                            navController.navigate(Screen.Auth.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            }
+                        }
+                    }
+                )
+            }
 
             composable(Screen.Auth.route) {
                 AuthRoot(
@@ -286,6 +305,7 @@ fun PlaceholderScreen(label: String, sprint: String) {
         }
     }
 }
+
 
 
 
