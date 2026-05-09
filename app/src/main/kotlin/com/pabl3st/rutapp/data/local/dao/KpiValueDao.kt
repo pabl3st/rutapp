@@ -10,6 +10,10 @@ interface KpiValueDao {
     @Query("SELECT * FROM kpi_values WHERE stopUid = :stopUid")
     suspend fun getByStop(stopUid: String): List<KpiValueEntity>
 
+    /** Carga los kpi_values de múltiples stops — para lógica acumulativa mensual */
+    @Query("SELECT * FROM kpi_values WHERE stopUid IN (:stopUids)")
+    suspend fun getByStops(stopUids: List<String>): List<KpiValueEntity>
+
     /** Flow reactivo de todos los kpi_values de una lista de stops — para tags en tiempo real */
     @Query("SELECT * FROM kpi_values WHERE stopUid IN (:stopUids)")
     fun observeByStops(stopUids: List<String>): kotlinx.coroutines.flow.Flow<List<KpiValueEntity>>
@@ -29,4 +33,5 @@ interface KpiValueDao {
     @Query("DELETE FROM kpi_values WHERE stopUid = :stopUid")
     suspend fun deleteByStop(stopUid: String)
 }
+
 

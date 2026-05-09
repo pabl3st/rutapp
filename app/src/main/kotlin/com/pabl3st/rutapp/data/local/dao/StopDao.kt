@@ -40,6 +40,29 @@ interface StopDao {
     @Query("SELECT * FROM stops WHERE uid = :uid LIMIT 1")
     suspend fun getByUid(uid: String): StopEntity?
 
+    /**
+     * Stops del mismo PDV (mismo externalId) visitados en el mes dado.
+     * Usado para KPIs acumulativos: cargar el valor más alto del mes al abrir formulario.
+     * monthPrefix = "YYYY-MM" — ej: "2026-05"
+     */
+    @Query("""
+        SELECT * FROM stops
+        WHERE accountId  = :accountId
+          AND externalId = :externalId
+          AND externalId IS NOT NULL
+          AND status     = 'done'
+          AND visitedAt  LIKE :monthPrefix || '%'
+          AND uid        != :excludeUid
+          AND deletedAt  IS NULL
+        ORDER BY visitedAt DESC
+    """)
+    suspend fun getDoneByExternalIdInMonth(
+        accountId:   Int,
+        externalId:  String,
+        monthPrefix: String,
+        excludeUid:  String,
+    ): List<StopEntity>
+
     @Query("SELECT * FROM stops WHERE syncStatus = 'pending' OR syncStatus = 'error'")
     suspend fun getPendingSync(): List<StopEntity>
 
@@ -86,5 +109,6 @@ interface StopDao {
     @Query("UPDATE stops SET orderIndex = :orderIndex, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateOrderIndex(uid: String, orderIndex: Int, at: String)
 }
+
 
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
+import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
@@ -14,6 +15,7 @@ import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.UserPrefs
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,6 +51,8 @@ class VisitaViewModel @Inject constructor(
     private val stopRepo:     StopRepository,
     private val profileRepo:  BusinessProfileRepository,
     private val kpiValueDao:  KpiValueDao,
+    private val stopDao:      StopDao,
+    private val session:      SessionManager,
     private val syncQueueDao: SyncQueueDao,
     private val prefsRepo:    UserPrefsRepository,
     private val moshi:        Moshi,
@@ -209,11 +213,72 @@ class VisitaViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Carga KPIs con lógica acumulativa mensual:
+     *
+     * 1. Busca todos los stops del mismo PDV (mismo externalId) ya visitados
+     *    en el mes actual (YYYY-MM) — excluye el stop actual.
+     * 2. Agrega sus KpiValues tomando el valor MÁXIMO por KPI
+     *    (los KPIs son acumulativos: activaciones del mes siempre crecen).
+     * 3. Superpone encima los valores del stop actual si ya tiene visita previa
+     *    (edición) — tienen prioridad sobre el histórico del mes.
+     *
+     * Resultado: el formulario muestra los datos más actualizados del mes.
+     */
     private fun loadExistingKpiValues() {
         viewModelScope.launch {
-            val existing = kpiValueDao.getByStop(stopUid)
+            val stop = _ui.value.stop ?: stopDao.getByUid(stopUid) ?: return@launch
+            val externalId = stop.externalId
+
+            // Mes actual en formato "YYYY-MM"
+            val monthPrefix = java.time.LocalDate.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
+
+            // Paso 1: stops del mismo PDV visitados este mes (anteriores a este)
+            val monthlyKpis = mutableMapOf<String, String>()
+            if (externalId != null) {
+                val siblingStops = stopDao.getDoneByExternalIdInMonth(
+                    accountId   = session.accountId,
+                    externalId  = externalId,
+                    monthPrefix = monthPrefix,
+                    excludeUid  = stopUid,
+                )
+                if (siblingStops.isNotEmpty()) {
+                    val siblingUids = siblingStops.map { it.uid }
+                    val siblingKpis = kpiValueDao.getByStops(siblingUids)
+
+                    // Tomar el valor máximo por KPI (acumulativo)
+                    siblingKpis.forEach { kv ->
+                        val current = monthlyKpis[kv.kpiId]
+                        val candidate = kv.valueText
+                        monthlyKpis[kv.kpiId] = when {
+                            current == null -> candidate
+                            // Para booleanos: true > false
+                            candidate.lowercase() == "true" -> "true"
+                            current.lowercase()   == "true" -> "true"
+                            // Para numéricos: tomar el mayor
+                            else -> {
+                                val curNum  = current.toDoubleOrNull()
+                                val candNum = candidate.toDoubleOrNull()
+                                when {
+                                    curNum != null && candNum != null ->
+                                        if (candNum > curNum) candidate else current
+                                    else -> candidate
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Paso 2: valores del stop actual (edición — tienen prioridad)
+            val ownKpis = kpiValueDao.getByStop(stopUid)
                 .associate { it.kpiId to it.valueText }
-            _ui.update { it.copy(kpiValues = it.kpiValues + existing) }
+
+            // Fusionar: mensual como base, propio encima
+            val merged = monthlyKpis + ownKpis
+
+            _ui.update { it.copy(kpiValues = it.kpiValues + merged) }
         }
     }
 
@@ -240,6 +305,7 @@ class VisitaViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 }
+
 
 
 
