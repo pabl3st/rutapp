@@ -57,6 +57,21 @@ class RouteRepository @Inject constructor(
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
 
+    /** Quita la ruta del calendario marcándola como sin fecha asignada (usa fecha epoch).
+     *  La ruta sigue existiendo pero no aparece en ningún día del calendario. */
+    suspend fun unassignDate(uid: String) {
+        val route = routeDao.getByUid(uid) ?: return
+        val now   = java.time.Instant.now().toString()
+        val updated = route.copy(
+            dateAssigned = "1970-01-01",
+            status       = "pending",
+            updatedAt    = now,
+            syncStatus   = "pending",
+        )
+        routeDao.upsert(updated)
+        enqueue("route", uid, "update", routeToMap(updated))
+    }
+
     // ── Crear ruta localmente + encolar sync ──────────────────
     suspend fun createRoute(
         name: String,

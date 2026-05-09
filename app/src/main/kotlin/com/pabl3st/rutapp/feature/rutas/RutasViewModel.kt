@@ -56,9 +56,13 @@ class RutasViewModel @Inject constructor(
             _ui.update { it.copy(error = "El nombre es obligatorio") }
             return
         }
+        // Fecha por defecto = hoy. Se asigna al calendario manualmente después.
+        val date = _ui.value.newRouteDate.ifBlank {
+            java.time.LocalDate.now().toString()
+        }
         viewModelScope.launch {
-            routeRepo.createRoute(name = name, dateAssigned = _ui.value.newRouteDate)
-            _ui.update { it.copy(showCreateDialog = false, newRouteName = "") }
+            routeRepo.createRoute(name = name, dateAssigned = date)
+            _ui.update { it.copy(showCreateDialog = false, newRouteName = "", newRouteDate = "") }
         }
     }
 

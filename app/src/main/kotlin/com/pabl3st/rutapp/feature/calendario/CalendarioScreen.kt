@@ -2,7 +2,9 @@
 package com.pabl3st.rutapp.feature.calendario
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +31,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CalendarioScreen(
     onBack: () -> Unit = {},
@@ -68,6 +71,7 @@ fun CalendarioScreen(
                 routesByDate   = ui.routesByDate,
                 holidays       = ui.holidays,
                 onDayClick     = vm::selectDay,
+                onDayLongPress = vm::onDayLongPress,
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
@@ -143,6 +147,65 @@ fun CalendarioScreen(
             }
         }
     }
+
+    // ── Menú contextual pulsación larga ────────────────────
+    if (ui.showDayMenu) {
+        val dayLabel = ui.menuDay?.let {
+            it.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale("es")))
+                .replaceFirstChar { c -> c.uppercase() }
+        } ?: ""
+        val hasRoute = ui.menuDay?.let {
+            ui.routesByDate[it.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)]?.isNotEmpty() == true
+        } == true
+
+        AlertDialog(
+            onDismissRequest = vm::dismissDayMenu,
+            title = { Text(dayLabel, style = MaterialTheme.typography.titleSmall) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (!hasRoute) {
+                        TextButton(
+                            onClick  = { vm.dismissDayMenu() },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.AddCircleOutline, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Añadir ruta a este día")
+                        }
+                        TextButton(
+                            onClick  = vm::onMarkVacation,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.BeachAccess, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Marcar como vacaciones")
+                        }
+                    } else {
+                        TextButton(
+                            onClick  = vm::onRemoveRoute,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.RemoveCircleOutline, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Quitar ruta de este día")
+                        }
+                        TextButton(
+                            onClick  = { vm.dismissDayMenu() },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.Default.SwapHoriz, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Cambiar por otra ruta")
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = vm::dismissDayMenu) { Text("Cerrar") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -189,14 +252,16 @@ private fun DayOfWeekHeader() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CalendarGrid(
-    month:        YearMonth,
-    today:        LocalDate,
-    selectedDay:  LocalDate?,
-    routesByDate: Map<String, List<RouteEntity>>,
-    holidays:     Map<String, com.pabl3st.rutapp.feature.calendario.PublicHoliday>,
-    onDayClick:   (LocalDate) -> Unit,
+    month:          YearMonth,
+    today:          LocalDate,
+    selectedDay:    LocalDate?,
+    routesByDate:   Map<String, List<RouteEntity>>,
+    holidays:       Map<String, com.pabl3st.rutapp.feature.calendario.PublicHoliday>,
+    onDayClick:     (LocalDate) -> Unit,
+    onDayLongPress: (LocalDate) -> Unit = {},
 ) {
     val fmt         = DateTimeFormatter.ISO_LOCAL_DATE
     val firstDay    = month.atDay(1)
@@ -232,11 +297,15 @@ private fun CalendarGrid(
                                     when {
                                         isSelected -> MaterialTheme.colorScheme.primary
                                         isToday    -> MaterialTheme.colorScheme.primaryContainer
+                                        allDone    -> MaterialTheme.colorScheme.tertiaryContainer
                                         holiday != null -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
                                         else       -> androidx.compose.ui.graphics.Color.Transparent
                                     }
                                 )
-                                .clickable { onDayClick(date) },
+                                .combinedClickable(
+                                    onClick      = { onDayClick(date) },
+                                    onLongClick  = { onDayLongPress(date) },
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {

@@ -130,13 +130,8 @@ fun RutasScreen(
                             { Text(err, color = MaterialTheme.colorScheme.error) }
                         },
                     )
-                    OutlinedTextField(
-                        value         = ui.newRouteDate,
-                        onValueChange = vm::onNewRouteDateChange,
-                        label         = { Text("Fecha (YYYY-MM-DD)") },
-                        singleLine    = true,
-                        modifier      = Modifier.fillMaxWidth(),
-                    )
+                    // Fecha: usa la fecha del calendario cuando se asigne,
+                    // o hoy por defecto. No se solicita al crear.
                 }
             },
             confirmButton = {

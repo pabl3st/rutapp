@@ -28,6 +28,12 @@ object KpiCatalog {
         kpi("telco_pedido_eur",    "telco", "Pedido (€)",          "number", "€",   section = "pedidos",   order = 1),
         kpi("telco_plus",          "telco", "Plus conseguido",     "boolean", null, section = "objetivos", order = 5),
         kpi("telco_tv",            "telco", "Televisión (ud)",     "number", "ud",  visible = false, section = "objetivos", order = 6),
+        kpi("telco_primer_bono",   "telco", "Importe 1er bono",    "number", "€",   section = "resultados",order = 0),
+        kpi("telco_media_bono",    "telco", "Media bono (€)",      "number", "€",   section = "resultados",order = 1),
+        kpi("telco_recargas",      "telco", "Recargas",            "number", "ud",  section = "resultados",order = 2),
+        kpi("telco_pdv_inactivo",  "telco", "PDV inactivo",        "boolean", null, section = "resultados",order = 3),
+        kpi("telco_plv",           "telco", "PLV colocado",        "boolean", null, section = "resultados",order = 4),
+        kpi("telco_stock",         "telco", "Stock OK",            "boolean", null, visible = false, section = "resultados", order = 5),
     )
 
     // ── Farmacia / Parafarmacia ───────────────────────────────

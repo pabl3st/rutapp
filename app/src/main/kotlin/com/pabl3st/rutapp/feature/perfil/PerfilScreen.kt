@@ -101,31 +101,22 @@ fun PerfilScreen(
             }
 
             // ── Ajustes generales ─────────────────────────────
-            SectionTitle("Ajustes generales")
+            // ── Apariencia y región ───────────────────────────
+            SectionTitle("Apariencia")
             InfoCard {
-                // Apariencia
                 ThemeRow(currentMode = themeMode, onSelect = themeVm::setTheme)
                 Div()
-                // Idioma
                 LanguageRow(current = prefs.language, onSelect = vm::setLanguage)
             }
 
-            // ── Formulario de visita ──────────────────────────
-            SectionTitle("Formulario de visita")
+            // ── Negocio y formulario de visita ────────────────
+            SectionTitle("Negocio y visitas")
             InfoCard {
-                // Tipo de negocio / sector → BusinessProfileScreen
+                // Tipo de negocio + KPIs → una sola entrada (evita duplicado)
                 InfoRowNav(
                     icon   = Icons.Default.BusinessCenter,
-                    label  = "Tipo de negocio",
+                    label  = "Negocio y KPIs",
                     detail = ui.sectorLabel,
-                    onClick = onNavigateToBusinessProfile,
-                )
-                Div()
-                // KPIs activos → BusinessProfileScreen
-                InfoRowNav(
-                    icon   = Icons.Default.BarChart,
-                    label  = "KPIs activos",
-                    detail = "Gestionar campos del sector",
                     onClick = onNavigateToBusinessProfile,
                 )
                 Div()
@@ -162,6 +153,18 @@ fun PerfilScreen(
                 )
             }
 
+            // ── Conexión y datos ──────────────────────────────
+            SectionTitle("Conexión y datos")
+            InfoCard {
+                SwitchRow(
+                    icon    = Icons.Default.Sync,
+                    label   = "Sincronización automática",
+                    detail  = "Sincroniza cada 15 min en segundo plano",
+                    checked = prefs.autoSync,
+                    onToggle = vm::setAutoSync,
+                )
+            }
+
             // ── Notificaciones ────────────────────────────────
             SectionTitle("Notificaciones")
             InfoCard {
@@ -171,14 +174,6 @@ fun PerfilScreen(
                     detail  = "Avisos de nuevas rutas y mensajes",
                     checked = prefs.pushEnabled,
                     onToggle = vm::setPushEnabled,
-                )
-                Div()
-                SwitchRow(
-                    icon    = Icons.Default.Sync,
-                    label   = "Sincronización automática",
-                    detail  = "Sincroniza cada 15 min en segundo plano",
-                    checked = prefs.autoSync,
-                    onToggle = vm::setAutoSync,
                 )
                 Div()
                 SwitchRow(
@@ -200,8 +195,8 @@ fun PerfilScreen(
                 }
             }
 
-            // ── Navegación ────────────────────────────────────
-            SectionTitle("Navegación")
+            // ── Accesos directos ──────────────────────────────
+            SectionTitle("Accesos")
             InfoCard {
                 InfoRowNav(
                     icon   = Icons.Default.CalendarMonth,
@@ -213,7 +208,7 @@ fun PerfilScreen(
                     Div()
                     InfoRowNav(
                         icon   = Icons.Default.AdminPanelSettings,
-                        label  = "Admin",
+                        label  = "Administración",
                         detail = "Gestión de usuarios y cuenta",
                         onClick = onNavigateToAdmin,
                     )

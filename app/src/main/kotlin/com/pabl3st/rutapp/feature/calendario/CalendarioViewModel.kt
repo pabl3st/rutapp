@@ -28,8 +28,11 @@ data class CalendarioUiState(
     val selectedDay:    LocalDate?                     = LocalDate.now(),
     val routesByDate:   Map<String, List<RouteEntity>> = emptyMap(),
     val selectedRoutes: List<RouteEntity>              = emptyList(),
-    val holidays:       Map<String, PublicHoliday>     = emptyMap(),  // ISO date -> holiday
+    val holidays:       Map<String, PublicHoliday>     = emptyMap(),
     val isLoading:      Boolean                        = true,
+    // Long press context menu
+    val showDayMenu:    Boolean                        = false,
+    val menuDay:        LocalDate?                     = null,
 )
 
 @HiltViewModel
@@ -130,4 +133,32 @@ class CalendarioViewModel @Inject constructor(
         existing: Map<String, PublicHoliday>,
         new:      Map<String, PublicHoliday>,
     ): Map<String, PublicHoliday> = existing + new
+
+    // ── Long press: menú contextual del día ───────────────
+    fun onDayLongPress(day: LocalDate) {
+        _ui.update { it.copy(showDayMenu = true, menuDay = day, selectedDay = day) }
+    }
+
+    fun dismissDayMenu() {
+        _ui.update { it.copy(showDayMenu = false, menuDay = null) }
+    }
+
+    fun onMarkVacation() {
+        // TODO: marcar el día como vacaciones en user_prefs
+        dismissDayMenu()
+    }
+
+    fun onRemoveRoute() {
+        val day = _ui.value.menuDay ?: return
+        val dateStr = day.format(fmt)
+        val routes  = _ui.value.routesByDate[dateStr] ?: return
+        // Soft-delete: mover dateAssigned a una fecha vacía equivale a desasignar
+        // Por ahora quitar la ruta de la vista local hasta que se implemente API
+        viewModelScope.launch {
+            routes.forEach { route ->
+                routeRepo.unassignDate(route.uid)
+            }
+        }
+        dismissDayMenu()
+    }
 }
