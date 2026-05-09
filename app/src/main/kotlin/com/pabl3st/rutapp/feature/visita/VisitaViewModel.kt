@@ -29,6 +29,8 @@ data class VisitaUiState(
     val notes: String                        = "",
     val nextAction: String                   = "",
     val storeOpen: Boolean                   = true,
+    val pdvInactive: Boolean                 = false,  // PDV cerrado definitivamente
+    val isEditingPreviousVisit: Boolean       = false,  // siempre false — formulario siempre limpio
     val photos: List<Uri>                    = emptyList(),
     val showCamera: Boolean                  = false,
     val saved: Boolean                       = false,
@@ -76,6 +78,7 @@ class VisitaViewModel @Inject constructor(
                     notes          = "",
                     nextAction     = "",
                     storeOpen      = true,         // por defecto abierto
+                    pdvInactive    = stop?.pdvInactive ?: false,
                 )
             }
         }
