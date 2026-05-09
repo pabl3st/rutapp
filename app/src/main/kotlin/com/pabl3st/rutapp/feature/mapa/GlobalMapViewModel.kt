@@ -10,8 +10,11 @@ import com.pabl3st.rutapp.core.map.RouteOptions
 import com.pabl3st.rutapp.core.map.StopMapMarker
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.TagCondition
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -280,4 +283,5 @@ class GlobalMapViewModel @Inject constructor(
     }
 
 }
+
 
