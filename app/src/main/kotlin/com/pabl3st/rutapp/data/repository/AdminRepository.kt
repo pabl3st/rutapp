@@ -74,11 +74,12 @@ class AdminRepository @Inject constructor(
     }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
     val availableRoles: List<String>
-        get() = if (isOwner)
-            listOf("admin", "manager", "agent", "viewer")
-        else
-            if (currentUserRole == "god") listOf("owner", "admin", "manager", "agent", "viewer")
-        else listOf("manager", "agent", "viewer")
+        get() = when {
+            session.userRole == "god" -> listOf("owner", "admin", "manager", "agent", "viewer")
+            isOwner                   -> listOf("admin", "manager", "agent", "viewer")
+            isOwnerOrAdmin            -> listOf("manager", "agent", "viewer")
+            else                      -> emptyList()
+        }
 
     fun roleLabel(role: String) = when (role) {
         "god"     -> "Superadmin"
