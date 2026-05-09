@@ -25,10 +25,13 @@ data class VisitaUiState(
     val stop: StopEntity?                    = null,
     val isLoading: Boolean                   = true,
     val isSaving: Boolean                    = false,
-    val selectedResult: String               = "contactado",
+    // "" = sin selección (formulario nuevo); valor = edición de visita existente
+    val selectedResult: String               = "",
     val notes: String                        = "",
     val nextAction: String                   = "",
-    val storeOpen: Boolean                   = true,
+    // null = sin selección; true/false = estado PDV seleccionado
+    val storeOpen: Boolean?                  = null,
+    val isEditingPreviousVisit: Boolean      = false, // true si el stop ya era 'done'
     val photos: List<Uri>                    = emptyList(),
     val showCamera: Boolean                  = false,
     val saved: Boolean                       = false,
@@ -66,28 +69,81 @@ class VisitaViewModel @Inject constructor(
 
     private fun loadStop() {
         viewModelScope.launch {
-            val stop = stopRepo.getByUid(stopUid)
-            // Solo marcar como 'visiting' si estaba pending — no pisar un stop ya done
-            if (stop?.status == "pending") {
-                stopRepo.markVisiting(stopUid)
+            val stop = stopRepo.getByUid(stopUid) ?: run {
+                _ui.update { it.copy(isLoading = false) }
+                return@launch
             }
+
+            // ── Reset por visitFrequency ──────────────────────────────────
+            // Si el stop está 'done' y han pasado ≥ visitFrequency días desde
+            // la última visita → resetear a 'pending' para una nueva visita limpia.
+            val shouldReset = stop.status == "done"
+                && stop.visitFrequency != null
+                && stop.visitedAt != null
+                && run {
+                    val visitedDate = runCatching {
+                        java.time.LocalDate.parse(stop.visitedAt.substring(0, 10))
+                    }.getOrNull()
+                    val today = java.time.LocalDate.now()
+                    visitedDate != null && java.time.temporal.ChronoUnit.DAYS.between(visitedDate, today) >= stop.visitFrequency
+                }
+
+            if (shouldReset) {
+                stopRepo.resetForNewVisit(stopUid)
+                // Tras el reset el stop quede 'pending' — abrir formulario en blanco
+                _ui.update {
+                    it.copy(
+                        stop                 = stop.copy(status = "pending", visitResult = null,
+                                                          visitedAt = null, notes = null),
+                        isLoading            = false,
+                        selectedResult       = "",
+                        notes                = "",
+                        nextAction           = "",
+                        storeOpen            = null,
+                        isEditingPreviousVisit = false,
+                    )
+                }
+                stopRepo.markVisiting(stopUid)
+                return@launch
+            }
+
+            // ── Estado 'done': edición de visita existente ────────────────
+            // Pre-cargar datos previos y mostrar banner informativo.
+            if (stop.status == "done") {
+                _ui.update {
+                    it.copy(
+                        stop                 = stop,
+                        isLoading            = false,
+                        selectedResult       = stop.visitResult ?: "",
+                        notes                = stop.notes       ?: "",
+                        nextAction           = stop.nextAction  ?: "",
+                        storeOpen            = stop.pdvOpen,
+                        isEditingPreviousVisit = true,
+                    )
+                }
+                return@launch
+            }
+
+            // ── Estado 'pending' / 'visiting': formulario nuevo en blanco ─
+            stopRepo.markVisiting(stopUid)
             _ui.update {
                 it.copy(
-                    stop           = stop,
-                    isLoading      = false,
-                    selectedResult = stop?.visitResult ?: "contactado",
-                    notes          = stop?.notes       ?: "",
-                    nextAction     = stop?.nextAction  ?: "",
-                    storeOpen      = stop?.pdvOpen     ?: true,
+                    stop                 = stop,
+                    isLoading            = false,
+                    selectedResult       = "",
+                    notes                = "",
+                    nextAction           = "",
+                    storeOpen            = null,
+                    isEditingPreviousVisit = false,
                 )
             }
         }
     }
 
-    fun onResultChange(result: String)  = _ui.update { it.copy(selectedResult = result) }
-    fun onNotesChange(v: String)        = _ui.update { it.copy(notes = v) }
-    fun onNextActionChange(v: String)   = _ui.update { it.copy(nextAction = v) }
-    fun onStoreOpenChange(v: Boolean)   = _ui.update { it.copy(storeOpen = v) }
+    fun onResultChange(result: String)   = _ui.update { it.copy(selectedResult = result) }
+    fun onNotesChange(v: String)         = _ui.update { it.copy(notes = v) }
+    fun onNextActionChange(v: String)    = _ui.update { it.copy(nextAction = v) }
+    fun onStoreOpenChange(v: Boolean?)   = _ui.update { it.copy(storeOpen = v) }
 
     fun onShowCamera()                  = _ui.update { it.copy(showCamera = true) }
     fun onHideCamera()                  = _ui.update { it.copy(showCamera = false) }
@@ -110,7 +166,7 @@ class VisitaViewModel @Inject constructor(
                 result     = _ui.value.selectedResult,
                 notes      = _ui.value.notes.trim().ifEmpty { null },
                 nextAction = _ui.value.nextAction.trim().ifEmpty { null },
-                pdvOpen    = _ui.value.storeOpen,
+                pdvOpen    = _ui.value.storeOpen ?: true,
             )
 
             // 2. Persistir valores KPI en Room
@@ -179,4 +235,5 @@ class VisitaViewModel @Inject constructor(
 
     fun clearError() = _ui.update { it.copy(error = null) }
 }
+
 
