@@ -46,10 +46,10 @@ fun StopDto.toEntity(accountId: Int): StopEntity? {
         nextAction   = nextAction,
         pdvOpen        = pdvOpen,
         pdvInactive    = pdvInactive,
-        visitFrequency = visitFrequency,
-        priority       = priority,
+        visitFrequency = visitFrequency?.toIntOrNull(),   // StopDto:String? → StopEntity:Int?
+        priority       = priority ?: 0,                   // StopDto:Int?   → StopEntity:Int
         segment        = segment,
-        accountStatus  = accountStatus,
+        accountStatus  = accountStatus ?: "active",       // StopDto:String? → StopEntity:String
         createdAt      = createdAt,
         updatedAt    = updatedAt,
         deletedAt    = deletedAt,
