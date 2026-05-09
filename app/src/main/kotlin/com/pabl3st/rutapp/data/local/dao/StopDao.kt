@@ -57,6 +57,13 @@ interface StopDao {
     @Query("UPDATE stops SET status = :status, visitedAt = :at, updatedAt = :updatedAt, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateStatus(uid: String, status: String, at: String?, updatedAt: String)
 
+    @Query("""
+        UPDATE stops SET status = 'pending', visitResult = NULL, visitedAt = NULL,
+        notes = NULL, nextAction = NULL, updatedAt = :at, syncStatus = 'pending'
+        WHERE uid = :uid
+    """)
+    suspend fun resetForNewVisit(uid: String, at: String)
+
     @Query("UPDATE stops SET status = 'visiting', syncStatus = 'pending' WHERE uid = :uid AND status = 'pending'")
     suspend fun markVisiting(uid: String)
 
@@ -74,3 +81,4 @@ interface StopDao {
     @Query("UPDATE stops SET orderIndex = :orderIndex, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateOrderIndex(uid: String, orderIndex: Int, at: String)
 }
+
