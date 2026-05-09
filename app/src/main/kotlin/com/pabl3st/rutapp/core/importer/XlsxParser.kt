@@ -15,6 +15,57 @@ import java.util.zip.ZipInputStream
  */
 object XlsxParser {
 
+    /** Resultado de parsear múltiples hojas */
+    data class MultiSheetResult(val sheets: Map<String, CsvParser.ParseResult>) {
+        operator fun get(name: String): CsvParser.ParseResult? = sheets[name]
+        val values get() = sheets.values
+    }
+
+    /** Lee todas las hojas de un XLSX. Devuelve mapa nombre → ParseResult. */
+    fun parseMultiSheet(stream: InputStream): MultiSheetResult {
+        val entries = mutableMapOf<String, ByteArray>()
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) entries[entry.name] = zip.readBytes()
+                entry = zip.nextEntry
+            }
+        }
+        val sharedStrings = parseSharedStrings(entries["xl/sharedStrings.xml"]?.inputStream())
+        // Leer workbook para saber nombres de hojas
+        val sheetNames = mutableListOf<String>()
+        entries["xl/workbook.xml"]?.inputStream()?.let { wbStream ->
+            try {
+                val parser = Xml.newPullParser(); parser.setInput(wbStream, "UTF-8")
+                var t = parser.eventType
+                while (t != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                    if (t == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "sheet") {
+                        sheetNames += parser.getAttributeValue(null, "name") ?: "Sheet${sheetNames.size+1}"
+                    }
+                    t = parser.next()
+                }
+            } catch (_: Exception) {}
+        }
+        // Fallback si no hay workbook
+        if (sheetNames.isEmpty()) sheetNames += "Sheet1"
+        val result = mutableMapOf<String, CsvParser.ParseResult>()
+        sheetNames.forEachIndexed { idx, name ->
+            val sheetKey = "xl/worksheets/sheet${idx + 1}.xml"
+            val bytes = entries[sheetKey] ?: return@forEachIndexed
+            try {
+                val rows = parseSheet(bytes.inputStream(), sharedStrings)
+                if (rows.isNotEmpty()) {
+                    val headers = rows.first()
+                    val dataRows = rows.drop(1).map { row ->
+                        headers.mapIndexed { i, h -> h to (row.getOrNull(i) ?: "") }.toMap()
+                    }
+                    result[name] = CsvParser.ParseResult(headers, dataRows, emptyList())
+                }
+            } catch (_: Exception) {}
+        }
+        return MultiSheetResult(result)
+    }
+
     /** Reutiliza el mismo ParseResult que CsvParser */
     fun parse(stream: InputStream): CsvParser.ParseResult {
         val entries = mutableMapOf<String, ByteArray>()

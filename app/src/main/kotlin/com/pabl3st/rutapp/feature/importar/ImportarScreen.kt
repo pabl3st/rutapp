@@ -67,6 +67,8 @@ fun ImportarScreen(
                 ImportStep.PICK_FILE   -> StepPickFile(ui = ui, vm = vm)
                 ImportStep.MAP_COLUMNS -> StepMapColumns(ui = ui, vm = vm)
                 ImportStep.PREVIEW     -> StepPreview(ui = ui, vm = vm)
+                ImportStep.CALENDAR    -> StepCalendar(ui = ui, vm = vm)
+                ImportStep.KPI_REPORTS -> StepKpiReports(ui = ui, vm = vm)
                 ImportStep.DONE        -> StepDone(ui = ui, onDone = onDone)
             }
         }
@@ -79,7 +81,7 @@ fun ImportarScreen(
 
 @Composable
 private fun StepIndicator(current: ImportStep, modifier: Modifier = Modifier) {
-    val steps = listOf("Fichero", "Columnas", "Vista previa", "Hecho")
+    val steps = listOf("Fichero", "Columnas", "Preview", "Calendario", "KPIs", "Listo")
     Row(
         modifier              = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -434,12 +436,13 @@ private fun StepPreview(ui: ImportarUiState, vm: ImportarViewModel) {
                 }
             } else {
                 Button(
-                    onClick  = vm::onSaveConfirm,
+                    onClick  = vm::onPreviewConfirm,
                     modifier = Modifier.fillMaxWidth(),
+                    enabled  = ui.clusters.isNotEmpty(),
                 ) {
-                    Icon(Icons.Default.CloudUpload, null)
+                    Text("Siguiente — Asignar fechas")
                     Spacer(Modifier.width(Spacing.sm))
-                    Text("Importar ${ui.previews.size} paradas en ${ui.clusters.size} rutas")
+                    Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
                 }
             }
         }
@@ -630,7 +633,206 @@ private fun StopPreviewCard(stop: StopPreview, index: Int) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PASO 4 — Importación completada
+// PASO 4 — Asignación de rutas al calendario
+// ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
+    val fmt = DateTimeFormatter.ofPattern("dd MMM yyyy", java.util.Locale("es"))
+    LazyColumn(
+        modifier        = Modifier.fillMaxSize(),
+        contentPadding  = PaddingValues(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        item {
+            Text(
+                "Asigna un día a cada ruta",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Opcional — las rutas sin fecha se crean con la fecha de hoy. Puedes cambiarlas desde el calendario después.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Spacing.sm))
+        }
+
+        itemsIndexed(ui.calendarEntries) { idx, entry ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.md)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(entry.routeName, style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "${entry.stopCount} paradas",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // Selector de fecha simple: botones − +
+                        val currentDate = entry.date ?: LocalDate.now()
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            IconButton(onClick = {
+                                vm.onCalendarDateChange(idx, currentDate.minusDays(1))
+                            }) { Icon(Icons.Default.ChevronLeft, null, Modifier.size(20.dp)) }
+                            Text(
+                                currentDate.format(fmt),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            IconButton(onClick = {
+                                vm.onCalendarDateChange(idx, currentDate.plusDays(1))
+                            }) { Icon(Icons.Default.ChevronRight, null, Modifier.size(20.dp)) }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(Spacing.sm))
+            Button(
+                onClick  = vm::onCalendarConfirm,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                val hasKpi = ui.hasKpiSheet || ui.kpiHeaders.isNotEmpty()
+                Text(if (hasKpi) "Siguiente — KPIs y visitas" else "Importar")
+                Spacer(Modifier.width(Spacing.sm))
+                Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
+            }
+            Spacer(Modifier.height(Spacing.sm))
+            OutlinedButton(
+                onClick  = vm::skipCalendarStep,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Saltar — usar fechas por defecto")
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PASO 5 — KPIs y reports históricos de visitas
+// ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun StepKpiReports(ui: ImportarUiState, vm: ImportarViewModel) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Text("KPIs y visitas históricas", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "Mapea las columnas de KPIs de tu fichero para importar el historial de visitas de cada parada.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (ui.kpiHeaders.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+            ) {
+                Column(modifier = Modifier.padding(Spacing.md)) {
+                    Text(
+                        "No se detectó hoja de KPIs en el fichero",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Text(
+                        "Para importar KPIs históricos, añade una hoja llamada KPI_VISITAS o CSV_KPI_VISITAS con columnas: stop_id, date, kpi_activaciones, kpi_primer_bono, etc.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+        } else {
+            // Mapeo de columnas KPI
+            KpiField.entries.forEach { field ->
+                val currentHeader = ui.kpiMapping[field]
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            field.label + if (field.required) " *" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(
+                            onClick   = { expanded = true },
+                            modifier  = Modifier.width(180.dp),
+                        ) {
+                            Text(
+                                currentHeader ?: "— no mapear —",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style    = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            DropdownMenuItem(
+                                text    = { Text("— no mapear —") },
+                                onClick = { vm.onKpiMappingChange(field, null); expanded = false }
+                            )
+                            ui.kpiHeaders.forEach { h ->
+                                DropdownMenuItem(
+                                    text    = { Text(h, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    onClick = { vm.onKpiMappingChange(field, h); expanded = false }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            ui.kpiMappingError?.let { err ->
+                Text(err, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+
+        // Botones
+        Button(
+            onClick  = if (ui.kpiHeaders.isEmpty()) vm::onSkipKpi else vm::onKpiMappingConfirm,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (ui.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(Spacing.sm))
+                Text("Importando... ${ui.saveProgress}/${ui.saveTotal}")
+            } else {
+                Icon(Icons.Default.CloudUpload, null)
+                Spacer(Modifier.width(Spacing.sm))
+                Text(if (ui.kpiHeaders.isEmpty()) "Importar sin KPIs" else "Importar con KPIs")
+            }
+        }
+        if (ui.kpiHeaders.isNotEmpty()) {
+            OutlinedButton(
+                onClick  = vm::onSkipKpi,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Saltar KPIs — importar solo paradas y rutas")
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PASO 6 — Importación completada
 // ─────────────────────────────────────────────────────────────
 
 @Composable
