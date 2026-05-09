@@ -137,6 +137,30 @@ fun VisitaScreen(
                                     Text(contact, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
+                            stop.contactPhone?.let { phone ->
+                                Spacer(Modifier.height(4.dp))
+                                val context = LocalContext.current
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clickable {
+                                            val intent = android.content.Intent(
+                                                android.content.Intent.ACTION_DIAL,
+                                                android.net.Uri.parse("tel:$phone")
+                                            )
+                                            context.startActivity(intent)
+                                        }
+                                        .padding(vertical = 2.dp),
+                                ) {
+                                    Icon(Icons.Default.Phone, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text  = phone,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -391,3 +415,4 @@ private fun KpiField(
         )
     }
 }
+
