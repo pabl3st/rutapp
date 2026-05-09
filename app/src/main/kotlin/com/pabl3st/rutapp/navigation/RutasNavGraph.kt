@@ -14,8 +14,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.pabl3st.rutapp.feature.home.HomeViewModel
 import androidx.navigation.navArgument
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -39,7 +37,6 @@ import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.importar.ImportarScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
-import com.pabl3st.rutapp.feature.home.HomeViewModel
 
 // ── Transiciones de navegación ───────────────────────────
 private val enterPush   = slideInHorizontally(tween(280)) { it / 4 } + fadeIn(tween(280))
@@ -58,15 +55,15 @@ fun RutasNavGraph(
     val currentRoute  = backStack?.destination?.route
     val showBottomBar = currentRoute in BOTTOM_BAR_ROUTES
 
-    // Leer rol de sesión — HomeViewModel ya lo tiene inyectado con session
-    val homeVm: HomeViewModel = hiltViewModel()
-    val userRole by homeVm.ui.collectAsStateWithLifecycle()
+    // Leer rol desde SessionManager via un ViewModel ligero
+    val navVm: NavStateViewModel = hiltViewModel()
+    val userRole = navVm.userRole
 
     Scaffold(
         bottomBar = {
             if (showBottomBar) RutasBottomBar(
                 navController = navController,
-                userRole      = userRole.userRole,
+                userRole      = userRole,
             )
         }
     ) { scaffoldPadding ->
@@ -225,7 +222,7 @@ fun RutasNavGraph(
                         navController.navigate(Screen.Calendario.route)
                     },
                     onNavigateToAdmin = {
-                        if (userRole.userRole == "god")
+                        if (userRole == "god")
                             navController.navigate(Screen.GodDashboard.route)
                         else
                             navController.navigate(Screen.Admin.route)
@@ -289,6 +286,7 @@ fun PlaceholderScreen(label: String, sprint: String) {
         }
     }
 }
+
 
 
 
