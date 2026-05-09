@@ -24,12 +24,14 @@ import javax.inject.Singleton
 
 @Singleton
 class RouteRepository @Inject constructor(
-    private val routeDao:     RouteDao,
-    private val stopDao:      StopDao,
-    private val syncQueueDao: SyncQueueDao,
-    private val api:          RutasApiService,
-    private val session:      SessionManager,
-    private val moshi:        Moshi,
+    private val routeDao:      RouteDao,
+    private val stopDao:       StopDao,
+    private val daySessionDao: DaySessionDao,
+    private val kpiValueDao:   KpiValueDao,
+    private val syncQueueDao:  SyncQueueDao,
+    private val api:           RutasApiService,
+    private val session:       SessionManager,
+    private val moshi:         Moshi,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
