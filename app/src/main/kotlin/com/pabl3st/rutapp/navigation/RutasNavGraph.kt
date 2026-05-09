@@ -13,6 +13,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pabl3st.rutapp.feature.home.HomeViewModel
 import androidx.navigation.navArgument
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -56,8 +59,7 @@ fun RutasNavGraph(
     val showBottomBar = currentRoute in BOTTOM_BAR_ROUTES
 
     // Leer rol de sesión — HomeViewModel ya lo tiene inyectado con session
-    val homeVm: com.pabl3st.rutapp.feature.home.HomeViewModel =
-        androidx.hilt.navigation.compose.hiltViewModel()
+    val homeVm: HomeViewModel = hiltViewModel()
     val userRole by homeVm.ui.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -287,5 +289,6 @@ fun PlaceholderScreen(label: String, sprint: String) {
         }
     }
 }
+
 
 
