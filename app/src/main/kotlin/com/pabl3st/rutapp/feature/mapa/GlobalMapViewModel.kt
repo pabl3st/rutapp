@@ -68,6 +68,9 @@ data class GlobalMapUiState(
     // Estado de carga
     val isLoading: Boolean = true,
     val error:     String? = null,
+
+    // Tags de estado para GlobalStopCard (solo STATUS_DONE, STATUS_PENDING, DAYS_SINCE_VISIT)
+    val stopTags: List<StopTagConfig> = emptyList(),
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -79,7 +82,8 @@ class GlobalMapViewModel @Inject constructor(
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
     private val locationMgr: LocationManager,
-    val mapProvider: MapProvider,   // expuesto: Screen lo usa directamente
+    private val prefsRepo:   UserPrefsRepository,
+    val mapProvider: MapProvider,
     val mapConfig:   MapConfig,
 ) : ViewModel() {
 
@@ -90,6 +94,7 @@ class GlobalMapViewModel @Inject constructor(
     private var stopsJob: Job? = null
 
     init {
+        observeTags()
         observeRoutesAndStops()
     }
 
@@ -259,4 +264,20 @@ class GlobalMapViewModel @Inject constructor(
         this < 1_000f -> "${toInt()} m"
         else          -> "${"%.1f".format(this / 1_000f)} km"
     }
+
+    private fun observeTags() {
+        viewModelScope.launch {
+            prefsRepo.prefs.collect { prefs ->
+                val mapConditions = setOf(
+                    TagCondition.ALWAYS,
+                    TagCondition.STATUS_DONE,
+                    TagCondition.STATUS_PENDING,
+                    TagCondition.DAYS_SINCE_VISIT,
+                )
+                _ui.update { it.copy(stopTags = prefs.stopTags.filter { t -> t.condition in mapConditions }) }
+            }
+        }
+    }
+
 }
+

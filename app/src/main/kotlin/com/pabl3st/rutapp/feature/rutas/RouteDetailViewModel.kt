@@ -4,12 +4,18 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.core.location.LocationManager
+import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.evaluateTag
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.*
@@ -17,20 +23,27 @@ import kotlin.math.*
 enum class StopSortMode { MANUAL, GPS, GREEDY }
 
 data class RouteDetailUiState(
-    val route: RouteEntity?     = null,
-    val stops: List<StopEntity> = emptyList(),
-    val sortMode: StopSortMode  = StopSortMode.MANUAL,
-    val isReordering: Boolean   = false,
-    val isLoading: Boolean      = true,
-    val error: String?          = null,
+    val route: RouteEntity?                       = null,
+    val stops: List<StopEntity>                   = emptyList(),
+    val sortMode: StopSortMode                    = StopSortMode.MANUAL,
+    val isReordering: Boolean                     = false,
+    val isLoading: Boolean                        = true,
+    val error: String?                            = null,
+    // Tags configurados por el owner — evaluados por stop en la UI
+    val stopTags: List<StopTagConfig>             = emptyList(),
+    // kpiId→value por stopUid — para evaluar condiciones KPI en tags
+    val kpiByStop: Map<String, Map<String,String>> = emptyMap(),
 )
 
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class RouteDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val routeRepo:    RouteRepository,
     private val stopRepo:     StopRepository,
     private val locationMgr:  LocationManager,
+    private val kpiValueDao:  KpiValueDao,
+    private val prefsRepo:    UserPrefsRepository,
 ) : ViewModel() {
 
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
@@ -44,6 +57,8 @@ class RouteDetailViewModel @Inject constructor(
     init {
         loadRoute()
         observeStops()
+        observeKpiValues()
+        observeTags()
     }
 
     private fun loadRoute() {
@@ -119,6 +134,29 @@ class RouteDetailViewModel @Inject constructor(
 
     // markStopVisited eliminado — el marcado solo ocurre al guardar el formulario de visita
 
+    private fun observeKpiValues() {
+        viewModelScope.launch {
+            _baseStops.flatMapLatest { stops ->
+                val uids = stops.map { it.uid }
+                if (uids.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList())
+                else kpiValueDao.observeByStops(uids)
+            }.collect { kpiList ->
+                val byStop = kpiList
+                    .groupBy { it.stopUid }
+                    .mapValues { (_, vals) -> vals.associate { it.kpiId to it.valueText } }
+                _ui.update { it.copy(kpiByStop = byStop) }
+            }
+        }
+    }
+
+    private fun observeTags() {
+        viewModelScope.launch {
+            prefsRepo.prefs.collect { prefs ->
+                _ui.update { it.copy(stopTags = prefs.stopTags) }
+            }
+        }
+    }
+
     fun clearError() = _ui.update { it.copy(error = null) }
 
     // ── Haversine en km ───────────────────────────────────────
@@ -130,4 +168,5 @@ class RouteDetailViewModel @Inject constructor(
         return r * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 }
+
 

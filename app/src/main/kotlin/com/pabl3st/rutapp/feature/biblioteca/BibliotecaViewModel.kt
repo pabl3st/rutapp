@@ -8,7 +8,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,17 +26,20 @@ enum class BibliotecaTab(val label: String, val icon: ImageVector) {
 }
 
 data class BibliotecaUiState(
-    val tab: BibliotecaTab         = BibliotecaTab.ALL,
-    val query: String              = "",
+    val tab: BibliotecaTab              = BibliotecaTab.ALL,
+    val query: String                   = "",
     val filteredStops: List<StopEntity> = emptyList(),
-    val isLoading: Boolean         = true,
+    val isLoading: Boolean              = true,
+    // Solo tags con condición ALWAYS o de estado estático (no de jornada)
+    val stopTags: List<StopTagConfig>   = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class BibliotecaViewModel @Inject constructor(
-    private val stopRepo: StopRepository,
-    private val session:  SessionManager,
+    private val stopRepo:  StopRepository,
+    private val prefsRepo: UserPrefsRepository,
+    private val session:   SessionManager,
 ) : ViewModel() {
 
     private val _tab   = MutableStateFlow(BibliotecaTab.ALL)
@@ -44,6 +49,7 @@ class BibliotecaViewModel @Inject constructor(
     val ui: StateFlow<BibliotecaUiState> = _ui.asStateFlow()
 
     init {
+        observeTags()
         viewModelScope.launch {
             combine(_tab, _query.debounce(200)) { tab, query -> tab to query }
                 .flatMapLatest { (tab, query) ->
@@ -68,7 +74,24 @@ class BibliotecaViewModel @Inject constructor(
         }
     }
 
+    private fun observeTags() {
+        viewModelScope.launch {
+            prefsRepo.prefs.collect { prefs ->
+                // Biblioteca solo muestra tags con condición ALWAYS, accountStatus implícito,
+                // o de estado estático — no tags de jornada (PDV_OPEN/CLOSED, RESULT_IS, KPI_*)
+                val staticConditions = setOf(
+                    com.pabl3st.rutapp.data.local.entity.TagCondition.ALWAYS,
+                    com.pabl3st.rutapp.data.local.entity.TagCondition.STATUS_DONE,
+                    com.pabl3st.rutapp.data.local.entity.TagCondition.STATUS_PENDING,
+                    com.pabl3st.rutapp.data.local.entity.TagCondition.DAYS_SINCE_VISIT,
+                )
+                _ui.update { it.copy(stopTags = prefs.stopTags.filter { t -> t.condition in staticConditions }) }
+            }
+        }
+    }
+
     fun onTabChange(tab: BibliotecaTab) { _tab.value = tab }
     fun onQueryChange(q: String)        { _query.value = q }
 }
+
 

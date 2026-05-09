@@ -20,6 +20,11 @@ import com.pabl3st.rutapp.core.location.LocationPermissionState
 import com.pabl3st.rutapp.core.location.locationPermissionState
 import com.pabl3st.rutapp.core.location.rememberLocationPermissionLauncher
 import com.pabl3st.rutapp.core.map.StopMapMarker
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.TagCondition
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.graphics.Color
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 
@@ -161,6 +166,7 @@ fun GlobalMapScreen(
                     items(ui.visibleStops, key = { it.uid }) { stop ->
                         GlobalStopCard(
                             stop             = stop,
+                            stopTags         = ui.stopTags,
                             onNavigateToStop = { onNavigateToStop(stop.uid) },
                         )
                     }
@@ -348,13 +354,25 @@ private fun EmptyStopsMessage(
 
 // ── Card de stop en lista global ──────────────────────────────
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun GlobalStopCard(
     stop:             StopMapMarker,
+    stopTags:         List<StopTagConfig> = emptyList(),
     onNavigateToStop: () -> Unit,
 ) {
-    val isDone    = stop.status == "done"
+    val isDone     = stop.status == "done"
     val isVisiting = stop.status == "visiting"
-    val hasGps    = stop.latLng.lat != 0.0 && stop.latLng.lng != 0.0
+    val hasGps     = stop.latLng.lat != 0.0 && stop.latLng.lng != 0.0
+
+    // Tags evaluables desde StopMapMarker (solo condiciones de status)
+    val activeTags = stopTags.filter { tag ->
+        when (tag.condition) {
+            TagCondition.ALWAYS          -> true
+            TagCondition.STATUS_DONE     -> isDone
+            TagCondition.STATUS_PENDING  -> !isDone && !isVisiting
+            else                         -> false
+        } && tag.enabled
+    }
 
     val statusIcon = when (stop.status) {
         "done"     -> Icons.Default.CheckCircle
@@ -372,62 +390,58 @@ private fun GlobalStopCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors   = when {
-            isVisiting -> CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-            else -> CardDefaults.cardColors()
+            isVisiting -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            else       -> CardDefaults.cardColors()
         },
         onClick  = onNavigateToStop,
     ) {
-        Row(
-            modifier          = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Estado
-            Icon(
-                imageVector        = statusIcon,
-                contentDescription = stop.status,
-                modifier           = Modifier.size(20.dp),
-                tint               = statusColor,
-            )
-            Spacer(Modifier.width(Spacing.md))
-
-            // Nombre + código externo
-            Column(modifier = Modifier.weight(1f)) {
-                stop.externalId?.let {
+        Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(statusIcon, stop.status, Modifier.size(20.dp), tint = statusColor)
+                Spacer(Modifier.width(Spacing.md))
+                Column(modifier = Modifier.weight(1f)) {
+                    stop.externalId?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
                     Text(
-                        text  = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        stop.name, style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                                else MaterialTheme.colorScheme.onSurface,
                     )
                 }
-                Text(
-                    text     = stop.name,
-                    style    = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color    = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
-                               else MaterialTheme.colorScheme.onSurface,
-                )
-            }
-
-            Spacer(Modifier.width(Spacing.sm))
-
-            // Distancia + indicador GPS
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text  = stop.distanceLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (hasGps) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error,
-                )
-                if (!hasGps) {
-                    Icon(
-                        imageVector        = Icons.Default.LocationOff,
-                        contentDescription = "Sin GPS",
-                        modifier           = Modifier.size(12.dp),
-                        tint               = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                Spacer(Modifier.width(Spacing.sm))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        stop.distanceLabel, style = MaterialTheme.typography.labelSmall,
+                        color = if (hasGps) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error,
                     )
+                    if (!hasGps) Icon(Icons.Default.LocationOff, "Sin GPS",
+                        Modifier.size(12.dp), tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
+                }
+            }
+            // Tags de estado (compactos, solo si hay)
+            if (activeTags.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement   = Arrangement.spacedBy(4.dp),
+                ) {
+                    activeTags.forEach { tag ->
+                        val bg = runCatching {
+                            Color(android.graphics.Color.parseColor(tag.colorHex))
+                        }.getOrDefault(Color.LightGray)
+                        val fg = runCatching {
+                            Color(android.graphics.Color.parseColor(tag.textColorHex))
+                        }.getOrDefault(Color.Black)
+                        Surface(shape = MaterialTheme.shapes.extraSmall, color = bg) {
+                            Text(tag.name, style = MaterialTheme.typography.labelSmall,
+                                color = fg,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    }
                 }
             }
         }
@@ -449,3 +463,4 @@ private fun rememberSnackbarHostState(
     }
     return host
 }
+

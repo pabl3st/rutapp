@@ -16,6 +16,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.evaluateTag
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun BibliotecaScreen(
@@ -106,7 +111,7 @@ fun BibliotecaScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(ui.filteredStops, key = { it.uid }) { stop ->
-                        BibliotecaStopCard(stop = stop, onClick = { onStopClick(stop.uid) })
+                        BibliotecaStopCard(stop = stop, stopTags = ui.stopTags, onClick = { onStopClick(stop.uid) })
                     }
                 }
             }
@@ -115,50 +120,91 @@ fun BibliotecaScreen(
 }
 
 @Composable
-private fun BibliotecaStopCard(stop: StopEntity, onClick: () -> Unit) {
+@OptIn(ExperimentalLayoutApi::class)
+private fun BibliotecaStopCard(
+    stop:     StopEntity,
+    stopTags: List<StopTagConfig> = emptyList(),
+    onClick:  () -> Unit,
+) {
+    // Biblioteca: solo tags estáticos (ALWAYS, STATUS, DAYS_SINCE_VISIT)
+    // No se pasan kpiValues — los tags de KPI no aplican aquí
+    val activeTags = stopTags.filter { evaluateTag(it, stop, emptyMap()) }
+
+    val hasGps    = stop.lat != null && stop.lng != null
+    val isOrphan  = false // ya filtrado por la pestaña — info visual extra
+
     Card(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
-        Row(
-            modifier          = Modifier.padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val hasGps = stop.lat != null && stop.lng != null
-            Surface(
-                shape    = MaterialTheme.shapes.small,
-                color    = if (hasGps) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = if (hasGps) Icons.Default.GpsFixed else Icons.Default.GpsOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint     = if (hasGps) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
-                    )
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Indicador GPS
+                Surface(
+                    shape    = MaterialTheme.shapes.small,
+                    color    = if (hasGps) MaterialTheme.colorScheme.primaryContainer
+                               else MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector        = if (hasGps) Icons.Default.GpsFixed else Icons.Default.GpsOff,
+                            contentDescription = null,
+                            modifier           = Modifier.size(18.dp),
+                            tint               = if (hasGps) MaterialTheme.colorScheme.onPrimaryContainer
+                                                 else MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(Spacing.md))
+                Column(Modifier.weight(1f)) {
+                    stop.externalId?.let {
+                        Text(it, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                    Text(stop.name, style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    stop.address?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                // Prioridad
+                val pColor = when (stop.priority) {
+                    1    -> MaterialTheme.colorScheme.error
+                    2    -> MaterialTheme.colorScheme.tertiary
+                    3    -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                Surface(shape = MaterialTheme.shapes.extraSmall, color = pColor.copy(alpha = 0.15f)) {
+                    Text("P${stop.priority}", style = MaterialTheme.typography.labelSmall,
+                        color = pColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+                Icon(Icons.Default.ChevronRight, null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            }
+
+            // Tags estáticos — solo si hay alguno activo
+            if (activeTags.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement   = Arrangement.spacedBy(4.dp),
+                ) {
+                    activeTags.forEach { tag ->
+                        val bg = runCatching {
+                            Color(android.graphics.Color.parseColor(tag.colorHex))
+                        }.getOrDefault(Color.LightGray)
+                        val fg = runCatching {
+                            Color(android.graphics.Color.parseColor(tag.textColorHex))
+                        }.getOrDefault(Color.Black)
+                        Surface(shape = MaterialTheme.shapes.extraSmall, color = bg) {
+                            Text(tag.name, style = MaterialTheme.typography.labelSmall,
+                                color = fg,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    }
                 }
             }
-            Spacer(Modifier.width(Spacing.md))
-            Column(Modifier.weight(1f)) {
-                stop.externalId?.let {
-                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                }
-                Text(stop.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                stop.address?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            val pColor = when (stop.priority) {
-                1 -> MaterialTheme.colorScheme.error
-                2 -> MaterialTheme.colorScheme.tertiary
-                3 -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            }
-            Surface(shape = MaterialTheme.shapes.extraSmall, color = pColor.copy(alpha = 0.15f)) {
-                Text("P${stop.priority}", style = MaterialTheme.typography.labelSmall, color = pColor,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-            }
-            Icon(Icons.Default.ChevronRight, null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }
+
