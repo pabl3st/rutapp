@@ -80,6 +80,8 @@ data class RouteCalendarEntry(
     val stopCount:      Int,
     /** Todas las fechas de visita programadas para esta ruta en el mes */
     val scheduledDates: List<LocalDate> = emptyList(),
+    /** true si las fechas vienen de la hoja CALENDARIO del XLS importado */
+    val datesFromImport: Boolean = false,
 )
 
 // ── KPI report de una visita histórica ───────────────────────
@@ -136,7 +138,8 @@ data class ImportarUiState(
     val calendarEntries: List<RouteCalendarEntry>    = emptyList(),
     val selectedMonth:  java.time.YearMonth             = java.time.YearMonth.now(),
     // Paso 5 — KPI reports
-    val hasKpiSheet:    Boolean                      = false,   // el fichero tiene hoja CALENDARIO o CSV_CALENDARIO
+    val hasKpiSheet:       Boolean                   = false,   // el fichero tiene hoja KPI
+    val hasCalendarSheet:  Boolean                   = false,   // el fichero tiene hoja CALENDARIO con fechas de visita
     val kpiHeaders:     List<String>                 = emptyList(),
     val kpiMapping:     Map<KpiField, String?>       = KpiField.entries.associateWith { null },
     val kpiMappingError: String?                     = null,
@@ -210,6 +213,7 @@ class ImportarViewModel @Inject constructor(
                         // Calendar sheet: pre-leer fechas si existe
                         if (calSheet != null) {
                             _calRows = calSheet.rows
+                            _ui.update { it.copy(hasCalendarSheet = calSheet.rows.isNotEmpty()) }
                         }
                         stopSheet
                     } else {
@@ -388,20 +392,22 @@ class ImportarViewModel @Inject constructor(
             val allDates    = datesForRoute ?: listOfNotNull(preloadedDates[idx])
 
             entries.add(RouteCalendarEntry(
-                clusterIndex   = idx,
-                routeName      = baseName,
-                date           = primaryDate,
-                stopCount      = stops.size,
-                scheduledDates = allDates,
+                clusterIndex        = idx,
+                routeName           = baseName,
+                date                = primaryDate,
+                stopCount           = stops.size,
+                scheduledDates      = allDates,
+                datesFromImport     = datesForRoute != null,  // true = fechas vienen del XLS
             ))
         }
 
         // Preparar KPI mapping si hay hoja de KPIs
         val kpiAutoMap = if (_ui.value.kpiHeaders.isNotEmpty()) autoMapKpi(_ui.value.kpiHeaders) else emptyMap()
         _ui.update { it.copy(
-            calendarEntries = entries,
-            kpiMapping      = kpiAutoMap,
-            step            = ImportStep.CALENDAR,
+            calendarEntries    = entries,
+            kpiMapping         = kpiAutoMap,
+            step               = ImportStep.CALENDAR,
+            hasCalendarSheet   = _calRows.isNotEmpty(),
         )}
     }
 
@@ -502,8 +508,9 @@ class ImportarViewModel @Inject constructor(
                         val date  = entry.date?.toString() ?: LocalDate.now().toString()
 
                         // scheduledDates como JSON array para la ruta
-                        val scheduledJson = if (entry.scheduledDates.size > 1) {
-                            "[${entry.scheduledDates.joinToString(",") { ""$it"" }}]"
+                        val scheduledJson: String? = if (entry.scheduledDates.size > 1) {
+                            val datesStr = entry.scheduledDates.joinToString(",") { d -> "\"$d\"" }
+                            "[$datesStr]"
                         } else null
 
                         val route = routeRepo.createRoute(
@@ -674,6 +681,7 @@ class ImportarViewModel @Inject constructor(
     fun getRawRows(): List<Map<String, String>> = _rawRows
     fun reset() { _ui.value = ImportarUiState(); _rawRows = emptyList(); _kpiRawRows = emptyList() }
 }
+
 
 
 

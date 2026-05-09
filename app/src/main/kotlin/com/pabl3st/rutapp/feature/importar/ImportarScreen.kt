@@ -648,37 +648,53 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
         contentPadding      = PaddingValues(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // ── Selector de mes ──────────────────────────────────
+        // ── Header: fechas del import o selector de mes ─────
         item {
-            Text("Mes de importación", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(Spacing.xs))
-            Text(
-                "Las fechas de visita se distribuyen desde el primer día laborable de la semana de hoy en el mes elegido.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(Spacing.sm))
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.minusMonths(1)) }) {
-                    Icon(Icons.Default.ChevronLeft, null)
+            if (ui.hasCalendarSheet) {
+                // Hay hoja CALENDARIO en el XLS — mostrar info, no selector de mes
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarMonth, null,
+                        Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Fechas del fichero importado",
+                        style = MaterialTheme.typography.titleSmall)
                 }
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    ui.selectedMonth.atDay(1).format(fmtMonth).replaceFirstChar { it.uppercase() },
-                    style    = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.widthIn(min = 160.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    "Las fechas de visita vienen del fichero. Puedes ajustar cada una si es necesario.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.plusMonths(1)) }) {
-                    Icon(Icons.Default.ChevronRight, null)
+            } else {
+                // Sin hoja CALENDARIO — mostrar selector de mes manual
+                Text("Mes de importación", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "No se encontraron fechas en el fichero. Elige el mes y asigna las fechas manualmente.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.minusMonths(1)) }) {
+                        Icon(Icons.Default.ChevronLeft, null)
+                    }
+                    Text(
+                        ui.selectedMonth.atDay(1).format(fmtMonth).replaceFirstChar { it.uppercase() },
+                        style     = MaterialTheme.typography.titleMedium,
+                        modifier  = Modifier.widthIn(min = 160.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                    IconButton(onClick = { vm.onMonthChange(ui.selectedMonth.plusMonths(1)) }) {
+                        Icon(Icons.Default.ChevronRight, null)
+                    }
                 }
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
-            Text("Rutas a importar", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(2.dp))
             Text(
                 "${ui.calendarEntries.size} rutas · ${ui.calendarEntries.sumOf { it.stopCount }} paradas totales",
                 style = MaterialTheme.typography.bodySmall,
@@ -727,11 +743,42 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
                     // Mostrar las fechas de visita programadas si hay más de una
                     if (entry.scheduledDates.size > 1) {
                         Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Visitas: " + entry.scheduledDates.joinToString(" · ") { it.format(fmtDay) },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            if (entry.datesFromImport) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                ) {
+                                    Text(
+                                        "Del fichero",
+                                        style    = MaterialTheme.typography.labelSmall,
+                                        color    = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                            Text(
+                                entry.scheduledDates.joinToString(" · ") { it.format(fmtDay) },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    } else if (entry.datesFromImport && entry.scheduledDates.size == 1) {
+                        Spacer(Modifier.height(2.dp))
+                        Surface(
+                            shape = MaterialTheme.shapes.extraSmall,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                        ) {
+                            Text(
+                                "Del fichero",
+                                style    = MaterialTheme.typography.labelSmall,
+                                color    = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -920,4 +967,5 @@ private fun StepDone(ui: ImportarUiState, onDone: () -> Unit) {
         }
     }
 }
+
 
