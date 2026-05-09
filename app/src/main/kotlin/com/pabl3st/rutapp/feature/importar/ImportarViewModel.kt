@@ -328,7 +328,7 @@ class ImportarViewModel @Inject constructor(
         _ui.update { it.copy(
             previews     = previews,
             clusters     = clusters,
-            clusterNames = defaultClusterNames(clusters.size, _ui.value.clusterParams.startDate),
+            clusterNames = defaultClusterNames(clusters.size, clusters),
             step         = ImportStep.PREVIEW,
         )}
     }
@@ -340,7 +340,7 @@ class ImportarViewModel @Inject constructor(
         _ui.update { it.copy(
             clusterParams = params,
             clusters      = clusters,
-            clusterNames  = defaultClusterNames(clusters.size, params.startDate),
+            clusterNames  = defaultClusterNames(clusters.size, clusters),
         )}
     }
 
@@ -611,17 +611,24 @@ class ImportarViewModel @Inject constructor(
             GeoCluster.Stop(i, p.name, p.lat!!, p.lng!!)
         }
         if (geoStops.isEmpty()) return if (previews.isEmpty()) emptyList() else listOf(previews)
-        val result   = GeoCluster.cluster(geoStops, params.strategy, params.fixedK, params.radiusKm)
+        val result    = GeoCluster.cluster(geoStops, params.strategy, params.fixedK, params.radiusKm)
         val clustered = result.clusters.map { group -> group.map { gs -> previews[gs.index] } }
         val withoutGps = previews.filter { !it.hasGps }
         return if (withoutGps.isEmpty()) clustered else clustered + listOf(withoutGps)
     }
 
-    private fun defaultClusterNames(k: Int, startDate: LocalDate): List<String> {
-        val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    /**
+     * Genera nombres para los clusters:
+     * - Si el cluster tiene paradas con routeName (del CSV) → usa ese nombre directamente.
+     * - Si es un cluster geográfico (sin routeName) → "Ruta N".
+     * La fecha NO se embebe en el nombre — va en RouteCalendarEntry.date.
+     */
+    private fun defaultClusterNames(k: Int, clusters: List<List<StopPreview>>): List<String> {
         return (0 until k).map { i ->
-            val date = startDate.plusDays(i.toLong())
-            "Ruta ${i + 1} — ${date.format(fmt)}"
+            val routeNameFromCsv = clusters.getOrNull(i)
+                ?.firstOrNull { it.routeName != null }
+                ?.routeName
+            routeNameFromCsv?.trim()?.ifBlank { null } ?: "Ruta ${i + 1}"
         }
     }
 
@@ -630,4 +637,5 @@ class ImportarViewModel @Inject constructor(
     fun getRawRows(): List<Map<String, String>> = _rawRows
     fun reset() { _ui.value = ImportarUiState(); _rawRows = emptyList(); _kpiRawRows = emptyList() }
 }
+
 
