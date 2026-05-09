@@ -8,12 +8,16 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.TagCondition
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,6 +38,16 @@ data class UserPrefs(
     val autoSync:             Boolean = true,
     val jornadaReminder:      Boolean = false,
     val jornadaReminderHour:  Int     = 9,
+
+    // ── Tags configurables de stops ──────────────────────────
+    // Lista de tags personalizados que el owner define.
+    // Se persiste serializado a JSON en DataStore.
+    val stopTags:             List<StopTagConfig> = emptyList(),
+
+    // ── Umbral de KPI para alertas ───────────────────────────
+    // El owner puede definir un umbral numérico genérico (ej: activaciones mínimas).
+    // Se usa en condiciones KPI_ABOVE / KPI_BELOW de los tags.
+    val kpiThreshold:         Double = 0.0,
 )
 
 private val Context.userPrefsStore: DataStore<Preferences>
@@ -57,6 +71,8 @@ class UserPrefsRepository @Inject constructor(
         val AUTO_SYNC         = booleanPreferencesKey("auto_sync")
         val JORNADA_REMINDER  = booleanPreferencesKey("jornada_reminder")
         val JORNADA_HOUR      = intPreferencesKey("jornada_reminder_hour")
+        val STOP_TAGS         = stringPreferencesKey("stop_tags_json")   // JSON array
+        val KPI_THRESHOLD     = stringPreferencesKey("kpi_threshold")    // Double as string
     }
 
     // ── Flow reactivo — la UI observa esto ───────────────────
@@ -72,8 +88,50 @@ class UserPrefsRepository @Inject constructor(
             autoSync            = p[K.AUTO_SYNC]        ?: true,
             jornadaReminder     = p[K.JORNADA_REMINDER] ?: false,
             jornadaReminderHour = p[K.JORNADA_HOUR]     ?: 9,
+            stopTags            = deserializeTags(p[K.STOP_TAGS] ?: "[]"),
+            kpiThreshold        = p[K.KPI_THRESHOLD]?.toDoubleOrNull() ?: 0.0,
         )
     }
+
+    // ── Serialización de tags ─────────────────────────────────
+    private fun serializeTags(tags: List<StopTagConfig>): String = runCatching {
+        val arr = JSONArray()
+        tags.forEach { t ->
+            arr.put(JSONObject().apply {
+                put("id",                t.id)
+                put("name",              t.name)
+                put("icon",              t.icon)
+                put("colorHex",          t.colorHex)
+                put("textColorHex",      t.textColorHex)
+                put("condition",         t.condition.name)
+                put("conditionValue",    t.conditionValue ?: JSONObject.NULL)
+                put("conditionKpiId",    t.conditionKpiId ?: JSONObject.NULL)
+                put("conditionThreshold",t.conditionThreshold)
+                put("enabled",           t.enabled)
+            })
+        }
+        arr.toString()
+    }.getOrDefault("[]")
+
+    private fun deserializeTags(json: String): List<StopTagConfig> = runCatching {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            StopTagConfig(
+                id                 = o.getString("id"),
+                name               = o.getString("name"),
+                icon               = o.optString("icon", "Label"),
+                colorHex           = o.optString("colorHex", "#e2e8f0"),
+                textColorHex       = o.optString("textColorHex", "#475569"),
+                condition          = runCatching { TagCondition.valueOf(o.getString("condition")) }
+                                         .getOrDefault(TagCondition.ALWAYS),
+                conditionValue     = o.optString("conditionValue").ifBlank { null },
+                conditionKpiId     = o.optString("conditionKpiId").ifBlank { null },
+                conditionThreshold = o.optDouble("conditionThreshold", 0.0),
+                enabled            = o.optBoolean("enabled", true),
+            )
+        }
+    }.getOrDefault(emptyList())
 
     // ── Actualizar una preferencia y sincronizar ──────────────
     // Uso: prefsRepo.update { copy(pushEnabled = false) }
@@ -97,6 +155,8 @@ class UserPrefsRepository @Inject constructor(
             store[K.AUTO_SYNC]        = p.autoSync
             store[K.JORNADA_REMINDER] = p.jornadaReminder
             store[K.JORNADA_HOUR]     = p.jornadaReminderHour
+            store[K.STOP_TAGS]        = serializeTags(p.stopTags)
+            store[K.KPI_THRESHOLD]    = p.kpiThreshold.toString()
         }
     }
 
@@ -126,3 +186,4 @@ class UserPrefsRepository @Inject constructor(
         // Fallo silencioso — DataStore es la fuente de verdad
     }
 }
+
