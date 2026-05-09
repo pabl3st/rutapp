@@ -296,6 +296,50 @@ data class BaseResponse(
 
 // ── Retrofit interface ───────────────────────────────────────
 
+
+// ── God Dashboard DTOs ────────────────────────────────────────
+data class GodStatsResponse(
+    @Json(name = "success")        val success:       Boolean,
+    @Json(name = "total_accounts") val totalAccounts: Int     = 0,
+    @Json(name = "total_users")    val totalUsers:    Int     = 0,
+    @Json(name = "total_routes")   val totalRoutes:   Int     = 0,
+    @Json(name = "total_stops")    val totalStops:    Int     = 0,
+    @Json(name = "total_reports")  val totalReports:  Int     = 0,
+    @Json(name = "top_accounts")   val topAccounts:   List<GodAccountDto>  = emptyList(),
+    @Json(name = "recent_users")   val recentUsers:   List<GodUserDto>     = emptyList(),
+)
+
+data class GodAccountDto(
+    @Json(name = "id")            val id:           Int,
+    @Json(name = "name")          val name:         String,
+    @Json(name = "type")          val type:         String,
+    @Json(name = "user_count")    val userCount:    Int     = 0,
+    @Json(name = "route_count")   val routeCount:   Int     = 0,
+    @Json(name = "last_activity") val lastActivity: String? = null,
+)
+
+data class GodUserDto(
+    @Json(name = "id")           val id:          Int,
+    @Json(name = "username")     val username:    String,
+    @Json(name = "display_name") val displayName: String,
+    @Json(name = "email")        val email:       String,
+    @Json(name = "role")         val role:        String,
+    @Json(name = "is_active")    val isActive:    Boolean = true,
+    @Json(name = "created_at")   val createdAt:   String,
+    @Json(name = "account_id")   val accountId:   Int     = 0,
+    @Json(name = "account_name") val accountName: String  = "",
+)
+
+data class GodUsersResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "users")   val users:   List<GodUserDto> = emptyList(),
+)
+
+data class GodSetRoleRequest(
+    @Json(name = "user_id") val userId: Int,
+    @Json(name = "role")    val role:   String,
+)
+
 interface RutasApiService {
 
     @POST(API_PATH)
@@ -405,4 +449,26 @@ interface RutasApiService {
     ): Response<AdminActionResponse>
 
 
+    // ── God Dashboard ─────────────────────────────────────────
+    @GET("api.php")
+    suspend fun godStats(
+        @Header("Authorization") token: String,
+        @Query("action") action: String = "god_stats",
+    ): Response<GodStatsResponse>
+
+    @POST("api.php")
+    suspend fun godUsersAll(
+        @Header("Authorization") token: String,
+        @Query("action") action: String = "god_users_all",
+        @Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap(),
+    ): Response<GodUsersResponse>
+
+    @POST("api.php")
+    suspend fun godSetRole(
+        @Header("Authorization") token: String,
+        @Query("action") action: String = "god_set_role",
+        @Body body: GodSetRoleRequest,
+    ): Response<GenericResponse>
+
 }
+

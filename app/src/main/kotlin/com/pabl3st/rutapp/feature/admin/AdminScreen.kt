@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
+import com.pabl3st.rutapp.BuildConfig
 import com.pabl3st.rutapp.data.network.AccountUserDto
 
 @Composable
@@ -166,8 +167,8 @@ fun AdminScreen(
                 Spacer(Modifier.height(Spacing.sm))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(Spacing.lg)) {
-                        AdminInfoRow(Icons.Default.Android, "Versión", "1.0.0-s14")
-                        AdminInfoRow(Icons.Default.Storage, "BD Local", "Room v6")
+                        AdminInfoRow(Icons.Default.Android, "Versión", BuildConfig.VERSION_NAME)
+                        AdminInfoRow(Icons.Default.Storage, "BD Local", "Room v7")
                         AdminInfoRow(Icons.Default.Cloud,   "API",      "v1.1.0")
                         AdminInfoRow(Icons.Default.Map,     "Mapa",     "MapLibre 11.5.1")
                     }
@@ -371,3 +372,4 @@ private fun AdminStatCard(modifier: Modifier = Modifier, icon: ImageVector, valu
         }
     }
 }
+

@@ -31,8 +31,15 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
+    // viewer: solo Perfil — sin acceso a rutas, mapa ni KPIs
+    // god: solo Perfil (su dashboard está accesible desde Perfil)
+    val visibleItems = when (userRole) {
+        "viewer" -> NAV_ITEMS.filter { it.screen == Screen.Perfil }
+        else     -> NAV_ITEMS
+    }
+
     NavigationBar {
-        NAV_ITEMS.forEach { item ->
+        visibleItems.forEach { item ->
             val selected = currentRoute == item.screen.route
             NavigationBarItem(
                 selected     = selected,
@@ -56,3 +63,4 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
         }
     }
 }
+

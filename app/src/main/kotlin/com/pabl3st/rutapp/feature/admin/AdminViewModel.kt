@@ -52,14 +52,14 @@ class AdminViewModel @Inject constructor(
             userRole      = session.userRole,
             accountName   = session.accountName,
             accountType   = session.accountType,
-            canManageUsers = adminRepo.isOwnerOrAdmin,
+            canManageUsers = adminRepo.canManageUsers && !adminRepo.isGod, // god tiene su propio dashboard
         )
     )
     val ui: StateFlow<AdminUiState> = _ui.asStateFlow()
 
     init {
         loadStats()
-        if (adminRepo.isOwnerOrAdmin) loadUsers()
+        if (adminRepo.canManageUsers && !adminRepo.isGod) loadUsers()
     }
 
     private fun loadStats() {
@@ -138,3 +138,4 @@ class AdminViewModel @Inject constructor(
     fun clearError()    = _ui.update { it.copy(error = null) }
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
 }
+

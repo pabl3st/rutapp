@@ -9,6 +9,17 @@ import com.pabl3st.rutapp.data.session.SessionManager
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Nivel numérico de autoridad — cuanto mayor, más permisos */
+fun roleLevelOf(role: String): Int = when (role) {
+    "viewer"  -> 1
+    "agent"   -> 2
+    "manager" -> 3
+    "admin"   -> 4
+    "owner"   -> 5
+    "god"     -> 6
+    else      -> 0
+}
+
 @Singleton
 class AdminRepository @Inject constructor(
     private val api:     RutasApiService,
@@ -16,6 +27,12 @@ class AdminRepository @Inject constructor(
 ) {
     val isOwnerOrAdmin: Boolean
         get() = session.userRole in setOf("owner", "admin")
+
+    val isGod: Boolean
+        get() = session.userRole == "god"
+
+    val canManageUsers: Boolean
+        get() = session.userRole in setOf("god", "owner", "admin")
 
     val isOwner: Boolean
         get() = session.userRole == "owner"
@@ -75,11 +92,23 @@ class AdminRepository @Inject constructor(
 
     val availableRoles: List<String>
         get() = when {
-            session.userRole == "god" -> listOf("owner", "admin", "manager", "agent", "viewer")
-            isOwner                   -> listOf("admin", "manager", "agent", "viewer")
-            isOwnerOrAdmin            -> listOf("manager", "agent", "viewer")
-            else                      -> emptyList()
+            isGod          -> listOf("god", "owner", "admin", "manager", "agent", "viewer")
+            isOwner        -> listOf("admin", "manager", "agent", "viewer")
+            isOwnerOrAdmin -> listOf("manager", "agent", "viewer")
+            else           -> emptyList()
         }
+
+    suspend fun godSetRole(targetUserId: Int, role: String): AuthResult<String> = runCatching {
+        val resp = api.godSetRole(
+            token = "Bearer \${session.token}",
+            body  = com.pabl3st.rutapp.data.network.GodSetRoleRequest(userId = targetUserId, role = role),
+        )
+        if (resp.isSuccessful) {
+            val body = resp.body()
+            if (body?.success == true) AuthResult.Success("Rol actualizado")
+            else AuthResult.Error(body?.message ?: "Error")
+        } else AuthResult.Error("HTTP \${resp.code()}")
+    }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
     fun roleLabel(role: String) = when (role) {
         "god"     -> "Superadmin"
@@ -91,3 +120,4 @@ class AdminRepository @Inject constructor(
         else      -> role
     }
 }
+

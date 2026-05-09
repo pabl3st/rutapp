@@ -1051,5 +1051,113 @@ if ($action === 'update_user_prefs') {
     ok(['updated' => true]);
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// GOD DASHBOARD — solo accesible por role=god
+// ══════════════════════════════════════════════════════════════
+
+// god_stats — estadísticas globales del sistema
+if ($action === 'god_stats') {
+    $sess = requireAuth();
+    if ($sess['role'] !== 'god') err('Solo god puede acceder a estadísticas globales', 403);
+
+    $totalAccounts = db()->query('SELECT COUNT(*) FROM accounts')->fetchColumn();
+    $totalUsers    = db()->query('SELECT COUNT(*) FROM users WHERE is_active=1')->fetchColumn();
+    $totalRoutes   = db()->query('SELECT COUNT(*) FROM routes WHERE deleted_at IS NULL')->fetchColumn();
+    $totalStops    = db()->query('SELECT COUNT(*) FROM stops WHERE deleted_at IS NULL')->fetchColumn();
+    $totalReports  = db()->query('SELECT COUNT(*) FROM kpi_values')->fetchColumn();
+
+    // Accounts más activos (últimos 30 días)
+    $topAccounts = db()->query(
+        'SELECT a.id, a.name, a.type,
+                COUNT(DISTINCT u.id) AS user_count,
+                COUNT(DISTINCT r.id) AS route_count,
+                MAX(s.updated_at)    AS last_activity
+         FROM accounts a
+         LEFT JOIN users  u ON u.account_id = a.id AND u.is_active = 1
+         LEFT JOIN routes r ON r.account_id = a.id AND r.deleted_at IS NULL
+         LEFT JOIN stops  s ON s.account_id = a.id AND s.updated_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY a.id
+         ORDER BY last_activity DESC
+         LIMIT 20'
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    // Usuarios recientes (últimos 7 días)
+    $recentUsers = db()->query(
+        'SELECT u.id, u.username, u.display_name, u.email, u.role, u.created_at,
+                a.name AS account_name
+         FROM users u
+         JOIN accounts a ON a.id = u.account_id
+         WHERE u.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+         ORDER BY u.created_at DESC
+         LIMIT 20'
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    apiLog($action, $sess['uid'], $sess['account_id']);
+    ok([
+        'total_accounts' => (int)$totalAccounts,
+        'total_users'    => (int)$totalUsers,
+        'total_routes'   => (int)$totalRoutes,
+        'total_stops'    => (int)$totalStops,
+        'total_reports'  => (int)$totalReports,
+        'top_accounts'   => $topAccounts,
+        'recent_users'   => $recentUsers,
+    ]);
+}
+
+// god_users_all — todos los usuarios del sistema con filtros
+if ($action === 'god_users_all') {
+    $sess = requireAuth();
+    if ($sess['role'] !== 'god') err('Solo god puede listar todos los usuarios', 403);
+
+    $accountId = isset($b['account_id']) ? (int)$b['account_id'] : null;
+    $search    = isset($b['search'])     ? '%' . san($b['search'], 100) . '%' : null;
+    $roleFilter = isset($b['role'])      ? san($b['role'], 20) : null;
+
+    $where = ['1=1'];
+    $params = [];
+
+    if ($accountId) { $where[] = 'u.account_id = ?'; $params[] = $accountId; }
+    if ($search)    { $where[] = '(u.username LIKE ? OR u.email LIKE ? OR u.display_name LIKE ?)'; $params = array_merge($params, [$search, $search, $search]); }
+    if ($roleFilter){ $where[] = 'u.role = ?'; $params[] = $roleFilter; }
+
+    $whereStr = implode(' AND ', $where);
+    $stmt = db()->prepare(
+        "SELECT u.id, u.username, u.display_name, u.email, u.role, u.is_active,
+                u.created_at, a.id AS account_id, a.name AS account_name
+         FROM users u
+         JOIN accounts a ON a.id = u.account_id
+         WHERE $whereStr
+         ORDER BY u.created_at DESC
+         LIMIT 100"
+    );
+    $stmt->execute($params);
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    apiLog($action, $sess['uid'], $sess['account_id']);
+    ok(['users' => $users]);
+}
+
+// god_set_role — god puede cambiar el rol de cualquier usuario
+if ($action === 'god_set_role') {
+    $sess = requireAuth();
+    if ($sess['role'] !== 'god') err('Solo god puede usar god_set_role', 403);
+
+    $targetId = (int)($b['user_id'] ?? 0);
+    $newRole  = san($b['role'] ?? '', 20);
+    $validRoles = ['god','owner','admin','manager','agent','viewer'];
+
+    if (!$targetId)                       err('user_id requerido');
+    if (!in_array($newRole, $validRoles)) err('Rol inválido');
+    if ($targetId === (int)$sess['uid'])  err('No puedes cambiar tu propio rol');
+
+    db()->prepare('UPDATE users SET role=?, updated_at=NOW() WHERE id=?')
+        ->execute([$newRole, $targetId]);
+
+    apiLog($action, $sess['uid'], $sess['account_id']);
+    ok(['updated' => true, 'user_id' => $targetId, 'new_role' => $newRole]);
+}
+
 err("Acción desconocida: {$action}", 404);
+
 

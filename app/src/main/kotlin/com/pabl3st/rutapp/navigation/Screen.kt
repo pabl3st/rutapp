@@ -24,4 +24,6 @@ sealed class Screen(val route: String) {
     object BusinessProfile : Screen("business-profile")
     object Biblioteca      : Screen("biblioteca")
     object Importar        : Screen("importar")
+    object GodDashboard    : Screen("god-dashboard")
 }
+
