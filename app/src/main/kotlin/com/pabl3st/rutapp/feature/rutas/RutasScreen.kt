@@ -50,7 +50,8 @@ fun RutasScreen(
                         )
                         Spacer(Modifier.width(12.dp))
                     }
-                    if (ui.userRole in setOf("owner", "admin", "manager")) {
+                    // Importar: cualquier usuario excepto viewer
+                    if (ui.userRole != "viewer") {
                         IconButton(onClick = onImport) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
                         }
@@ -59,11 +60,9 @@ fun RutasScreen(
             )
         },
         floatingActionButton = {
-            // Solo managers/admin/owner pueden crear rutas
-            if (ui.userRole in setOf("owner", "admin", "manager")) {
-                FloatingActionButton(onClick = vm::onShowCreateDialog) {
-                    Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
-                }
+            // Cualquier usuario puede crear sus propias rutas
+            FloatingActionButton(onClick = vm::onShowCreateDialog) {
+                Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -130,8 +129,6 @@ fun RutasScreen(
                             { Text(err, color = MaterialTheme.colorScheme.error) }
                         },
                     )
-                    // Fecha: usa la fecha del calendario cuando se asigne,
-                    // o hoy por defecto. No se solicita al crear.
                 }
             },
             confirmButton = {

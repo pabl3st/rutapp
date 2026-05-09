@@ -37,8 +37,6 @@ class RouteRepository @Inject constructor(
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
     // ── Roles con visibilidad ampliada ────────────────────────
-    // owner/admin/manager ven todas las rutas del account
-    // agent/viewer solo ven las suyas
     private val isManager: Boolean
         get() = session.userRole in listOf("owner", "admin", "manager", "god")
 
@@ -57,14 +55,26 @@ class RouteRepository @Inject constructor(
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
 
-    /** Quita la ruta del calendario marcándola como sin fecha asignada (usa fecha epoch).
-     *  La ruta sigue existiendo pero no aparece en ningún día del calendario. */
+    /** Desasigna la ruta del calendario — fecha se pone a 1970-01-01 */
     suspend fun unassignDate(uid: String) {
         val route = routeDao.getByUid(uid) ?: return
         val now   = java.time.Instant.now().toString()
         val updated = route.copy(
             dateAssigned = "1970-01-01",
             status       = "pending",
+            updatedAt    = now,
+            syncStatus   = "pending",
+        )
+        routeDao.upsert(updated)
+        enqueue("route", uid, "update", routeToMap(updated))
+    }
+
+    /** Asigna la ruta a una fecha concreta del calendario */
+    suspend fun assignDate(uid: String, dateStr: String) {
+        val route = routeDao.getByUid(uid) ?: return
+        val now   = java.time.Instant.now().toString()
+        val updated = route.copy(
+            dateAssigned = dateStr,
             updatedAt    = now,
             syncStatus   = "pending",
         )
@@ -97,12 +107,11 @@ class RouteRepository @Inject constructor(
     }
 
     // ── Delta sync desde servidor ──────────────────────────────
-    // Evitar llamadas duplicadas en menos de 10 segundos (doble init ViewModel + SyncWorker)
     private val lastFetchMs = AtomicLong(0L)
 
     suspend fun fetchDelta(): Result<Unit> = runCatching {
         val now = System.currentTimeMillis()
-        if (now - lastFetchMs.get() < 10_000L) return@runCatching  // cooldown 10s
+        if (now - lastFetchMs.get() < 10_000L) return@runCatching
         lastFetchMs.set(now)
         val token = session.token ?: return@runCatching
         val since = session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" }
@@ -164,6 +173,3 @@ class RouteRepository @Inject constructor(
         )
     }
 }
-
-
-

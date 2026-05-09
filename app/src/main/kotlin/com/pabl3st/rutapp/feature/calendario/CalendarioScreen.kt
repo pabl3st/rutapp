@@ -39,8 +39,17 @@ fun CalendarioScreen(
     vm: CalendarioViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHost = remember { SnackbarHostState() }
+
+    LaunchedEffect(ui.snackbar) {
+        ui.snackbar?.let {
+            snackbarHost.showSnackbar(it, duration = SnackbarDuration.Short)
+            vm.clearSnackbar()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text("Calendario") },
@@ -82,7 +91,6 @@ fun CalendarioScreen(
                     .replaceFirstChar { c -> c.uppercase() }
             } ?: "Sin selección"
 
-            // Festivo del día seleccionado
             val selectedHoliday = ui.selectedDay?.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 ?.let { ui.holidays[it] }
 
@@ -132,6 +140,15 @@ fun CalendarioScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        Spacer(Modifier.height(Spacing.sm))
+                        TextButton(onClick = {
+                            // Simular pulsación larga sobre el día seleccionado para abrir menú
+                            ui.selectedDay?.let { vm.onDayLongPress(it) }
+                        }) {
+                            Icon(Icons.Default.AddCircleOutline, null, Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Asignar ruta", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
 
@@ -151,11 +168,11 @@ fun CalendarioScreen(
     // ── Menú contextual pulsación larga ────────────────────
     if (ui.showDayMenu) {
         val dayLabel = ui.menuDay?.let {
-            it.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale("es")))
+            it.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es")))
                 .replaceFirstChar { c -> c.uppercase() }
         } ?: ""
         val hasRoute = ui.menuDay?.let {
-            ui.routesByDate[it.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)]?.isNotEmpty() == true
+            ui.routesByDate[it.format(DateTimeFormatter.ISO_LOCAL_DATE)]?.isNotEmpty() == true
         } == true
 
         AlertDialog(
@@ -163,24 +180,16 @@ fun CalendarioScreen(
             title = { Text(dayLabel, style = MaterialTheme.typography.titleSmall) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (!hasRoute) {
-                        TextButton(
-                            onClick  = { vm.dismissDayMenu() },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Default.AddCircleOutline, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Añadir ruta a este día")
-                        }
-                        TextButton(
-                            onClick  = vm::onMarkVacation,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Default.BeachAccess, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Marcar como vacaciones")
-                        }
-                    } else {
+                    // Siempre mostrar "Asignar ruta" — permite añadir más rutas al día
+                    TextButton(
+                        onClick  = vm::onShowRouteSelector,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Default.AddCircleOutline, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (hasRoute) "Añadir otra ruta a este día" else "Asignar ruta a este día")
+                    }
+                    if (hasRoute) {
                         TextButton(
                             onClick  = vm::onRemoveRoute,
                             modifier = Modifier.fillMaxWidth(),
@@ -189,20 +198,94 @@ fun CalendarioScreen(
                             Spacer(Modifier.width(8.dp))
                             Text("Quitar ruta de este día")
                         }
-                        TextButton(
-                            onClick  = { vm.dismissDayMenu() },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Default.SwapHoriz, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Cambiar por otra ruta")
-                        }
                     }
                 }
             },
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = vm::dismissDayMenu) { Text("Cerrar") }
+            },
+        )
+    }
+
+    // ── Selector de ruta para asignar al día ──────────────
+    if (ui.showRouteSelector) {
+        val dayLabel = ui.menuDay?.let {
+            it.format(DateTimeFormatter.ofPattern("d MMMM", Locale("es")))
+        } ?: ""
+
+        // Rutas sin fecha asignada o con fecha antigua (libres para asignar)
+        val assignableRoutes = ui.allRoutes.filter { route ->
+            // Mostrar rutas no asignadas hoy o sin fecha válida
+            val date = runCatching { LocalDate.parse(route.dateAssigned) }.getOrNull()
+            date == null || date.isBefore(LocalDate.now()) || route.dateAssigned == "1970-01-01"
+        }.ifEmpty { ui.allRoutes } // si todas tienen fecha, mostrar todas igualmente
+
+        AlertDialog(
+            onDismissRequest = vm::onDismissRouteSelector,
+            title = { Text("Asignar ruta al $dayLabel") },
+            text = {
+                if (assignableRoutes.isEmpty()) {
+                    Text(
+                        "No hay rutas disponibles. Crea una ruta primero desde la pantalla de Rutas.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(assignableRoutes, key = { it.uid }) { route ->
+                            Card(
+                                onClick   = { vm.onAssignRouteToDay(route) },
+                                modifier  = Modifier.fillMaxWidth(),
+                                colors    = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                            ) {
+                                Row(
+                                    modifier          = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Default.Route,
+                                        null,
+                                        Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            route.name,
+                                            style    = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        val currentDate = runCatching {
+                                            val d = LocalDate.parse(route.dateAssigned)
+                                            if (d.year < 2000) "Sin fecha" else route.dateAssigned
+                                        }.getOrDefault("Sin fecha")
+                                        Text(
+                                            "Actualmente: $currentDate",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = vm::onDismissRouteSelector) { Text("Cancelar") }
             },
         )
     }
@@ -259,7 +342,7 @@ private fun CalendarGrid(
     today:          LocalDate,
     selectedDay:    LocalDate?,
     routesByDate:   Map<String, List<RouteEntity>>,
-    holidays:       Map<String, com.pabl3st.rutapp.feature.calendario.PublicHoliday>,
+    holidays:       Map<String, PublicHoliday>,
     onDayClick:     (LocalDate) -> Unit,
     onDayLongPress: (LocalDate) -> Unit = {},
 ) {
@@ -322,7 +405,6 @@ private fun CalendarGrid(
                                         else        -> MaterialTheme.colorScheme.onSurface
                                     },
                                 )
-                                // Punto de ruta o festivo
                                 when {
                                     hasRoutes -> Box(
                                         modifier = Modifier.size(5.dp).clip(CircleShape).background(

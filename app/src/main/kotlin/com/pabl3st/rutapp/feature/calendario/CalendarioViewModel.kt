@@ -33,6 +33,10 @@ data class CalendarioUiState(
     // Long press context menu
     val showDayMenu:    Boolean                        = false,
     val menuDay:        LocalDate?                     = null,
+    // Selector de rutas para asignar a un día
+    val showRouteSelector: Boolean                     = false,
+    val allRoutes:         List<RouteEntity>           = emptyList(),
+    val snackbar:          String?                     = null,
 )
 
 @HiltViewModel
@@ -65,6 +69,7 @@ class CalendarioViewModel @Inject constructor(
                         it.copy(
                             routesByDate   = byDate,
                             selectedRoutes = if (selected != null) byDate[selected] ?: emptyList() else emptyList(),
+                            allRoutes      = routes.filter { r -> r.deletedAt == null },
                             isLoading      = false,
                         )
                     }
@@ -143,22 +148,49 @@ class CalendarioViewModel @Inject constructor(
         _ui.update { it.copy(showDayMenu = false, menuDay = null) }
     }
 
+    // ── Marcar vacaciones ──────────────────────────────────
     fun onMarkVacation() {
-        // TODO: marcar el día como vacaciones en user_prefs
-        dismissDayMenu()
+        // TODO: guardar en user_prefs el día como vacaciones
+        // Por ahora solo cerramos el menú con feedback
+        _ui.update { it.copy(showDayMenu = false, menuDay = null, snackbar = "Funcionalidad próximamente") }
     }
 
+    // ── Quitar ruta del día ────────────────────────────────
     fun onRemoveRoute() {
         val day = _ui.value.menuDay ?: return
         val dateStr = day.format(fmt)
         val routes  = _ui.value.routesByDate[dateStr] ?: return
-        // Soft-delete: mover dateAssigned a una fecha vacía equivale a desasignar
-        // Por ahora quitar la ruta de la vista local hasta que se implemente API
         viewModelScope.launch {
             routes.forEach { route ->
                 routeRepo.unassignDate(route.uid)
             }
+            _ui.update { it.copy(snackbar = "Ruta desasignada del día") }
         }
         dismissDayMenu()
     }
+
+    // ── Mostrar selector de ruta para asignar ─────────────
+    fun onShowRouteSelector() {
+        _ui.update { it.copy(showDayMenu = false, showRouteSelector = true) }
+    }
+
+    fun onDismissRouteSelector() {
+        _ui.update { it.copy(showRouteSelector = false, menuDay = null) }
+    }
+
+    /** Asigna la ruta seleccionada al día del menú contextual */
+    fun onAssignRouteToDay(route: RouteEntity) {
+        val day = _ui.value.menuDay ?: return
+        val dateStr = day.format(fmt)
+        viewModelScope.launch {
+            routeRepo.assignDate(route.uid, dateStr)
+            _ui.update { it.copy(
+                showRouteSelector = false,
+                menuDay           = null,
+                snackbar          = "\"${route.name}\" asignada al ${day.dayOfMonth}/${day.monthValue}",
+            )}
+        }
+    }
+
+    fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
 }
