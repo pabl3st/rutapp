@@ -100,14 +100,14 @@ class AdminRepository @Inject constructor(
 
     suspend fun godSetRole(targetUserId: Int, role: String): AuthResult<String> = runCatching {
         val resp = api.godSetRole(
-            token = "Bearer \${session.token}",
+            token = "Bearer ${session.token}",
             body  = com.pabl3st.rutapp.data.network.GodSetRoleRequest(userId = targetUserId, role = role),
         )
         if (resp.isSuccessful) {
             val body = resp.body()
             if (body?.success == true) AuthResult.Success("Rol actualizado")
             else AuthResult.Error(body?.message ?: "Error")
-        } else AuthResult.Error("HTTP \${resp.code()}")
+        } else AuthResult.Error("HTTP ${resp.code()}")
     }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
     fun roleLabel(role: String) = when (role) {
@@ -120,4 +120,5 @@ class AdminRepository @Inject constructor(
         else      -> role
     }
 }
+
 

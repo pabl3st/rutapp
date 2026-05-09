@@ -300,6 +300,7 @@ data class BaseResponse(
 // ── God Dashboard DTOs ────────────────────────────────────────
 data class GodStatsResponse(
     @Json(name = "success")        val success:       Boolean,
+    @Json(name = "message")        val message:       String  = "",
     @Json(name = "total_accounts") val totalAccounts: Int     = 0,
     @Json(name = "total_users")    val totalUsers:    Int     = 0,
     @Json(name = "total_routes")   val totalRoutes:   Int     = 0,
@@ -468,7 +469,8 @@ interface RutasApiService {
         @Header("Authorization") token: String,
         @Query("action") action: String = "god_set_role",
         @Body body: GodSetRoleRequest,
-    ): Response<GenericResponse>
+    ): Response<AdminActionResponse>
 
 }
+
 

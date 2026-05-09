@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.network.GodAccountDto
 import com.pabl3st.rutapp.data.network.GodUserDto
 import com.pabl3st.rutapp.data.repository.AdminRepository
+import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.repository.AuthResult
 import com.pabl3st.rutapp.data.repository.roleLevelOf
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -58,7 +59,7 @@ enum class GodTab(val label: String) {
 class GodDashboardViewModel @Inject constructor(
     private val session:   SessionManager,
     private val adminRepo: AdminRepository,
-    private val api:       com.pabl3st.rutapp.data.network.RutasApiService,
+    private val api:       RutasApiService,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(GodDashboardUiState())
@@ -169,3 +170,4 @@ class GodDashboardViewModel @Inject constructor(
     fun clearError()    = _ui.update { it.copy(error = null) }
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
 }
+

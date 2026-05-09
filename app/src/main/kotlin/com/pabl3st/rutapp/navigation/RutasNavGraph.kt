@@ -11,8 +11,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
@@ -32,15 +30,12 @@ import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
 import com.pabl3st.rutapp.feature.admin.AdminScreen
-import com.pabl3st.rutapp.feature.admin.AdminViewModel
 import com.pabl3st.rutapp.feature.admin.GodDashboardScreen
 import com.pabl3st.rutapp.feature.calendario.CalendarioScreen
 import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.importar.ImportarScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.feature.home.HomeViewModel
 
 // ── Transiciones de navegación ───────────────────────────
@@ -228,8 +223,7 @@ fun RutasNavGraph(
                         navController.navigate(Screen.Calendario.route)
                     },
                     onNavigateToAdmin = {
-                        val role = (hiltViewModel<AdminViewModel>() as AdminViewModel).ui.value.userRole
-                        if (role == "god")
+                        if (userRole.userRole == "god")
                             navController.navigate(Screen.GodDashboard.route)
                         else
                             navController.navigate(Screen.Admin.route)
@@ -293,4 +287,5 @@ fun PlaceholderScreen(label: String, sprint: String) {
         }
     }
 }
+
 
