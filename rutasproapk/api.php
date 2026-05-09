@@ -1087,7 +1087,7 @@ if ($action === 'god_stats') {
 
     // Usuarios recientes (últimos 7 días)
     $recentUsers = db()->query(
-        'SELECT u.id, u.username, u.display_name, u.email, u.role, u.created_at,
+        'SELECT u.id, u.username, u.name AS display_name, u.email, u.role, u.created_at,
                 a.name AS account_name
          FROM users u
          JOIN accounts a ON a.id = u.account_id
@@ -1121,13 +1121,14 @@ if ($action === 'god_users_all') {
     $params = [];
 
     if ($accountId) { $where[] = 'u.account_id = ?'; $params[] = $accountId; }
-    if ($search)    { $where[] = '(u.username LIKE ? OR u.email LIKE ? OR u.display_name LIKE ?)'; $params = array_merge($params, [$search, $search, $search]); }
+    if ($search)    { $where[] = '(u.username LIKE ? OR u.email LIKE ? OR u.name LIKE ?)'; $params = array_merge($params, [$search, $search, $search]); }
     if ($roleFilter){ $where[] = 'u.role = ?'; $params[] = $roleFilter; }
 
     $whereStr = implode(' AND ', $where);
     $stmt = db()->prepare(
-        "SELECT u.id, u.username, u.display_name, u.email, u.role, u.is_active,
-                u.created_at, a.id AS account_id, a.name AS account_name
+        "SELECT u.id, u.username, u.name AS display_name, u.email, u.role,
+                u.active AS is_active, u.created_at,
+                a.id AS account_id, a.name AS account_name
          FROM users u
          JOIN accounts a ON a.id = u.account_id
          WHERE $whereStr
@@ -1162,6 +1163,7 @@ if ($action === 'god_set_role') {
 }
 
 err("Acción desconocida: {$action}", 404);
+
 
 
 
