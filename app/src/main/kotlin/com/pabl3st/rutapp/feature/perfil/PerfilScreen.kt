@@ -19,6 +19,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.ThemeMode
 import com.pabl3st.rutapp.core.ui.theme.ThemeViewModel
 import com.pabl3st.rutapp.core.ui.theme.Spacing
+import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.TagCondition
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.graphics.Color
+import java.util.UUID
 
 @Composable
 fun PerfilScreen(
@@ -193,6 +201,17 @@ fun PerfilScreen(
                         onPlus  = { vm.setJornadaReminderHour(prefs.jornadaReminderHour + 1) },
                     )
                 }
+            }
+
+            // ── Tags configurables (solo owner/admin/god) ─────
+            if (ui.role in listOf("owner", "admin", "god")) {
+                SectionTitle("Etiquetas de paradas")
+                StopTagsSection(
+                    tags              = prefs.stopTags,
+                    kpiThreshold      = prefs.kpiThreshold,
+                    onTagsChange      = vm::setStopTags,
+                    onThresholdChange = vm::setKpiThreshold,
+                )
             }
 
             // ── Accesos directos ──────────────────────────────
@@ -467,4 +486,347 @@ private fun RolChip(role: String) {
         label   = { Text(label, style = MaterialTheme.typography.labelSmall) },
         colors  = SuggestionChipDefaults.suggestionChipColors(labelColor = color),
     )
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// CONFIGURADOR DE TAGS DE PARADAS
+// Solo visible para owner / admin / god
+// ══════════════════════════════════════════════════════════════
+
+private val TAG_ICON_OPTIONS = listOf(
+    "Star" to Icons.Default.Star,
+    "Warning" to Icons.Default.Warning,
+    "CheckCircle" to Icons.Default.CheckCircle,
+    "Info" to Icons.Default.Info,
+    "ThumbUp" to Icons.Default.ThumbUp,
+    "ThumbDown" to Icons.Default.ThumbDown,
+    "Store" to Icons.Default.Store,
+    "TrendingUp" to Icons.Default.TrendingUp,
+    "TrendingDown" to Icons.Default.TrendingDown,
+    "Schedule" to Icons.Default.Schedule,
+    "Flag" to Icons.Default.Flag,
+    "LocalOffer" to Icons.Default.LocalOffer,
+    "Block" to Icons.Default.Block,
+    "Bolt" to Icons.Default.Bolt,
+)
+
+private val TAG_COLOR_PRESETS = listOf(
+    "#dcfce7" to "#15803d",
+    "#fee2e2" to "#dc2626",
+    "#dbeafe" to "#1d4ed8",
+    "#fef9c3" to "#a16207",
+    "#f3e8ff" to "#7e22ce",
+    "#ffedd5" to "#c2410c",
+    "#e0f2fe" to "#0369a1",
+    "#f1f5f9" to "#475569",
+)
+
+private fun TagCondition.label(): String = when (this) {
+    TagCondition.ALWAYS           -> "Siempre"
+    TagCondition.STATUS_DONE      -> "Stop visitado"
+    TagCondition.STATUS_PENDING   -> "Stop pendiente"
+    TagCondition.PDV_OPEN         -> "PDV abierto (última visita)"
+    TagCondition.PDV_CLOSED       -> "PDV cerrado (última visita)"
+    TagCondition.RESULT_IS        -> "Resultado ="
+    TagCondition.KPI_ABOVE        -> "KPI > umbral"
+    TagCondition.KPI_BELOW        -> "KPI < umbral"
+    TagCondition.KPI_BOOL_TRUE    -> "KPI booleano = true"
+    TagCondition.DAYS_SINCE_VISIT -> "Días sin visita ≥ umbral"
+}
+
+@Composable
+private fun StopTagsSection(
+    tags: List<StopTagConfig>,
+    kpiThreshold: Double,
+    onTagsChange: (List<StopTagConfig>) -> Unit,
+    onThresholdChange: (Double) -> Unit,
+) {
+    var expandedTagId by remember { mutableStateOf<String?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        // Umbral global
+        InfoCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Umbral de KPI", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Usado en condiciones KPI > umbral y KPI < umbral",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(Spacing.md))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { onThresholdChange((kpiThreshold - 1).coerceAtLeast(0.0)) },
+                        modifier = Modifier.size(32.dp),
+                    ) { Icon(Icons.Default.Remove, null, Modifier.size(16.dp)) }
+                    Text(
+                        kpiThreshold.toInt().toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.widthIn(min = 32.dp),
+                    )
+                    IconButton(
+                        onClick = { onThresholdChange(kpiThreshold + 1) },
+                        modifier = Modifier.size(32.dp),
+                    ) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)) }
+                }
+            }
+        }
+
+        // Lista de tags
+        tags.forEachIndexed { idx, tag ->
+            TagEditorRow(
+                tag = tag,
+                expanded = expandedTagId == tag.id,
+                onExpand = { expandedTagId = if (expandedTagId == tag.id) null else tag.id },
+                onChange = { updated -> onTagsChange(tags.toMutableList().also { it[idx] = updated }) },
+                onDelete = { onTagsChange(tags.toMutableList().also { it.removeAt(idx) }) },
+            )
+        }
+
+        // Añadir nuevo
+        OutlinedButton(
+            onClick = {
+                val t = StopTagConfig(
+                    id = UUID.randomUUID().toString(),
+                    name = "Nueva etiqueta",
+                    icon = "Label",
+                    colorHex = "#f1f5f9",
+                    textColorHex = "#475569",
+                    condition = TagCondition.ALWAYS,
+                )
+                onTagsChange(tags + t)
+                expandedTagId = t.id
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Default.Add, null, Modifier.size(16.dp))
+            Spacer(Modifier.width(Spacing.sm))
+            Text("Añadir etiqueta")
+        }
+    }
+}
+
+@Composable
+private fun TagEditorRow(
+    tag: StopTagConfig,
+    expanded: Boolean,
+    onExpand: () -> Unit,
+    onChange: (StopTagConfig) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val bgColor = runCatching {
+        Color(android.graphics.Color.parseColor(tag.colorHex))
+    }.getOrDefault(MaterialTheme.colorScheme.surfaceVariant)
+    val textColor = runCatching {
+        Color(android.graphics.Color.parseColor(tag.textColorHex))
+    }.getOrDefault(MaterialTheme.colorScheme.onSurface)
+    val iconVec = TAG_ICON_OPTIONS.firstOrNull { it.first == tag.icon }?.second
+        ?: Icons.Default.Label
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            // Fila resumen
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onExpand)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = bgColor,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(iconVec, null, Modifier.size(12.dp), tint = textColor)
+                        Text(tag.name, style = MaterialTheme.typography.labelSmall, color = textColor)
+                    }
+                }
+                Text(
+                    tag.condition.label(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = tag.enabled,
+                    onCheckedChange = { onChange(tag.copy(enabled = it)) },
+                    modifier = Modifier.height(24.dp),
+                )
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    null, Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Editor expandido
+            if (expanded) {
+                HorizontalDivider()
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Nombre
+                    OutlinedTextField(
+                        value = tag.name,
+                        onValueChange = { onChange(tag.copy(name = it)) },
+                        label = { Text("Nombre") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    // Condición
+                    Text("Condición de aparición",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    var condExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = condExpanded,
+                        onExpandedChange = { condExpanded = it },
+                    ) {
+                        OutlinedTextField(
+                            value = tag.condition.label(),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Condición") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(condExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = condExpanded,
+                            onDismissRequest = { condExpanded = false },
+                        ) {
+                            TagCondition.entries.forEach { cond ->
+                                DropdownMenuItem(
+                                    text = { Text(cond.label()) },
+                                    onClick = {
+                                        onChange(tag.copy(condition = cond))
+                                        condExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    // Valor extra según condición
+                    when (tag.condition) {
+                        TagCondition.RESULT_IS -> OutlinedTextField(
+                            value = tag.conditionValue ?: "",
+                            onValueChange = { onChange(tag.copy(conditionValue = it.ifBlank { null })) },
+                            label = { Text("Resultado esperado (ej: contactado)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TagCondition.KPI_ABOVE, TagCondition.KPI_BELOW, TagCondition.KPI_BOOL_TRUE -> {
+                            OutlinedTextField(
+                                value = tag.conditionKpiId ?: "",
+                                onValueChange = { onChange(tag.copy(conditionKpiId = it.ifBlank { null })) },
+                                label = { Text("ID del KPI (ej: telco_activaciones)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        TagCondition.DAYS_SINCE_VISIT -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text("Días mínimos:", style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = { onChange(tag.copy(conditionThreshold = (tag.conditionThreshold - 1).coerceAtLeast(1.0))) },
+                                    modifier = Modifier.size(32.dp),
+                                ) { Icon(Icons.Default.Remove, null, Modifier.size(16.dp)) }
+                                Text(tag.conditionThreshold.toInt().toString(),
+                                    style = MaterialTheme.typography.titleMedium)
+                                IconButton(
+                                    onClick = { onChange(tag.copy(conditionThreshold = tag.conditionThreshold + 1)) },
+                                    modifier = Modifier.size(32.dp),
+                                ) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)) }
+                            }
+                        }
+                        else -> Unit
+                    }
+
+                    // Icono
+                    Text("Icono", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(TAG_ICON_OPTIONS.size) { i ->
+                            val (iName, iVec) = TAG_ICON_OPTIONS[i]
+                            val sel = tag.icon == iName
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = if (sel) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clickable { onChange(tag.copy(icon = iName)) }
+                                    .then(if (sel) Modifier.border(2.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.shapes.small) else Modifier),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(iVec, null, Modifier.size(18.dp),
+                                        tint = if (sel) MaterialTheme.colorScheme.primary
+                                               else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    // Color
+                    Text("Color", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(TAG_COLOR_PRESETS.size) { i ->
+                            val (bg, fg) = TAG_COLOR_PRESETS[i]
+                            val sel = tag.colorHex == bg
+                            val c = runCatching {
+                                Color(android.graphics.Color.parseColor(bg))
+                            }.getOrDefault(Color.Gray)
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(c, MaterialTheme.shapes.small)
+                                    .border(
+                                        if (sel) 3.dp else 1.dp,
+                                        if (sel) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outlineVariant,
+                                        MaterialTheme.shapes.small,
+                                    )
+                                    .clickable { onChange(tag.copy(colorHex = bg, textColorHex = fg)) },
+                            )
+                        }
+                    }
+
+                    // Eliminar
+                    TextButton(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        modifier = Modifier.align(Alignment.End),
+                    ) {
+                        Icon(Icons.Default.Delete, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Eliminar etiqueta")
+                    }
+                }
+            }
+        }
+    }
 }

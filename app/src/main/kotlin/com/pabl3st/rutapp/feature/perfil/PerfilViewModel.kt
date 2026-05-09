@@ -82,6 +82,9 @@ class PerfilViewModel @Inject constructor(
     fun setAutoSync(v: Boolean)             = pref { copy(autoSync = v) }
     fun setJornadaReminder(v: Boolean)      = pref { copy(jornadaReminder = v) }
     fun setJornadaReminderHour(h: Int)      = pref { copy(jornadaReminderHour = h.coerceIn(5, 22)) }
+    fun setKpiThreshold(v: Double)          = pref { copy(kpiThreshold = v.coerceAtLeast(0.0)) }
+    fun setStopTags(tags: List<com.pabl3st.rutapp.data.local.entity.StopTagConfig>) =
+        pref { copy(stopTags = tags) }
 
     private fun pref(transform: UserPrefs.() -> UserPrefs) {
         viewModelScope.launch { prefsRepo.update(transform) }
@@ -99,3 +102,4 @@ class PerfilViewModel @Inject constructor(
         }
     }
 }
+
