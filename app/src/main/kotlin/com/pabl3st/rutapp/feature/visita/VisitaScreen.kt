@@ -83,7 +83,18 @@ fun VisitaScreen(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                title = { Text(ui.stop?.name ?: "Visita") },
+                title = {
+                    Column {
+                        Text(ui.stop?.name ?: "Visita")
+                        if (ui.isEditingPreviousVisit) {
+                            Text(
+                                "Editando visita anterior",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Volver") } },
             )
         },
@@ -91,7 +102,8 @@ fun VisitaScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick  = vm::saveVisit,
-                    enabled  = !ui.isSaving && (!ui.prefs.requireResult || ui.selectedResult.isNotBlank()),
+                    // Guardar requiere resultado seleccionado — si está en blanco el botón está desactivado
+                    enabled  = !ui.isSaving && ui.selectedResult.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     if (ui.isSaving) {
@@ -101,7 +113,7 @@ fun VisitaScreen(
                         Icon(Icons.Default.Save, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text("Guardar visita")
+                    Text(if (ui.selectedResult.isBlank()) "Selecciona un resultado" else "Guardar visita")
                 }
             }
         }
@@ -165,37 +177,48 @@ fun VisitaScreen(
                     }
 
                     // ── Estado PDV ─────────────────────────────────
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors   = CardDefaults.cardColors(
-                            containerColor = if (ui.storeOpen)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.errorContainer,
-                        ),
+                    Text("Estado del PDV", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier            = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Row(
-                            modifier          = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                        // Botón Abierto
+                        val openSelected = ui.storeOpen == true
+                        OutlinedButton(
+                            onClick  = { vm.onStoreOpenChange(true) },
+                            modifier = Modifier.weight(1f),
+                            colors   = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (openSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            ),
+                            border = BorderStroke(
+                                if (openSelected) 2.dp else 1.dp,
+                                if (openSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            ),
                         ) {
-                            Icon(
-                                imageVector = if (ui.storeOpen) Icons.Default.Store else Icons.Default.StoreMallDirectory,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (ui.storeOpen) MaterialTheme.colorScheme.onPrimaryContainer
-                                       else MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text  = if (ui.storeOpen) "PDV abierto" else "PDV cerrado",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (ui.storeOpen) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Switch(
-                                checked         = ui.storeOpen,
-                                onCheckedChange = vm::onStoreOpenChange,
-                            )
+                            Icon(Icons.Default.Store, null, Modifier.size(16.dp),
+                                tint = if (openSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Abierto", style = MaterialTheme.typography.labelMedium,
+                                color = if (openSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        // Botón Cerrado
+                        val closedSelected = ui.storeOpen == false
+                        OutlinedButton(
+                            onClick  = { vm.onStoreOpenChange(false) },
+                            modifier = Modifier.weight(1f),
+                            colors   = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (closedSelected) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surface,
+                            ),
+                            border = BorderStroke(
+                                if (closedSelected) 2.dp else 1.dp,
+                                if (closedSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
+                            ),
+                        ) {
+                            Icon(Icons.Default.StoreMallDirectory, null, Modifier.size(16.dp),
+                                tint = if (closedSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Cerrado", style = MaterialTheme.typography.labelMedium,
+                                color = if (closedSelected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
@@ -415,4 +438,5 @@ private fun KpiField(
         )
     }
 }
+
 
