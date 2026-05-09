@@ -1,38 +1,61 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 package com.pabl3st.rutapp.feature.auth
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Business
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pabl3st.rutapp.core.ui.theme.RutasColors
 import com.pabl3st.rutapp.core.ui.theme.Spacing
+import kotlin.math.cos
+import kotlin.math.sin
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ── Paleta local ──────────────────────────────────────────────
+private val CyanGlow    = Color(0xFF22D3EE)
+private val CyanDim     = Color(0xFF0E7490)
+private val DarkBg      = Color(0xFF09090B)
+private val DarkCard    = Color(0xFF18181B)
+private val DarkBorder  = Color(0xFF27272A)
+private val DarkBorder2 = Color(0xFF3F3F46)
+private val TextPrimary = Color(0xFFFAFAFA)
+private val TextMuted   = Color(0xFF71717A)
+private val TextSub     = Color(0xFFD4D4D8)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun AuthRoot(
     onAuthenticated: () -> Unit,
@@ -51,172 +74,229 @@ fun AuthRoot(
     }
 
     if (ui.showExitDialog) {
-        ExitAppDialog(
+        AuthDialog(
+            title   = "¿Salir de RutasApp?",
+            body    = "¿Seguro que quieres cerrar la aplicación?",
+            confirm = "Salir",
             onConfirm = { viewModel.onExitConfirmed(); onExitApp() },
             onDismiss = viewModel::onExitDismissed,
         )
     }
 
     if (ui.showDiscardDialog) {
-        DiscardChangesDialog(
+        AuthDialog(
+            title   = "¿Descartar cambios?",
+            body    = "Los datos introducidos se perderán.",
+            confirm = "Descartar",
             onConfirm = viewModel::onDiscardConfirmed,
             onDismiss = viewModel::onDiscardDismissed,
         )
     }
 
-    AnimatedContent(
-        targetState    = ui.screen,
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
-        label          = "auth_screen",
-    ) { screen ->
-        when (screen) {
-            AuthScreen.SPLASH              -> SplashScreen()
-            AuthScreen.CHOOSE_TYPE         -> ChooseTypeScreen(
-                onIndividual = viewModel::onChooseIndividual,
-                onCompany    = viewModel::onChooseCompany,
-                onLogin      = viewModel::onGoToLogin,
-            )
-            AuthScreen.LOGIN               -> LoginScreen(
-                ui               = ui,
-                onUsernameChange = viewModel::onUsernameChange,
-                onPasswordChange = viewModel::onPasswordChange,
-                onTogglePassword = viewModel::onTogglePassword,
-                onLogin          = viewModel::login,
-                onBack           = { viewModel.handleBack() },
-            )
-            AuthScreen.REGISTER_INDIVIDUAL -> RegisterIndividualScreen(
-                ui               = ui,
-                onNameChange     = viewModel::onNameChange,
-                onUsernameChange = viewModel::onUsernameChange,
-                onEmailChange    = viewModel::onEmailChange,
-                onPasswordChange = viewModel::onPasswordChange,
-                onTogglePassword = viewModel::onTogglePassword,
-                onRegister       = viewModel::registerIndividual,
-                onBack           = { viewModel.handleBack() },
-                onGoToLogin      = viewModel::onGoToLogin,
-            )
-            AuthScreen.REGISTER_COMPANY    -> RegisterCompanyScreen(
-                ui                  = ui,
-                onCompanyNameChange = viewModel::onCompanyNameChange,
-                onNameChange        = viewModel::onNameChange,
-                onUsernameChange    = viewModel::onUsernameChange,
-                onEmailChange       = viewModel::onEmailChange,
-                onPasswordChange    = viewModel::onPasswordChange,
-                onTogglePassword    = viewModel::onTogglePassword,
-                onRegister          = viewModel::registerCompany,
-                onBack              = { viewModel.handleBack() },
-                onGoToLogin         = viewModel::onGoToLogin,
+    // ── Contenedor principal con fondo Field Pro Dark ─────────
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+            .drawBehind { drawDotGrid(CyanGlow.copy(alpha = 0.06f)) }
+            .systemBarsPadding(),
+    ) {
+        AnimatedContent(
+            targetState    = ui.screen,
+            transitionSpec = {
+                val enter = fadeIn(tween(280)) + slideInVertically(tween(280, easing = EaseOutCubic)) { it / 12 }
+                val exit  = fadeOut(tween(180))
+                enter togetherWith exit
+            },
+            label = "auth_phase",
+        ) { screen ->
+            when (screen) {
+                AuthScreen.SPLASH              -> PhaseLoading()
+                AuthScreen.CHOOSE_TYPE         -> PhaseChoose(
+                    onLogin      = viewModel::onGoToLogin,
+                    onIndividual = viewModel::onChooseIndividual,
+                    onCompany    = viewModel::onChooseCompany,
+                )
+                AuthScreen.LOGIN               -> PhaseLogin(
+                    ui               = ui,
+                    onUsernameChange = viewModel::onUsernameChange,
+                    onPasswordChange = viewModel::onPasswordChange,
+                    onTogglePassword = viewModel::onTogglePassword,
+                    onLogin          = viewModel::login,
+                    onBack           = { viewModel.handleBack() },
+                )
+                AuthScreen.REGISTER_INDIVIDUAL -> PhaseRegisterIndividual(
+                    ui               = ui,
+                    onNameChange     = viewModel::onNameChange,
+                    onUsernameChange = viewModel::onUsernameChange,
+                    onEmailChange    = viewModel::onEmailChange,
+                    onPasswordChange = viewModel::onPasswordChange,
+                    onTogglePassword = viewModel::onTogglePassword,
+                    onRegister       = viewModel::registerIndividual,
+                    onBack           = { viewModel.handleBack() },
+                    onGoToLogin      = viewModel::onGoToLogin,
+                )
+                AuthScreen.REGISTER_COMPANY    -> PhaseRegisterCompany(
+                    ui                  = ui,
+                    onCompanyNameChange = viewModel::onCompanyNameChange,
+                    onNameChange        = viewModel::onNameChange,
+                    onUsernameChange    = viewModel::onUsernameChange,
+                    onEmailChange       = viewModel::onEmailChange,
+                    onPasswordChange    = viewModel::onPasswordChange,
+                    onTogglePassword    = viewModel::onTogglePassword,
+                    onRegister          = viewModel::registerCompany,
+                    onBack              = { viewModel.handleBack() },
+                    onGoToLogin         = viewModel::onGoToLogin,
+                )
+            }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FASE 0 — SPLASH / VERIFICANDO SESIÓN
+// ══════════════════════════════════════════════════════════════
+@Composable
+private fun PhaseLoading() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AppLogo(size = 56.dp)
+            Spacer(Modifier.height(32.dp))
+            CircularProgressIndicator(
+                color       = CyanGlow,
+                strokeWidth = 2.dp,
+                modifier    = Modifier.size(20.dp),
             )
         }
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+// FASE 1 — ELEGIR TIPO DE CUENTA
+// ══════════════════════════════════════════════════════════════
 @Composable
-fun ExitAppDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title   = { Text("¿Salir de RutasApp?") },
-        text    = { Text("¿Seguro que quieres cerrar la aplicación?") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Salir", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        },
-    )
-}
-
-@Composable
-fun DiscardChangesDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title   = { Text("¿Descartar cambios?") },
-        text    = { Text("Los datos introducidos se perderán.") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Descartar", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Continuar editando") }
-        },
-    )
-}
-
-@Composable
-private fun SplashScreen() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-    }
-}
-
-@Composable
-private fun ChooseTypeScreen(
+private fun PhaseChoose(
+    onLogin:      () -> Unit,
     onIndividual: () -> Unit,
-    onCompany: () -> Unit,
-    onLogin: () -> Unit,
+    onCompany:    () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .systemBarsPadding()
-            .padding(Spacing.lg),
+            .padding(horizontal = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("RutasApp",
-            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(8.dp))
-        Text("Gestión profesional de rutas de campo",
-            style     = MaterialTheme.typography.bodyLarge,
-            color     = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center)
-        Spacer(Modifier.height(56.dp))
-        Text("¿Cómo quieres usar RutasApp?",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(Spacing.lg))
-        TypeCard(Icons.Outlined.Person, "Uso personal",
-            "Para comerciales o agentes independientes. Solo tú, sin equipo.", onIndividual)
-        Spacer(Modifier.height(Spacing.md))
-        TypeCard(Icons.Outlined.Business, "Para mi empresa",
-            "Gestiona un equipo de comerciales con distintos roles y permisos.", onCompany)
-        Spacer(Modifier.height(Spacing.xl))
-        TextButton(onClick = onLogin) { Text("Ya tengo cuenta — Iniciar sesión") }
-    }
-}
+        AppLogo(size = 48.dp)
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "RutasApp",
+            color      = TextPrimary,
+            fontSize   = 28.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.5).sp,
+        )
+        Text(
+            "Gestión de rutas de campo",
+            color    = TextMuted,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(52.dp))
 
-@Composable
-private fun TypeCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    description: String,
-    onClick: () -> Unit,
-) {
-    Card(
-        onClick  = onClick,
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = title },
-        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Row(Modifier.padding(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.width(Spacing.md))
-            Column {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(2.dp))
-                Text(description, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        // Tipo: Personal
+        ChooseTypeCard(
+            icon        = Icons.Outlined.Person,
+            title       = "Uso personal",
+            description = "Comercial o agente independiente",
+            onClick     = onIndividual,
+        )
+        Spacer(Modifier.height(10.dp))
+
+        // Tipo: Empresa
+        ChooseTypeCard(
+            icon        = Icons.Outlined.Business,
+            title       = "Para mi empresa",
+            description = "Equipo de comerciales con roles",
+            accent      = true,
+            onClick     = onCompany,
+        )
+
+        Spacer(Modifier.height(40.dp))
+
+        // Divider con texto
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            HorizontalDivider(Modifier.weight(1f), color = DarkBorder2)
+            Text("  o  ", color = TextMuted, fontSize = 12.sp)
+            HorizontalDivider(Modifier.weight(1f), color = DarkBorder2)
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        OutlinedButton(
+            onClick = onLogin,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape  = RoundedCornerShape(12.dp),
+            border = ButtonDefaults.outlinedButtonBorder.copy(
+                width = 1.dp,
+            ),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = TextSub,
+            ),
+        ) {
+            Text("Ya tengo cuenta — Iniciar sesión", fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LoginScreen(
+private fun ChooseTypeCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    accent: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val borderColor = if (accent) CyanGlow.copy(alpha = 0.6f) else DarkBorder
+    val bgColor     = if (accent) CyanGlow.copy(alpha = 0.05f) else DarkCard
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (accent) CyanGlow.copy(0.15f) else DarkBorder),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, Modifier.size(20.dp),
+                tint = if (accent) CyanGlow else TextSub)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(description, color = TextMuted, fontSize = 12.sp)
+        }
+        Icon(Icons.Outlined.ChevronRight, null, Modifier.size(16.dp),
+            tint = if (accent) CyanGlow else TextMuted)
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FASE 2 — LOGIN
+// ══════════════════════════════════════════════════════════════
+@Composable
+private fun PhaseLogin(
     ui: AuthUiState,
     onUsernameChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
@@ -225,42 +305,52 @@ private fun LoginScreen(
     onBack: () -> Unit,
 ) {
     val focus = LocalFocusManager.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Iniciar sesión") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Volver")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize().padding(padding)
-                .padding(horizontal = Spacing.lg)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.height(Spacing.xl))
-            AuthTextField(ui.username, onUsernameChange, "Usuario o email",
-                KeyboardType.Email, ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            PasswordField(ui.password, onPasswordChange, ui.passwordVisible,
-                onTogglePassword, ImeAction.Done, onLogin)
-            ErrorText(ui.error)
-            Spacer(Modifier.height(Spacing.lg))
-            LoadingButton("Entrar", ui.isLoading, onLogin, Modifier.fillMaxWidth())
-            Spacer(Modifier.height(Spacing.xl))
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(24.dp))
+        PhaseHeader(
+            title    = "Bienvenido",
+            subtitle = "Accede con tu usuario o email",
+            onBack   = onBack,
+        )
+        Spacer(Modifier.height(36.dp))
+
+        DarkTextField(
+            value         = ui.username,
+            onValueChange = onUsernameChange,
+            label         = "Usuario o email",
+            keyboardType  = KeyboardType.Email,
+            imeAction     = ImeAction.Next,
+            onNext        = { focus.moveFocus(FocusDirection.Down) },
+        )
+        Spacer(Modifier.height(12.dp))
+        DarkPasswordField(
+            value         = ui.password,
+            onValueChange = onPasswordChange,
+            visible       = ui.passwordVisible,
+            onToggle      = onTogglePassword,
+            imeAction     = ImeAction.Done,
+            onDone        = onLogin,
+        )
+
+        AnimatedError(ui.error)
+        Spacer(Modifier.height(28.dp))
+
+        CyanButton("Entrar", ui.isLoading, onLogin)
+        Spacer(Modifier.height(Spacing.xl))
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ══════════════════════════════════════════════════════════════
+// FASE 3 — REGISTRO INDIVIDUAL
+// ══════════════════════════════════════════════════════════════
 @Composable
-private fun RegisterIndividualScreen(
+private fun PhaseRegisterIndividual(
     ui: AuthUiState,
     onNameChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
@@ -272,54 +362,50 @@ private fun RegisterIndividualScreen(
     onGoToLogin: () -> Unit,
 ) {
     val focus = LocalFocusManager.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Cuenta personal") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Volver")
-                    }
-                }
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(24.dp))
+        PhaseHeader(
+            title    = "Cuenta personal",
+            subtitle = "Para comerciales independientes",
+            onBack   = onBack,
+        )
+        Spacer(Modifier.height(32.dp))
+
+        DarkTextField(ui.name, onNameChange, "Nombre completo",
+            cap = KeyboardCapitalization.Words, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+        Spacer(Modifier.height(10.dp))
+        DarkTextField(ui.username, onUsernameChange, "Nombre de usuario",
+            imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+        Spacer(Modifier.height(10.dp))
+        DarkTextField(ui.email, onEmailChange, "Email",
+            keyboardType = KeyboardType.Email, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+        Spacer(Modifier.height(10.dp))
+        DarkPasswordField(ui.password, onPasswordChange, ui.passwordVisible, onTogglePassword,
+            ImeAction.Done, onRegister)
+
+        AnimatedError(ui.error)
+        Spacer(Modifier.height(28.dp))
+
+        CyanButton("Crear cuenta", ui.isLoading, onRegister)
+        Spacer(Modifier.height(16.dp))
+        TextButton(onClick = onGoToLogin) {
+            Text("Ya tengo cuenta — acceder", color = CyanGlow.copy(0.7f), fontSize = 13.sp)
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize().padding(padding)
-                .padding(horizontal = Spacing.lg)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.height(Spacing.sm))
-            Text("Para comerciales independientes",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(Spacing.xl))
-            AuthTextField(ui.name, onNameChange, "Nombre completo",
-                cap = KeyboardCapitalization.Words, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            AuthTextField(ui.username, onUsernameChange, "Nombre de usuario",
-                imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            AuthTextField(ui.email, onEmailChange, "Email",
-                KeyboardType.Email, ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            PasswordField(ui.password, onPasswordChange, ui.passwordVisible,
-                onTogglePassword, ImeAction.Done, onRegister)
-            ErrorText(ui.error)
-            Spacer(Modifier.height(Spacing.lg))
-            LoadingButton("Crear cuenta", ui.isLoading, onRegister, Modifier.fillMaxWidth())
-            Spacer(Modifier.height(Spacing.md))
-            TextButton(onClick = onGoToLogin) { Text("Ya tengo cuenta") }
-            Spacer(Modifier.height(Spacing.xl))
-        }
+        Spacer(Modifier.height(Spacing.xl))
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ══════════════════════════════════════════════════════════════
+// FASE 4 — REGISTRO EMPRESA
+// ══════════════════════════════════════════════════════════════
 @Composable
-private fun RegisterCompanyScreen(
+private fun PhaseRegisterCompany(
     ui: AuthUiState,
     onCompanyNameChange: (String) -> Unit,
     onNameChange: (String) -> Unit,
@@ -332,65 +418,122 @@ private fun RegisterCompanyScreen(
     onGoToLogin: () -> Unit,
 ) {
     val focus = LocalFocusManager.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Cuenta de empresa") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Volver")
-                    }
-                }
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(24.dp))
+        PhaseHeader(
+            title    = "Cuenta de empresa",
+            subtitle = "Para gestores de equipos comerciales",
+            onBack   = onBack,
+        )
+        Spacer(Modifier.height(32.dp))
+
+        // Empresa
+        FieldGroupLabel("Empresa")
+        Spacer(Modifier.height(8.dp))
+        DarkTextField(ui.companyName, onCompanyNameChange, "Nombre de la empresa",
+            cap = KeyboardCapitalization.Words, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+
+        Spacer(Modifier.height(20.dp))
+        FieldGroupLabel("Tu cuenta de administrador")
+        Spacer(Modifier.height(8.dp))
+
+        DarkTextField(ui.name, onNameChange, "Tu nombre completo",
+            cap = KeyboardCapitalization.Words, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+        Spacer(Modifier.height(10.dp))
+        DarkTextField(ui.username, onUsernameChange, "Nombre de usuario",
+            imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+        Spacer(Modifier.height(10.dp))
+        DarkTextField(ui.email, onEmailChange, "Email",
+            keyboardType = KeyboardType.Email, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
+        Spacer(Modifier.height(10.dp))
+        DarkPasswordField(ui.password, onPasswordChange, ui.passwordVisible, onTogglePassword,
+            ImeAction.Done, onRegister)
+
+        AnimatedError(ui.error)
+        Spacer(Modifier.height(28.dp))
+
+        CyanButton("Crear empresa", ui.isLoading, onRegister)
+        Spacer(Modifier.height(16.dp))
+        TextButton(onClick = onGoToLogin) {
+            Text("Ya tengo cuenta — acceder", color = CyanGlow.copy(0.7f), fontSize = 13.sp)
         }
-    ) { padding ->
-        Column(
+        Spacer(Modifier.height(Spacing.xl))
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// COMPONENTES COMPARTIDOS
+// ══════════════════════════════════════════════════════════════
+
+@Composable
+private fun AppLogo(size: Dp = 44.dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.28f))
+            .background(CyanGlow.copy(alpha = 0.12f))
+            .border(1.dp, CyanGlow.copy(alpha = 0.35f), RoundedCornerShape(size * 0.28f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector        = Icons.Outlined.Route,
+            contentDescription = "RutasApp",
+            modifier           = Modifier.size(size * 0.52f),
+            tint               = CyanGlow,
+        )
+    }
+}
+
+@Composable
+private fun PhaseHeader(title: String, subtitle: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxSize().padding(padding)
-                .padding(horizontal = Spacing.lg)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(DarkCard)
+                .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
+                .clickable(onClick = onBack),
+            contentAlignment = Alignment.Center,
         ) {
-            Spacer(Modifier.height(Spacing.sm))
-            Text("Para gestores de equipos comerciales",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(Spacing.xl))
-            AuthTextField(ui.companyName, onCompanyNameChange, "Nombre de la empresa",
-                cap = KeyboardCapitalization.Words, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            HorizontalDivider()
-            Spacer(Modifier.height(Spacing.sm))
-            Text("Tu cuenta de administrador",
-                style    = MaterialTheme.typography.labelLarge,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(Spacing.sm))
-            AuthTextField(ui.name, onNameChange, "Tu nombre completo",
-                cap = KeyboardCapitalization.Words, imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            AuthTextField(ui.username, onUsernameChange, "Nombre de usuario",
-                imeAction = ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            AuthTextField(ui.email, onEmailChange, "Email",
-                KeyboardType.Email, ImeAction.Next) { focus.moveFocus(FocusDirection.Down) }
-            Spacer(Modifier.height(Spacing.md))
-            PasswordField(ui.password, onPasswordChange, ui.passwordVisible,
-                onTogglePassword, ImeAction.Done, onRegister)
-            ErrorText(ui.error)
-            Spacer(Modifier.height(Spacing.lg))
-            LoadingButton("Crear empresa", ui.isLoading, onRegister, Modifier.fillMaxWidth())
-            Spacer(Modifier.height(Spacing.md))
-            TextButton(onClick = onGoToLogin) { Text("Ya tengo cuenta") }
-            Spacer(Modifier.height(Spacing.xl))
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Volver",
+                Modifier.size(16.dp), tint = TextSub)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.3).sp)
+            Text(subtitle, color = TextMuted, fontSize = 12.sp)
         }
     }
 }
 
-// ── Componentes reutilizables ─────────────────────────────────
+@Composable
+private fun FieldGroupLabel(label: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(CyanGlow.copy(0.6f)))
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = CyanGlow.copy(0.7f), fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+        Spacer(Modifier.width(8.dp))
+        HorizontalDivider(Modifier.weight(1f), color = DarkBorder)
+    }
+}
 
 @Composable
-private fun AuthTextField(
+private fun DarkTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
@@ -402,9 +545,11 @@ private fun AuthTextField(
     OutlinedTextField(
         value           = value,
         onValueChange   = onValueChange,
-        label           = { Text(label) },
+        label           = { Text(label, fontSize = 13.sp) },
         singleLine      = true,
         modifier        = Modifier.fillMaxWidth(),
+        shape           = RoundedCornerShape(12.dp),
+        colors          = darkFieldColors(),
         keyboardOptions = KeyboardOptions(
             keyboardType   = keyboardType,
             capitalization = cap,
@@ -415,7 +560,7 @@ private fun AuthTextField(
 }
 
 @Composable
-private fun PasswordField(
+private fun DarkPasswordField(
     value: String,
     onValueChange: (String) -> Unit,
     visible: Boolean,
@@ -426,15 +571,20 @@ private fun PasswordField(
     OutlinedTextField(
         value                = value,
         onValueChange        = onValueChange,
-        label                = { Text("Contraseña") },
+        label                = { Text("Contraseña", fontSize = 13.sp) },
         singleLine           = true,
         modifier             = Modifier.fillMaxWidth(),
+        shape                = RoundedCornerShape(12.dp),
+        colors               = darkFieldColors(),
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         trailingIcon         = {
             IconButton(onClick = onToggle, modifier = Modifier.semantics {
                 contentDescription = if (visible) "Ocultar contraseña" else "Mostrar contraseña"
             }) {
-                Icon(if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, null)
+                Icon(
+                    if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    null, tint = TextMuted, modifier = Modifier.size(18.dp),
+                )
             }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
@@ -443,25 +593,132 @@ private fun PasswordField(
 }
 
 @Composable
-private fun ErrorText(error: String?) {
-    if (error != null) {
-        Spacer(Modifier.height(Spacing.sm))
-        Text(error, color = MaterialTheme.colorScheme.error,
-            style    = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Error: $error" })
+private fun darkFieldColors() = OutlinedTextFieldDefaults.colors(
+    unfocusedBorderColor    = DarkBorder,
+    focusedBorderColor      = CyanGlow.copy(alpha = 0.7f),
+    unfocusedContainerColor = DarkCard,
+    focusedContainerColor   = DarkCard,
+    unfocusedLabelColor     = TextMuted,
+    focusedLabelColor       = CyanGlow,
+    cursorColor             = CyanGlow,
+    focusedTextColor        = TextPrimary,
+    unfocusedTextColor      = TextPrimary,
+)
+
+@Composable
+private fun AnimatedError(error: String?) {
+    AnimatedVisibility(
+        visible = error != null,
+        enter   = fadeIn() + expandVertically(),
+        exit    = fadeOut() + shrinkVertically(),
+    ) {
+        if (error != null) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f))
+                    .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(15.dp),
+                    tint = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.width(8.dp))
+                Text(error, color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp, modifier = Modifier.semantics {
+                        contentDescription = "Error: $error"
+                    })
+            }
+        }
     }
 }
 
 @Composable
-private fun LoadingButton(
-    text: String, loading: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
-) {
-    Button(onClick = onClick, enabled = !loading, modifier = modifier.height(Spacing.touchMin)) {
+private fun CyanButton(text: String, loading: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick  = onClick,
+        enabled  = !loading,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape    = RoundedCornerShape(14.dp),
+        colors   = ButtonDefaults.buttonColors(
+            containerColor = CyanGlow,
+            contentColor   = Color(0xFF09090B),
+            disabledContainerColor = CyanGlow.copy(alpha = 0.4f),
+        ),
+        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp),
+    ) {
         if (loading) {
-            CircularProgressIndicator(Modifier.size(20.dp),
-                color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+            CircularProgressIndicator(
+                modifier    = Modifier.size(18.dp),
+                color       = Color(0xFF09090B),
+                strokeWidth = 2.dp,
+            )
         } else {
-            Text(text, style = MaterialTheme.typography.labelLarge)
+            Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.1).sp)
         }
     }
 }
+
+// ── Dialog genérico oscuro ────────────────────────────────────
+@Composable
+private fun AuthDialog(
+    title:     String,
+    body:      String,
+    confirm:   String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest    = onDismiss,
+        containerColor      = DarkCard,
+        titleContentColor   = TextPrimary,
+        textContentColor    = TextSub,
+        tonalElevation      = 0.dp,
+        shape               = RoundedCornerShape(18.dp),
+        title               = { Text(title, fontWeight = FontWeight.SemiBold) },
+        text                = { Text(body, fontSize = 14.sp) },
+        confirmButton       = {
+            TextButton(onClick = onConfirm) {
+                Text(confirm, color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton       = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextMuted)
+            }
+        },
+    )
+}
+
+// ── Dialogs públicos (para compatibilidad externa) ────────────
+@Composable
+fun ExitAppDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) =
+    AuthDialog("¿Salir de RutasApp?", "¿Seguro que quieres cerrar la aplicación?",
+        "Salir", onConfirm, onDismiss)
+
+@Composable
+fun DiscardChangesDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) =
+    AuthDialog("¿Descartar cambios?", "Los datos introducidos se perderán.",
+        "Descartar", onConfirm, onDismiss)
+
+// ── Fondo: patrón de puntos en cuadrícula ─────────────────────
+private fun DrawScope.drawDotGrid(color: Color) {
+    val spacing = 28.dp.toPx()
+    val radius  = 1.2.dp.toPx()
+    var x = spacing
+    while (x < size.width) {
+        var y = spacing
+        while (y < size.height) {
+            drawCircle(color = color, radius = radius, center = Offset(x, y))
+            y += spacing
+        }
+        x += spacing
+    }
+}
+
+// ── Constantes de animación ────────────────────────────────────
+private val EaseOutCubic = CubicBezierEasing(0.215f, 0.61f, 0.355f, 1f)
