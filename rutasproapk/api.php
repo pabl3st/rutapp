@@ -719,26 +719,48 @@ if ($action === 'batch_sync') {
                 if ($entity === 'route') {
                     if ($operation === 'create' || $operation === 'update') {
                         $db = db();
-                        $db->prepare(
-                            'INSERT INTO routes
-                                (uid, account_id, user_id, name, date_assigned, scheduled_dates, status, notes, created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?,?)
-                             ON DUPLICATE KEY UPDATE
-                                name=VALUES(name), date_assigned=VALUES(date_assigned),
-                                scheduled_dates=VALUES(scheduled_dates),
-                                status=VALUES(status),
-                                notes=VALUES(notes), updated_at=VALUES(updated_at)'
-                        )->execute([
-                            $clientUid, $aid, $uid,
-                            san($data['name'] ?? '', 255),
-                            san($data['date_assigned'] ?? date('Y-m-d'), 10),
-                            isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
-                            san($data['status'] ?? 'pending', 20),
-                            san($data['notes'] ?? '', 5000) ?: null,
-                            san($data['created_at'] ?? date('c'), 30),
-                            date('c'),
-                        ]);
-                        $serverId = (int)$db->lastInsertId() ?: null;
+                        // Comprobar si la ruta ya existe Y pertenece a esta cuenta
+                        $existing = $db->prepare(
+                            'SELECT id FROM routes WHERE uid=? AND account_id=? LIMIT 1'
+                        );
+                        $existing->execute([$clientUid, $aid]);
+                        $existingId = $existing->fetchColumn();
+
+                        if ($existingId) {
+                            // UPDATE seguro: solo si account_id coincide
+                            $db->prepare(
+                                'UPDATE routes SET
+                                    name=?, date_assigned=?, scheduled_dates=?,
+                                    status=?, notes=?, updated_at=?
+                                 WHERE uid=? AND account_id=?'
+                            )->execute([
+                                san($data['name'] ?? '', 255),
+                                san($data['date_assigned'] ?? date('Y-m-d'), 10),
+                                isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
+                                san($data['status'] ?? 'pending', 20),
+                                san($data['notes'] ?? '', 5000) ?: null,
+                                date('c'),
+                                $clientUid, $aid,
+                            ]);
+                            $serverId = (int)$existingId;
+                        } else {
+                            // INSERT solo si no existe — account_id y user_id del token
+                            $db->prepare(
+                                'INSERT INTO routes
+                                    (uid, account_id, user_id, name, date_assigned, scheduled_dates, status, notes, created_at, updated_at)
+                                 VALUES (?,?,?,?,?,?,?,?,?,?)'
+                            )->execute([
+                                $clientUid, $aid, $uid,
+                                san($data['name'] ?? '', 255),
+                                san($data['date_assigned'] ?? date('Y-m-d'), 10),
+                                isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
+                                san($data['status'] ?? 'pending', 20),
+                                san($data['notes'] ?? '', 5000) ?: null,
+                                san($data['created_at'] ?? date('c'), 30),
+                                date('c'),
+                            ]);
+                            $serverId = (int)$db->lastInsertId() ?: null;
+                        }
                         $db->prepare(
                             'INSERT INTO sync_log (account_id, user_id, entity, entity_uid, operation)
                              VALUES (?,?,?,?,?)'
@@ -746,9 +768,10 @@ if ($action === 'batch_sync') {
                         $synced[] = ['uid' => $clientUid, 'server_id' => $serverId, 'entity' => 'route'];
 
                     } elseif ($operation === 'delete') {
+                        // Borrar solo si pertenece al account (manager puede borrar rutas de miembros)
                         db()->prepare(
-                            'UPDATE routes SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND user_id=?'
-                        )->execute([$clientUid, $uid]);
+                            'UPDATE routes SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND account_id=?'
+                        )->execute([$clientUid, $aid]);
                         $synced[] = ['uid' => $clientUid, 'entity' => 'route', 'deleted' => true];
                     }
 
@@ -829,55 +852,84 @@ if ($action === 'batch_sync') {
                             $errors[] = ['uid' => $clientUid, 'entity' => 'stop', 'error' => 'route_uid no encontrado'];
                             continue;
                         }
-                        db()->prepare(
-                            'INSERT INTO stops
-                                (uid, route_id, account_id, name, address, lat, lng,
-                                 order_index, status, notes, visited_at,
-                                 external_id, contact_name, contact_phone,
-                                 visit_result, next_action, pdv_open, pdv_inactive,
-                                 visit_frequency, priority, segment,
-                                 created_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                             ON DUPLICATE KEY UPDATE
-                                name=VALUES(name), address=VALUES(address),
-                                lat=VALUES(lat), lng=VALUES(lng),
-                                order_index=VALUES(order_index), status=VALUES(status),
-                                notes=VALUES(notes), visited_at=VALUES(visited_at),
-                                external_id=VALUES(external_id),
-                                contact_name=VALUES(contact_name),
-                                contact_phone=VALUES(contact_phone),
-                                visit_result=VALUES(visit_result),
-                                next_action=VALUES(next_action),
-                                pdv_open=VALUES(pdv_open),
-                                pdv_inactive=VALUES(pdv_inactive),
-                                visit_frequency=VALUES(visit_frequency),
-                                priority=VALUES(priority),
-                                segment=VALUES(segment),
-                                account_status=IF(VALUES(pdv_inactive)=1,\'inactive\',account_status),
-                                updated_at=VALUES(updated_at)'
-                        )->execute([
-                            $clientUid, $routeId, $aid,
-                            san($data['name'] ?? '', 255),
-                            san($data['address'] ?? '', 500) ?: null,
-                            isset($data['lat']) ? (float)$data['lat'] : null,
-                            isset($data['lng']) ? (float)$data['lng'] : null,
-                            (int)($data['order_index'] ?? 0),
-                            san($data['status'] ?? 'pending', 20),
-                            san($data['notes'] ?? '', 5000) ?: null,
-                            $data['visited_at'] ?? null,
-                            san($data['external_id'] ?? '', 100) ?: null,
-                            san($data['contact_name'] ?? '', 255) ?: null,
-                            san($data['contact_phone'] ?? '', 50) ?: null,
-                            san($data['visit_result'] ?? '', 20) ?: null,
-                            san($data['next_action'] ?? '', 5000) ?: null,
-                            isset($data['pdv_open']) ? (int)(bool)$data['pdv_open'] : 1,
-                            isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
-                            san($data['visit_frequency'] ?? '', 20) ?: null,
-                            isset($data['priority']) ? (int)$data['priority'] : 0,
-                            san($data['segment'] ?? '', 50) ?: null,
-                            san($data['created_at'] ?? date('c'), 30),
-                            date('c'),
-                        ]);
+                        // Comprobar si el stop ya existe Y pertenece a esta cuenta
+                        $existingStop = db()->prepare(
+                            'SELECT id FROM stops WHERE uid=? AND account_id=? LIMIT 1'
+                        );
+                        $existingStop->execute([$clientUid, $aid]);
+                        $existingStopId = $existingStop->fetchColumn();
+
+                        if ($existingStopId) {
+                            // UPDATE seguro: solo si account_id coincide
+                            db()->prepare(
+                                'UPDATE stops SET
+                                    name=?, address=?, lat=?, lng=?,
+                                    order_index=?, status=?, notes=?, visited_at=?,
+                                    external_id=?, contact_name=?, contact_phone=?,
+                                    visit_result=?, next_action=?,
+                                    pdv_open=?, pdv_inactive=?,
+                                    visit_frequency=?, priority=?, segment=?,
+                                    account_status=IF(?=1,\'inactive\',account_status),
+                                    updated_at=?
+                                 WHERE uid=? AND account_id=?'
+                            )->execute([
+                                san($data['name'] ?? '', 255),
+                                san($data['address'] ?? '', 500) ?: null,
+                                isset($data['lat']) ? (float)$data['lat'] : null,
+                                isset($data['lng']) ? (float)$data['lng'] : null,
+                                (int)($data['order_index'] ?? 0),
+                                san($data['status'] ?? 'pending', 20),
+                                san($data['notes'] ?? '', 5000) ?: null,
+                                $data['visited_at'] ?? null,
+                                san($data['external_id'] ?? '', 100) ?: null,
+                                san($data['contact_name'] ?? '', 255) ?: null,
+                                san($data['contact_phone'] ?? '', 50) ?: null,
+                                san($data['visit_result'] ?? '', 20) ?: null,
+                                san($data['next_action'] ?? '', 5000) ?: null,
+                                isset($data['pdv_open']) ? (int)(bool)$data['pdv_open'] : 1,
+                                isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
+                                san($data['visit_frequency'] ?? '', 20) ?: null,
+                                isset($data['priority']) ? (int)$data['priority'] : 0,
+                                san($data['segment'] ?? '', 50) ?: null,
+                                isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
+                                date('c'),
+                                $clientUid, $aid,
+                            ]);
+                        } else {
+                            // INSERT solo si no existe — account_id del token
+                            db()->prepare(
+                                'INSERT INTO stops
+                                    (uid, route_id, account_id, name, address, lat, lng,
+                                     order_index, status, notes, visited_at,
+                                     external_id, contact_name, contact_phone,
+                                     visit_result, next_action, pdv_open, pdv_inactive,
+                                     visit_frequency, priority, segment,
+                                     created_at, updated_at)
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                            )->execute([
+                                $clientUid, $routeId, $aid,
+                                san($data['name'] ?? '', 255),
+                                san($data['address'] ?? '', 500) ?: null,
+                                isset($data['lat']) ? (float)$data['lat'] : null,
+                                isset($data['lng']) ? (float)$data['lng'] : null,
+                                (int)($data['order_index'] ?? 0),
+                                san($data['status'] ?? 'pending', 20),
+                                san($data['notes'] ?? '', 5000) ?: null,
+                                $data['visited_at'] ?? null,
+                                san($data['external_id'] ?? '', 100) ?: null,
+                                san($data['contact_name'] ?? '', 255) ?: null,
+                                san($data['contact_phone'] ?? '', 50) ?: null,
+                                san($data['visit_result'] ?? '', 20) ?: null,
+                                san($data['next_action'] ?? '', 5000) ?: null,
+                                isset($data['pdv_open']) ? (int)(bool)$data['pdv_open'] : 1,
+                                isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
+                                san($data['visit_frequency'] ?? '', 20) ?: null,
+                                isset($data['priority']) ? (int)$data['priority'] : 0,
+                                san($data['segment'] ?? '', 50) ?: null,
+                                san($data['created_at'] ?? date('c'), 30),
+                                date('c'),
+                            ]);
+                        }
                         // Registrar en sync_log
                         db()->prepare(
                             'INSERT INTO sync_log (account_id, user_id, entity, entity_uid, operation)
