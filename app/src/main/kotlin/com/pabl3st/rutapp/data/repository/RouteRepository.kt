@@ -36,7 +36,7 @@ class RouteRepository @Inject constructor(
     // owner/admin/manager ven todas las rutas del account
     // agent/viewer solo ven las suyas
     private val isManager: Boolean
-        get() = session.userRole in listOf("owner", "admin", "manager")
+        get() = session.userRole in listOf("owner", "admin", "manager", "god")
 
     fun observeToday(): Flow<List<RouteEntity>> {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
