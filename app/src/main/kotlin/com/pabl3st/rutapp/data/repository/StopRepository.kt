@@ -70,6 +70,15 @@ class StopRepository @Inject constructor(
         // No enqueue — status visiting is transient, not synced until saveVisitResult
     }
 
+    /** Resetea el stop a 'pending' borrando la visita anterior — usado por visitFrequency */
+    suspend fun resetForNewVisit(uid: String) {
+        val now = Instant.now().atOffset(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        stopDao.resetForNewVisit(uid, now)
+        val stop = stopDao.getByUid(uid) ?: return
+        enqueue("stop", uid, "update", stopToMap(stop))
+    }
+
     suspend fun markVisited(uid: String) {
         val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -169,3 +178,4 @@ class StopRepository @Inject constructor(
         ))
     }
 }
+
