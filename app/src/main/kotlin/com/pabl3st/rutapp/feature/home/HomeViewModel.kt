@@ -16,20 +16,28 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class HomeUiState(
-    val routes:         List<RouteEntity> = emptyList(),
-    val todayStops:     List<StopEntity>  = emptyList(),
-    val isLoading:      Boolean           = true,
-    val isSyncing:      Boolean           = false,
-    val pendingSync:    Int               = 0,
-    val lastSync:       String            = "",
-    val userName:       String            = "",
-    val userRole:       String            = "agent",
-    val error:          String?           = null,
-)
+// ── Resumen de paradas por ruta — calculado en VM ─────────────
+data class RouteProgress(
+    val route:    RouteEntity,
+    val total:    Int = 0,
+    val done:     Int = 0,
+    val visiting: Int = 0,
+) {
+    val pending: Int   get() = total - done
+    val pct:     Float get() = if (total > 0) done.toFloat() / total else 0f
+}
 
-// Roles que gestionan rutas y ven datos de equipo
-private val MANAGER_ROLES = setOf("owner", "admin", "manager")
+data class HomeUiState(
+    val routes:        List<RouteProgress> = emptyList(),
+    val isLoading:     Boolean             = true,
+    val isSyncing:     Boolean             = false,
+    val userName:      String              = "",
+    val userRole:      String              = "agent",
+    val error:         String?             = null,
+    val totalRoutes:   Int                 = 0,
+    val doneStops:     Int                 = 0,
+    val pendingStops:  Int                 = 0,
+)
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -48,6 +56,8 @@ class HomeViewModel @Inject constructor(
     )
     val ui: StateFlow<HomeUiState> = _ui.asStateFlow()
 
+    private var stopsJob: kotlinx.coroutines.Job? = null
+
     init {
         observeRoutes()
         schedulePeriodicSync()
@@ -55,21 +65,46 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun observeRoutes() {
-        val isAgent = session.userRole !in MANAGER_ROLES
         viewModelScope.launch {
             routeRepo.observeToday()
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
-                .flatMapLatest { routes ->
-                    _ui.update { it.copy(routes = routes, isLoading = false) }
-                    // Solo cargar stops inline si es agent con exactamente 1 ruta
-                    if (isAgent && routes.size == 1) {
-                        stopRepo.observeByRoute(routes.first().uid)
-                    } else {
-                        flowOf(emptyList())
+                .collect { routes -> subscribeStops(routes) }
+        }
+    }
+
+    private fun subscribeStops(routes: List<RouteEntity>) {
+        stopsJob?.cancel()
+        if (routes.isEmpty()) {
+            _ui.update { it.copy(
+                isLoading    = false,
+                routes       = emptyList(),
+                totalRoutes  = 0,
+                doneStops    = 0,
+                pendingStops = 0,
+            )}
+            return
+        }
+        stopsJob = viewModelScope.launch {
+            stopRepo.observeByRouteUids(routes.map { it.uid })
+                .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
+                .collect { allStops ->
+                    val byRoute  = allStops.groupBy { it.routeUid }
+                    val progress = routes.map { route ->
+                        val stops = byRoute[route.uid] ?: emptyList()
+                        RouteProgress(
+                            route    = route,
+                            total    = stops.size,
+                            done     = stops.count { it.status == "done" },
+                            visiting = stops.count { it.status == "visiting" },
+                        )
                     }
-                }
-                .collect { stops ->
-                    _ui.update { it.copy(todayStops = stops) }
+                    _ui.update { it.copy(
+                        routes       = progress,
+                        isLoading    = false,
+                        totalRoutes  = routes.size,
+                        doneStops    = progress.sumOf { p -> p.done },
+                        pendingStops = progress.sumOf { p -> p.pending },
+                    )}
                 }
         }
     }
@@ -79,12 +114,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.update { it.copy(isSyncing = true) }
             routeRepo.fetchDelta()
-            val pending = syncRepo.pendingCount()
-            _ui.update { it.copy(
-                isSyncing   = false,
-                pendingSync = pending,
-                lastSync    = session.lastSyncTimestamp,
-            ) }
+            _ui.update { it.copy(isSyncing = false) }
         }
     }
 
