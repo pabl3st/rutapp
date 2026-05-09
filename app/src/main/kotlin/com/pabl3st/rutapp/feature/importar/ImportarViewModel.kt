@@ -73,11 +73,15 @@ data class StopPreview(
 
 // ── Asignación de ruta a fecha ────────────────────────────────
 data class RouteCalendarEntry(
-    val clusterIndex: Int,
-    val routeName:    String,
-    val date:         LocalDate?,                    // primera fecha (display)
-    val dates:        List<LocalDate> = emptyList(), // todas las fechas programadas
-    val stopCount:    Int,
+    val clusterIndex:   Int,
+    val routeName:      String,
+    /** Primera fecha de la ruta (primer día laborable del mes elegido) */
+    val date:           LocalDate?,
+    val stopCount:      Int,
+    /** Todas las fechas de visita programadas para esta ruta en el mes */
+    val scheduledDates: List<LocalDate> = emptyList(),
+    /** true si las fechas vienen de la hoja CALENDARIO del XLS importado */
+    val datesFromImport: Boolean = false,
 )
 
 // ── KPI report de una visita histórica ───────────────────────
@@ -112,6 +116,7 @@ data class ClusterParams(
     val fixedK:    Int                 = 3,
     val radiusKm:  Double              = 10.0,
     val startDate: LocalDate           = LocalDate.now(),
+    val selectedMonth: java.time.YearMonth = java.time.YearMonth.now(),
 )
 
 data class ImportarUiState(
@@ -131,8 +136,10 @@ data class ImportarUiState(
     val clusterNames:   List<String>                 = emptyList(),
     // Paso 4 — calendario: asignar rutas a días
     val calendarEntries: List<RouteCalendarEntry>    = emptyList(),
+    val selectedMonth:  java.time.YearMonth             = java.time.YearMonth.now(),
     // Paso 5 — KPI reports
-    val hasKpiSheet:    Boolean                      = false,   // el fichero tiene hoja CALENDARIO o CSV_CALENDARIO
+    val hasKpiSheet:       Boolean                   = false,   // el fichero tiene hoja KPI
+    val hasCalendarSheet:  Boolean                   = false,   // el fichero tiene hoja CALENDARIO con fechas de visita
     val kpiHeaders:     List<String>                 = emptyList(),
     val kpiMapping:     Map<KpiField, String?>       = KpiField.entries.associateWith { null },
     val kpiMappingError: String?                     = null,
@@ -206,6 +213,7 @@ class ImportarViewModel @Inject constructor(
                         // Calendar sheet: pre-leer fechas si existe
                         if (calSheet != null) {
                             _calRows = calSheet.rows
+                            _ui.update { it.copy(hasCalendarSheet = calSheet.rows.isNotEmpty()) }
                         }
                         stopSheet
                     } else {
@@ -326,15 +334,10 @@ class ImportarViewModel @Inject constructor(
             )
         }
         val clusters = buildClusters(previews, _ui.value.clusterParams)
-        val names = if (previews.any { it.routeName != null }) {
-            clusters.map { group -> group.firstOrNull()?.routeName ?: "Sin ruta" }
-        } else {
-            defaultClusterNames(clusters.size, _ui.value.clusterParams.startDate)
-        }
         _ui.update { it.copy(
             previews     = previews,
             clusters     = clusters,
-            clusterNames = names,
+            clusterNames = defaultClusterNames(clusters.size, clusters),
             step         = ImportStep.PREVIEW,
         )}
     }
@@ -343,15 +346,10 @@ class ImportarViewModel @Inject constructor(
 
     fun onClusterParamsChange(params: ClusterParams) {
         val clusters = buildClusters(_ui.value.previews, params)
-        val names = if (_ui.value.previews.any { it.routeName != null }) {
-            clusters.map { group -> group.firstOrNull()?.routeName ?: "Sin ruta" }
-        } else {
-            defaultClusterNames(clusters.size, params.startDate)
-        }
         _ui.update { it.copy(
             clusterParams = params,
             clusters      = clusters,
-            clusterNames  = names,
+            clusterNames  = defaultClusterNames(clusters.size, clusters),
         )}
     }
 
@@ -362,24 +360,70 @@ class ImportarViewModel @Inject constructor(
     }
 
     fun onPreviewConfirm() {
-        val calByName = buildCalendarByRouteName()
-        val entries = _ui.value.clusters.mapIndexed { idx, stops ->
-            val name  = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
-            val dates = calByName[name] ?: emptyList()
-            RouteCalendarEntry(
-                clusterIndex = idx,
-                routeName    = name,
-                date         = dates.firstOrNull(),   // primera fecha para el selector UI
-                dates        = dates,
-                stopCount    = stops.size,
-            )
+        // Construir entradas de calendario
+        val preloadedDates = buildCalendarFromSheet()
+
+        // Detectar el mes de las fechas importadas para pre-seleccionar el selector de mes
+        val importedMonthFromSheet = _calRows
+            .mapNotNull { it["date"]?.trim() }
+            .mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            .minOrNull()
+            ?.let { java.time.YearMonth.from(it) }
+
+        // 1 ruta por nombre (cluster) — sus múltiples fechas son scheduledDates, no rutas separadas
+        // Ej: PS06 con visitas el 12 y 21 → 1 RouteCalendarEntry con scheduledDates=[12,21]
+        val calSheetByRoute: Map<String, List<LocalDate>> = _calRows
+            .groupBy { it["route_name"]?.trim() ?: "" }
+            .filterKeys { it.isNotBlank() }
+            .mapValues { (_, rows) ->
+                rows.mapNotNull { r ->
+                    runCatching { LocalDate.parse(r["date"]?.trim() ?: "") }.getOrNull()
+                }.distinct().sorted()
+            }
+
+        // Calcular primer día laborable del mes seleccionado desde la fecha de importación
+        val month = _ui.value.selectedMonth
+        val importDay = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
+        // Si estamos dentro del mes, empezar por el primer L-V de la semana actual
+        val firstWorkday = firstWorkdayOfImportWeek(importDay, month)
+
+        val entries = mutableListOf<RouteCalendarEntry>()
+        _ui.value.clusters.forEachIndexed { idx, stops ->
+            val baseName  = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
+            val routeKey  = stops.firstOrNull()?.routeName?.trim() ?: ""
+            val datesForRoute = calSheetByRoute[routeKey]
+
+            // Filtrar fechas al mes seleccionado — el XLS puede tener fechas de varios meses
+            val effectiveMonth2 = importedMonthFromSheet ?: _ui.value.selectedMonth
+            val datesInMonth = datesForRoute?.filter { d ->
+                java.time.YearMonth.from(d) == effectiveMonth2
+            }?.takeIf { it.isNotEmpty() }
+
+            // Fecha principal = primera fecha del mes, o primer día laborable si no hay sheet
+            val primaryDate = datesInMonth?.firstOrNull()
+                ?: preloadedDates[idx]?.takeIf { java.time.YearMonth.from(it) == effectiveMonth2 }
+                ?: firstWorkday
+            val allDates = datesInMonth ?: listOfNotNull(preloadedDates[idx])
+
+            entries.add(RouteCalendarEntry(
+                clusterIndex        = idx,
+                routeName           = baseName,
+                date                = primaryDate,
+                stopCount           = stops.size,
+                scheduledDates      = allDates,
+                datesFromImport     = datesForRoute != null,  // true = fechas vienen del XLS
+            ))
         }
+
         // Preparar KPI mapping si hay hoja de KPIs
         val kpiAutoMap = if (_ui.value.kpiHeaders.isNotEmpty()) autoMapKpi(_ui.value.kpiHeaders) else emptyMap()
+        val effectiveMonth = importedMonthFromSheet ?: _ui.value.selectedMonth
         _ui.update { it.copy(
-            calendarEntries = entries,
-            kpiMapping      = kpiAutoMap,
-            step            = ImportStep.CALENDAR,
+            calendarEntries    = entries,
+            kpiMapping         = kpiAutoMap,
+            step               = ImportStep.CALENDAR,
+            hasCalendarSheet   = _calRows.isNotEmpty(),
+            selectedMonth      = effectiveMonth,
         )}
     }
 
@@ -451,47 +495,70 @@ class ImportarViewModel @Inject constructor(
 
     fun onSaveConfirm() {
         val clusters     = _ui.value.clusters
-        val clusterNames = _ui.value.clusterNames
         val calEntries   = _ui.value.calendarEntries
         val kpiReports   = if (_ui.value.skipKpi) emptyList() else _ui.value.kpiReports
-        val total        = clusters.sumOf { it.size }
+        val total        = calEntries.sumOf { it.stopCount }.coerceAtLeast(clusters.sumOf { it.size })
 
         _ui.update { it.copy(isLoading = true, saveProgress = 0, saveTotal = total) }
 
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                // Mapa externalId → stopUid (para asignar KPIs)
                 val externalIdToStopUid = mutableMapOf<String, String>()
                 var saved = 0
 
-                clusters.forEachIndexed { idx, stops ->
-                    val routeName = clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
-                    // Fecha: del calendario o hoy por defecto
-                    val entry = calEntries.getOrNull(idx)
-                    val date  = entry?.date?.toString() ?: LocalDate.now().toString()
-                    val route = routeRepo.createRoute(
-                        name           = routeName,
-                        dateAssigned   = date,
-                        scheduledDates = entry?.dates?.map { it.toString() } ?: emptyList(),
-                    )
-
-                    stops.forEachIndexed { stopIdx, preview ->
-                        val stop = stopRepo.createStop(
-                            routeUid      = route.uid,
-                            name          = preview.name,
-                            externalId    = preview.externalId,
-                            address       = preview.address,
-                            lat           = preview.lat,
-                            lng           = preview.lng,
-                            orderIndex    = stopIdx,
-                            notes         = preview.notes,
-                            contactName   = preview.contactName,
-                            contactPhone  = preview.contactPhone,
-                        )
-                        preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
-                        saved++
-                        _ui.update { it.copy(saveProgress = saved) }
+                try {
+                    val entriesToProcess = if (calEntries.isNotEmpty()) calEntries else {
+                        // Fallback: sin calendario, una entry por cluster
+                        clusters.mapIndexed { idx, stops ->
+                            RouteCalendarEntry(
+                                clusterIndex = idx,
+                                routeName    = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" },
+                                date         = LocalDate.now(),
+                                stopCount    = stops.size,
+                            )
+                        }
                     }
+
+                    entriesToProcess.forEach { entry ->
+                        val stops = clusters.getOrNull(entry.clusterIndex) ?: return@forEach
+                        val date  = entry.date?.toString() ?: LocalDate.now().toString()
+
+                        // scheduledDates como JSON array para la ruta
+                        val scheduledJson: String? = if (entry.scheduledDates.size > 1) {
+                            val datesStr = entry.scheduledDates.joinToString(",") { d -> "\"$d\"" }
+                            "[$datesStr]"
+                        } else null
+
+                        val route = routeRepo.createRoute(
+                            name           = entry.routeName,
+                            dateAssigned   = date,
+                            scheduledDates = scheduledJson,
+                        )
+
+                        stops.forEachIndexed { stopIdx, preview ->
+                            val stop = stopRepo.createStop(
+                                routeUid     = route.uid,
+                                name         = preview.name,
+                                externalId   = preview.externalId,
+                                address      = preview.address,
+                                lat          = preview.lat,
+                                lng          = preview.lng,
+                                orderIndex   = stopIdx,
+                                notes        = preview.notes,
+                                contactName  = preview.contactName,
+                                contactPhone = preview.contactPhone,
+                            )
+                            preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
+                            saved++
+                            _ui.update { it.copy(saveProgress = saved) }
+                        }
+                    }
+                } catch (e: Exception) {
+                    _ui.update { it.copy(
+                        isLoading = false,
+                        saveError = "Error al guardar: ${e.message}",
+                    )}
+                    return@withContext
                 }
 
                 // Guardar KPI reports históricos como kpi_values
@@ -523,20 +590,97 @@ class ImportarViewModel @Inject constructor(
 
     // ── Helpers ───────────────────────────────────────────────
 
+    fun onMonthChange(month: java.time.YearMonth) {
+        _ui.update { it.copy(selectedMonth = month) }
+        rebuildCalendarEntries()  // siempre recalcular — filtra fechas al mes elegido
+    }
+
+    private fun rebuildCalendarEntries() {
+        val month = _ui.value.selectedMonth
+        val first = firstWorkdayOfImportWeek(java.time.LocalDate.now(), month)
+        val entries = _ui.value.calendarEntries.mapIndexed { i, entry ->
+            // Filtrar scheduledDates al mes seleccionado
+            val datesInMonth = entry.scheduledDates.filter { d ->
+                java.time.YearMonth.from(d) == month
+            }
+            val newDate = if (datesInMonth.isNotEmpty()) datesInMonth.first()
+                          else {
+                              var d = first.plusDays(i.toLong())
+                              while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                              d
+                          }
+            entry.copy(
+                date           = newDate,
+                scheduledDates = datesInMonth.ifEmpty { entry.scheduledDates },
+            )
+        }
+        _ui.update { it.copy(calendarEntries = entries) }
+    }
+
+    private fun firstWorkdayOfImportWeek(
+        importDay: java.time.LocalDate,
+        month: java.time.YearMonth,
+    ): java.time.LocalDate {
+        val monthStart = month.atDay(1)
+        val monthEnd   = month.atEndOfMonth()
+        val today = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
+        val candidate = when {
+            month.isAfter(java.time.YearMonth.now()) -> {
+                // Mes futuro → primer lunes del mes
+                var d = monthStart
+                while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                d
+            }
+            month.isBefore(java.time.YearMonth.now()) -> {
+                // Mes pasado → primer lunes del mes
+                var d = monthStart
+                while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                d
+            }
+            else -> {
+                // Mes actual → lunes de la semana de hoy
+                var d = today
+                while (d.dayOfWeek.value > 1) d = d.minusDays(1)
+                // Si el lunes calculado cae antes del inicio del mes, usar primer lunes del mes
+                if (d.isBefore(monthStart)) {
+                    d = monthStart
+                    while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                }
+                d
+            }
+        }
+        return when {
+            candidate.isBefore(monthStart) -> { var d = monthStart; while (d.dayOfWeek.value > 5) d = d.plusDays(1); d }
+            candidate.isAfter(monthEnd)    -> monthEnd
+            else                           -> candidate
+        }
+    }
+
+
     private var _calRows: List<Map<String, String>> = emptyList()
 
-    /** Lee todas las fechas del XLSX CALENDARIO agrupadas por route_name.
-     *  Devuelve Map<routeName, List<LocalDate>> ordenado cronológicamente. */
-    private fun buildCalendarByRouteName(): Map<String, List<LocalDate>> {
+    /** Lee fechas del XLSX sheet CALENDARIO si existe */
+    private fun buildCalendarFromSheet(): Map<Int, LocalDate?> {
         if (_calRows.isEmpty()) return emptyMap()
-        val result = mutableMapOf<String, MutableList<LocalDate>>()
+        val result = mutableMapOf<Int, LocalDate?>()
+        // El sheet tiene route_name + date.
+        // Matchear contra el routeName REAL de cada cluster (el del CSV/route_name),
+        // NO contra clusterNames que contiene "Ruta N — dd/MM/yyyy".
+        val clusters = _ui.value.clusters
         _calRows.forEach { row ->
             val rName   = row["route_name"]?.trim() ?: return@forEach
             val dateStr = row["date"]?.trim()        ?: return@forEach
-            val date    = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@forEach
-            result.getOrPut(rName) { mutableListOf() }.add(date)
+            // Buscar el cluster cuyas paradas tengan ese routeName
+            val idx = clusters.indexOfFirst { stops ->
+                stops.any { it.routeName?.trim() == rName }
+            }
+            if (idx >= 0) {
+                runCatching { LocalDate.parse(dateStr) }.getOrNull()?.let {
+                    result[idx] = it
+                }
+            }
         }
-        return result.mapValues { (_, v) -> v.sorted() }
+        return result
     }
 
     private fun buildClusters(previews: List<StopPreview>, params: ClusterParams): List<List<StopPreview>> {
@@ -551,17 +695,24 @@ class ImportarViewModel @Inject constructor(
             GeoCluster.Stop(i, p.name, p.lat!!, p.lng!!)
         }
         if (geoStops.isEmpty()) return if (previews.isEmpty()) emptyList() else listOf(previews)
-        val result   = GeoCluster.cluster(geoStops, params.strategy, params.fixedK, params.radiusKm)
+        val result    = GeoCluster.cluster(geoStops, params.strategy, params.fixedK, params.radiusKm)
         val clustered = result.clusters.map { group -> group.map { gs -> previews[gs.index] } }
         val withoutGps = previews.filter { !it.hasGps }
         return if (withoutGps.isEmpty()) clustered else clustered + listOf(withoutGps)
     }
 
-    private fun defaultClusterNames(k: Int, startDate: LocalDate): List<String> {
-        val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    /**
+     * Genera nombres para los clusters:
+     * - Si el cluster tiene paradas con routeName (del CSV) → usa ese nombre directamente.
+     * - Si es un cluster geográfico (sin routeName) → "Ruta N".
+     * La fecha NO se embebe en el nombre — va en RouteCalendarEntry.date.
+     */
+    private fun defaultClusterNames(k: Int, clusters: List<List<StopPreview>>): List<String> {
         return (0 until k).map { i ->
-            val date = startDate.plusDays(i.toLong())
-            "Ruta ${i + 1} — ${date.format(fmt)}"
+            val routeNameFromCsv = clusters.getOrNull(i)
+                ?.firstOrNull { it.routeName != null }
+                ?.routeName
+            routeNameFromCsv?.trim()?.ifBlank { null } ?: "Ruta ${i + 1}"
         }
     }
 
@@ -570,3 +721,9 @@ class ImportarViewModel @Inject constructor(
     fun getRawRows(): List<Map<String, String>> = _rawRows
     fun reset() { _ui.value = ImportarUiState(); _rawRows = emptyList(); _kpiRawRows = emptyList() }
 }
+
+
+
+
+
+

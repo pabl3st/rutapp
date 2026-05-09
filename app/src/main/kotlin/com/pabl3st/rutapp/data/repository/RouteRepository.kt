@@ -87,21 +87,17 @@ class RouteRepository @Inject constructor(
         name: String,
         dateAssigned: String,
         notes: String? = null,
-        scheduledDates: List<String> = emptyList(),
+        scheduledDates: String? = null,
     ): RouteEntity {
         val now   = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        // scheduledDates JSON: ["2026-05-12","2026-05-26",...] o null
-        val datesJson: String? = if (scheduledDates.isNotEmpty())
-            "[" + scheduledDates.joinToString(",") { ""$it"" } + "]"
-        else null
         val route = RouteEntity(
             uid             = UUID.randomUUID().toString(),
             accountId       = session.accountId,
             userId          = session.userId,
             name            = name,
             dateAssigned    = dateAssigned,
-            scheduledDates  = datesJson,
+            scheduledDates  = scheduledDates,
             notes           = notes,
             createdAt       = now,
             updatedAt       = now,
