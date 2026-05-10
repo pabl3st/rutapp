@@ -48,6 +48,13 @@ class SyncRepository @Inject constructor(
     // ── Ejecutar sync completo: subir + descargar ──────────────
     suspend fun runSync(): SyncResult {
         val token = session.token ?: return SyncResult.NoAuth
+        // Purgar items exhaustos y viejos antes de sync — evita acumulación infinita
+        val cutoff = java.time.Instant.now()
+            .minusSeconds(7 * 24 * 3600)  // 7 días
+            .atOffset(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        syncQueueDao.purgeExhausted(maxAttempts = 5)
+        syncQueueDao.purgeOlderThan(cutoff)
 
         val uploaded = uploadPending(token)
         val downloaded = downloadDelta(

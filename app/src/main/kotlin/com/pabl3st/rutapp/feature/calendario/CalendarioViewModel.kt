@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.calendario
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
@@ -37,12 +38,13 @@ data class CalendarioUiState(
     val showRouteSelector: Boolean                     = false,
     val allRoutes:         List<RouteEntity>           = emptyList(),
     val snackbar:          String?                     = null,
+    val error:             String?                     = null,
 )
 
 @HiltViewModel
 class CalendarioViewModel @Inject constructor(
     private val routeRepo: RouteRepository,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val fmt = DateTimeFormatter.ISO_LOCAL_DATE
     private val _ui = MutableStateFlow(CalendarioUiState())
@@ -223,4 +225,8 @@ class CalendarioViewModel @Inject constructor(
     }
 
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(error = t.message ?: "Error inesperado") }
+    }
+
 }

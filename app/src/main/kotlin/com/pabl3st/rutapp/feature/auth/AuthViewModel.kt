@@ -35,8 +35,9 @@ data class AuthUiState(
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val repo: AuthRepository,
+    private val repo:    AuthRepository,
     private val session: SessionManager,
+    private val db:      com.pabl3st.rutapp.data.local.RutasDatabase,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(AuthUiState())
@@ -177,6 +178,7 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             repo.logout()
+            try { db.clearAllTables() } catch (_: Exception) {}
             _ui.update { AuthUiState(screen = AuthScreen.CHOOSE_TYPE) }
         }
     }

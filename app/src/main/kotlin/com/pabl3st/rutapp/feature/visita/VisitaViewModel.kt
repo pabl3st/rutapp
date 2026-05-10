@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.visita
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -49,7 +50,7 @@ class VisitaViewModel @Inject constructor(
     private val syncQueueDao: SyncQueueDao,
     private val prefsRepo:    UserPrefsRepository,
     private val moshi:        Moshi,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val stopUid: String = checkNotNull(savedStateHandle["stopUid"])
 
@@ -180,4 +181,11 @@ class VisitaViewModel @Inject constructor(
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }

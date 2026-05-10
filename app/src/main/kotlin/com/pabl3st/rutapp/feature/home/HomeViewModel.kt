@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.home
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -45,7 +46,7 @@ class HomeViewModel @Inject constructor(
     private val syncRepo:    SyncRepository,
     private val session:     SessionManager,
     private val workManager: WorkManager,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(
         HomeUiState(
@@ -132,4 +133,11 @@ class HomeViewModel @Inject constructor(
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }

@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -44,7 +45,7 @@ class RouteDetailViewModel @Inject constructor(
     private val locationMgr:  LocationManager,
     private val kpiValueDao:  KpiValueDao,
     private val prefsRepo:    UserPrefsRepository,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 
@@ -167,6 +168,13 @@ class RouteDetailViewModel @Inject constructor(
         val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
         return r * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }
 
 

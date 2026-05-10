@@ -29,7 +29,7 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         BusinessProfileEntity::class,
         KpiValueEntity::class,
     ],
-    version      = 9,
+    version      = 10,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -138,6 +138,26 @@ abstract class RutasDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Fechas de visita programadas por ruta (JSON array)
                 db.execSQL("ALTER TABLE routes ADD COLUMN scheduledDates TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Índices para las queries más frecuentes — evita full scans con 149+ paradas
+                // routes: observeByDate, observeToday
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_routes_user_date ON routes (userId, dateAssigned)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_routes_account_date ON routes (accountId, dateAssigned)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_routes_sync ON routes (syncStatus)")
+                // stops: observeByRoute, observeByRouteUids, getPendingSync
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_stops_route ON stops (routeUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_stops_sync ON stops (syncStatus)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_stops_account ON stops (accountId, deletedAt)")
+                // kpi_values: getByStop, getByStopsInMonth
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_kv_stop ON kpi_values (stopUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_kv_sync ON kpi_values (syncStatus)")
+                // sync_queue: getNext50 (ya ordenado por createdAt)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sq_created ON sync_queue (createdAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sq_attempts ON sync_queue (attempts)")
             }
         }
     }
