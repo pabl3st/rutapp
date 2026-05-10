@@ -214,12 +214,8 @@ fun CalendarioScreen(
             it.format(DateTimeFormatter.ofPattern("d MMMM", Locale("es")))
         } ?: ""
 
-        // Rutas sin fecha asignada o con fecha antigua (libres para asignar)
-        val assignableRoutes = ui.allRoutes.filter { route ->
-            // Mostrar rutas no asignadas hoy o sin fecha válida
-            val date = runCatching { LocalDate.parse(route.dateAssigned) }.getOrNull()
-            date == null || date.isBefore(LocalDate.now()) || route.dateAssigned == "1970-01-01"
-        }.ifEmpty { ui.allRoutes } // si todas tienen fecha, mostrar todas igualmente
+        // Todas las rutas son asignables a cualquier día sin restricción
+        val assignableRoutes = ui.allRoutes
 
         AlertDialog(
             onDismissRequest = vm::onDismissRouteSelector,
