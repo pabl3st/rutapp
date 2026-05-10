@@ -183,7 +183,8 @@ class CalendarioViewModel @Inject constructor(
                 // Quita solo esta fecha del array — las demás fechas de la ruta se conservan
                 routeRepo.unassignDate(route.uid, dateStr)
             }
-            _ui.update { it.copy(snackbar = "\"${route.name}\" quitada del ${day.dayOfMonth}/${day.monthValue}") }
+            val names = routes.joinToString(", ") { it.name }
+            _ui.update { it.copy(snackbar = "\"$names\" quitada del ${day.dayOfMonth}/${day.monthValue}") }
         }
         dismissDayMenu()
     }
@@ -194,7 +195,8 @@ class CalendarioViewModel @Inject constructor(
         val dateStr = day.format(fmt)
         viewModelScope.launch {
             routeRepo.unassignDate(route.uid, dateStr)
-            _ui.update { it.copy(snackbar = "\"${route.name}\" quitada del ${day.dayOfMonth}/${day.monthValue}") }
+            val names = routes.joinToString(", ") { it.name }
+            _ui.update { it.copy(snackbar = "\"$names\" quitada del ${day.dayOfMonth}/${day.monthValue}") }
         }
     }
 
