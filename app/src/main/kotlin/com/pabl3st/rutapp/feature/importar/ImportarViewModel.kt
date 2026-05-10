@@ -389,29 +389,23 @@ class ImportarViewModel @Inject constructor(
 
         val entries = mutableListOf<RouteCalendarEntry>()
         _ui.value.clusters.forEachIndexed { idx, stops ->
-            val baseName  = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
-            val routeKey  = stops.firstOrNull()?.routeName?.trim() ?: ""
-            val datesForRoute = calSheetByRoute[routeKey]
+            val baseName      = _ui.value.clusterNames.getOrElse(idx) { "Ruta ${idx + 1}" }
+            val routeKey      = stops.firstOrNull()?.routeName?.trim() ?: ""
+            val datesForRoute = calSheetByRoute[routeKey]  // TODAS las fechas, sin filtrar por mes
 
-            // Filtrar fechas al mes seleccionado — el XLS puede tener fechas de varios meses
-            val effectiveMonth2 = importedMonthFromSheet ?: _ui.value.selectedMonth
-            val datesInMonth = datesForRoute?.filter { d ->
-                java.time.YearMonth.from(d) == effectiveMonth2
-            }?.takeIf { it.isNotEmpty() }
-
-            // Fecha principal = primera fecha del mes, o primer día laborable si no hay sheet
-            val primaryDate = datesInMonth?.firstOrNull()
-                ?: preloadedDates[idx]?.takeIf { java.time.YearMonth.from(it) == effectiveMonth2 }
+            // Fecha principal = primera fecha cronológica de todas las programadas
+            val primaryDate = datesForRoute?.firstOrNull()
+                ?: preloadedDates[idx]
                 ?: firstWorkday
-            val allDates = datesInMonth ?: listOfNotNull(preloadedDates[idx])
+            val allDates = datesForRoute ?: listOfNotNull(preloadedDates[idx])
 
             entries.add(RouteCalendarEntry(
-                clusterIndex        = idx,
-                routeName           = baseName,
-                date                = primaryDate,
-                stopCount           = stops.size,
-                scheduledDates      = allDates,
-                datesFromImport     = datesForRoute != null,  // true = fechas vienen del XLS
+                clusterIndex     = idx,
+                routeName        = baseName,
+                date             = primaryDate,
+                stopCount        = stops.size,
+                scheduledDates   = allDates,       // TODAS las fechas (abril + mayo + ...)
+                datesFromImport  = datesForRoute != null,
             ))
         }
 
@@ -523,15 +517,16 @@ class ImportarViewModel @Inject constructor(
                         val stops = clusters.getOrNull(entry.clusterIndex) ?: return@forEach
                         val date  = entry.date?.toString() ?: LocalDate.now().toString()
 
-                        // scheduledDates como JSON array para la ruta
-                        val scheduledJson: String? = if (entry.scheduledDates.size > 1) {
-                            val datesStr = entry.scheduledDates.joinToString(",") { d -> "\"$d\"" }
-                            "[$datesStr]"
+                        // scheduledDates JSON — todas las fechas de visita programadas
+                        // dateAssigned = primera fecha; scheduledDates = resto del array
+                        val allDates = entry.scheduledDates.map { it.toString() }.sorted()
+                        val scheduledJson: String? = if (allDates.size > 1) {
+                            "[" + allDates.drop(1).joinToString(",") { d -> "\"$d\"" } + "]"
                         } else null
 
                         val route = routeRepo.createRoute(
                             name           = entry.routeName,
-                            dateAssigned   = date,
+                            dateAssigned   = allDates.firstOrNull() ?: date,
                             scheduledDates = scheduledJson,
                         )
 
@@ -602,61 +597,38 @@ class ImportarViewModel @Inject constructor(
         val month = _ui.value.selectedMonth
         val first = firstWorkdayOfImportWeek(java.time.LocalDate.now(), month)
         val entries = _ui.value.calendarEntries.mapIndexed { i, entry ->
-            // Filtrar scheduledDates al mes seleccionado
+            // Fechas del XLSX para este mes
             val datesInMonth = entry.scheduledDates.filter { d ->
                 java.time.YearMonth.from(d) == month
             }
-            val newDate = if (datesInMonth.isNotEmpty()) datesInMonth.first()
-                          else {
-                              var d = first.plusDays(i.toLong())
-                              while (d.dayOfWeek.value > 5) d = d.plusDays(1)
-                              d
-                          }
-            entry.copy(
-                date           = newDate,
-                scheduledDates = datesInMonth.ifEmpty { entry.scheduledDates },
-            )
+            when {
+                // Si hay fechas del XLSX para este mes → usarlas, no tocar nada
+                datesInMonth.isNotEmpty() -> entry.copy(
+                    date           = datesInMonth.first(),
+                    scheduledDates = datesInMonth,
+                )
+                // Si tiene fechas del XLSX pero no de este mes → conservar el array original
+                entry.datesFromImport -> entry
+                // Sin fechas del XLSX → asignar primer día laborable del mes + índice
+                else -> {
+                    var d = first.plusDays(i.toLong())
+                    while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+                    entry.copy(date = d, scheduledDates = listOf(d))
+                }
+            }
         }
         _ui.update { it.copy(calendarEntries = entries) }
     }
 
+    /** Primer día laborable (L-V) del mes, siempre desde el día 1.
+     *  No depende de la fecha de importación — el mes completo empieza desde su inicio. */
     private fun firstWorkdayOfImportWeek(
         importDay: java.time.LocalDate,
         month: java.time.YearMonth,
     ): java.time.LocalDate {
-        val monthStart = month.atDay(1)
-        val monthEnd   = month.atEndOfMonth()
-        val today = java.time.LocalDate.now(java.time.ZoneId.systemDefault())
-        val candidate = when {
-            month.isAfter(java.time.YearMonth.now()) -> {
-                // Mes futuro → primer lunes del mes
-                var d = monthStart
-                while (d.dayOfWeek.value > 5) d = d.plusDays(1)
-                d
-            }
-            month.isBefore(java.time.YearMonth.now()) -> {
-                // Mes pasado → primer lunes del mes
-                var d = monthStart
-                while (d.dayOfWeek.value > 5) d = d.plusDays(1)
-                d
-            }
-            else -> {
-                // Mes actual → lunes de la semana de hoy
-                var d = today
-                while (d.dayOfWeek.value > 1) d = d.minusDays(1)
-                // Si el lunes calculado cae antes del inicio del mes, usar primer lunes del mes
-                if (d.isBefore(monthStart)) {
-                    d = monthStart
-                    while (d.dayOfWeek.value > 5) d = d.plusDays(1)
-                }
-                d
-            }
-        }
-        return when {
-            candidate.isBefore(monthStart) -> { var d = monthStart; while (d.dayOfWeek.value > 5) d = d.plusDays(1); d }
-            candidate.isAfter(monthEnd)    -> monthEnd
-            else                           -> candidate
-        }
+        var d = month.atDay(1)
+        while (d.dayOfWeek.value > 5) d = d.plusDays(1)
+        return d
     }
 
 
