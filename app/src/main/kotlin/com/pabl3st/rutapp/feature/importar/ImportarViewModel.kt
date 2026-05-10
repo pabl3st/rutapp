@@ -537,16 +537,19 @@ class ImportarViewModel @Inject constructor(
 
                         stops.forEachIndexed { stopIdx, preview ->
                             val stop = stopRepo.createStop(
-                                routeUid     = route.uid,
-                                name         = preview.name,
-                                externalId   = preview.externalId,
-                                address      = preview.address,
-                                lat          = preview.lat,
-                                lng          = preview.lng,
-                                orderIndex   = stopIdx,
-                                notes        = preview.notes,
-                                contactName  = preview.contactName,
-                                contactPhone = preview.contactPhone,
+                                routeUid       = route.uid,
+                                name           = preview.name,
+                                externalId     = preview.externalId,
+                                address        = preview.address,
+                                lat            = preview.lat,
+                                lng            = preview.lng,
+                                orderIndex     = stopIdx,
+                                notes          = preview.notes,
+                                contactName    = preview.contactName,
+                                contactPhone   = preview.contactPhone,
+                                visitFrequency = preview.visitFrequency,
+                                priority       = preview.priority,
+                                segment        = preview.segment,
                             )
                             preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
                             saved++
