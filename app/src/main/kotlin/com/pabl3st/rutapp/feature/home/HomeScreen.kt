@@ -62,13 +62,15 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    // Acceso rápido al mapa global (fuera del BottomNav desde S25)
-                    IconButton(onClick = onNavigateToMapa) {
-                        Icon(
-                            Icons.Default.Map,
-                            contentDescription = "Mapa del día",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    // Mapa global — solo roles con rutas asignadas
+                    if (ui.userRole !in listOf("viewer", "god")) {
+                        IconButton(onClick = onNavigateToMapa) {
+                            Icon(
+                                Icons.Default.Map,
+                                contentDescription = "Mapa del día",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     if (ui.isSyncing) {
                         CircularProgressIndicator(

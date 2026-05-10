@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.visita
 
+import com.pabl3st.rutapp.core.ui.theme.RutasColors
+
 import android.Manifest
 import android.content.ContentValues
 import android.net.Uri
@@ -359,8 +361,8 @@ private fun PhotosSection(photos: List<Uri>, onAddPhoto: () -> Unit, onRemovePho
                 AsyncImage(model = uri, contentDescription = "Foto visita", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 IconButton(
                     onClick  = { onRemovePhoto(uri) },
-                    modifier = Modifier.align(Alignment.TopEnd).size(24.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                ) { Icon(Icons.Default.Close, "Eliminar foto", tint = Color.White, modifier = Modifier.size(14.dp)) }
+                    modifier = Modifier.align(Alignment.TopEnd).size(24.dp).background(RutasColors.Dark950.copy(alpha = 0.5f), CircleShape),
+                ) { Icon(Icons.Default.Close, "Eliminar foto", tint = RutasColors.TextDark100, modifier = Modifier.size(14.dp)) }
             }
         }
     }
@@ -376,13 +378,13 @@ private fun CameraScreen(onPhotoTaken: (Uri) -> Unit, onDismiss: () -> Unit) {
     LaunchedEffect(Unit) { if (!cameraPermission.status.isGranted) cameraPermission.launchPermissionRequest() }
 
     if (!cameraPermission.status.isGranted) {
-        Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(RutasColors.Dark950), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Permiso de cámara necesario", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                Text("Permiso de cámara necesario", color = RutasColors.TextDark100, style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { cameraPermission.launchPermissionRequest() }) { Text("Conceder permiso") }
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onDismiss) { Text("Cancelar", color = Color.White) }
+                TextButton(onClick = onDismiss) { Text("Cancelar", color = RutasColors.TextDark100) }
             }
         }
         return
@@ -391,7 +393,7 @@ private fun CameraScreen(onPhotoTaken: (Uri) -> Unit, onDismiss: () -> Unit) {
     val imageCapture = remember { ImageCapture.Builder().build() }
     val executor     = remember { Executors.newSingleThreadExecutor() }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(RutasColors.Dark950)) {
         AndroidView(
             factory = { ctx ->
                 val previewView = PreviewView(ctx)
@@ -407,9 +409,9 @@ private fun CameraScreen(onPhotoTaken: (Uri) -> Unit, onDismiss: () -> Unit) {
         )
         Box(Modifier.fillMaxSize().padding(bottom = 48.dp), contentAlignment = Alignment.BottomCenter) {
             Row(horizontalArrangement = Arrangement.spacedBy(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Cancelar", tint = Color.White, modifier = Modifier.size(32.dp)) }
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Cancelar", tint = RutasColors.TextDark100, modifier = Modifier.size(32.dp)) }
                 Box(
-                    modifier = Modifier.size(72.dp).background(Color.White, CircleShape).clickable {
+                    modifier = Modifier.size(72.dp).background(RutasColors.TextDark100, CircleShape).clickable {
                         val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(System.currentTimeMillis())
                         val cv   = ContentValues().apply {
                             put(MediaStore.MediaColumns.DISPLAY_NAME, "RutasApp_$name")
@@ -427,7 +429,7 @@ private fun CameraScreen(onPhotoTaken: (Uri) -> Unit, onDismiss: () -> Unit) {
                         )
                     },
                     contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(60.dp).background(Color.White, CircleShape).border(2.dp, Color.LightGray, CircleShape)) }
+                ) { Box(Modifier.size(60.dp).background(RutasColors.TextDark100, CircleShape).border(2.dp, RutasColors.Dark600, CircleShape)) }
                 Spacer(Modifier.size(32.dp))
             }
         }

@@ -205,10 +205,14 @@ fun RutasNavGraph(
                 route = Screen.Calendario.route,
                 // Tab del BottomNav → fade como el resto de tabs
             ) {
+                val calBackEntry by navController.currentBackStackEntryAsState()
+                val calShowBack = calBackEntry?.let {
+                    navController.previousBackStackEntry?.destination?.route
+                        ?.let { r -> r !in BOTTOM_BAR_ROUTES } ?: false
+                } ?: false
                 CalendarioScreen(
                     onBack          = { navController.popBackStack() },
-                    showBackButton  = navController.previousBackStackEntry?.destination?.route
-                                          ?.let { it !in BOTTOM_BAR_ROUTES } ?: false,
+                    showBackButton  = calShowBack,
                     onRouteClick    = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
@@ -238,7 +242,9 @@ fun RutasNavGraph(
                         navController.navigate(Screen.BusinessProfile.route)
                     },
                     onNavigateToCalendario = {
-                        navController.navigate(Screen.Calendario.route)
+                        navController.navigate(Screen.Calendario.route) {
+                            launchSingleTop = true
+                        }
                     },
                     onNavigateToAdmin = {
                         if (userRole == "god")

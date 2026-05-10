@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.mapa
 
+import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -376,8 +378,8 @@ private fun GlobalStopCard(
     stopTags:         List<StopTagConfig> = emptyList(),
     onNavigateToStop: () -> Unit,
 ) {
-    val isDone     = stop.status == "done"
-    val isVisiting = stop.status == "visiting"
+    val isDone     = stop.status == StopStatus.DONE
+    val isVisiting = stop.status == StopStatus.VISITING
     val hasGps     = stop.latLng.lat != 0.0 && stop.latLng.lng != 0.0
 
     // Tags evaluables desde StopMapMarker (solo condiciones de status)
@@ -390,18 +392,9 @@ private fun GlobalStopCard(
         } && tag.enabled
     }
 
-    val statusIcon = when (stop.status) {
-        "done"     -> Icons.Default.CheckCircle
-        "visiting" -> Icons.Default.Edit
-        "skipped"  -> Icons.Default.Cancel
-        else       -> Icons.Default.RadioButtonUnchecked
-    }
-    val statusColor = when (stop.status) {
-        "done"     -> MaterialTheme.colorScheme.secondary
-        "visiting" -> MaterialTheme.colorScheme.primary
-        "skipped"  -> MaterialTheme.colorScheme.error
-        else       -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val _st         = StopStatusTokens.of(stop.status)
+    val statusIcon  = _st.icon
+    val statusColor = _st.color
 
     Card(
         modifier = Modifier.fillMaxWidth(),

@@ -2,6 +2,7 @@ package com.pabl3st.rutapp.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -16,11 +17,11 @@ private data class NavItem(
 )
 
 private val NAV_ITEMS = listOf(
-    NavItem(Screen.Home,       "Hoy",     Icons.Default.Home,           Icons.Default.Home),
-    NavItem(Screen.Rutas,      "Rutas",   Icons.Default.Route,          Icons.Default.Route),
-    NavItem(Screen.Calendario, "Agenda",  Icons.Default.CalendarMonth,  Icons.Default.CalendarMonth),
-    NavItem(Screen.Kpis,       "KPIs",    Icons.Default.BarChart,       Icons.Default.BarChart),
-    NavItem(Screen.Perfil,     "Perfil",  Icons.Default.AccountCircle,  Icons.Default.AccountCircle),
+    NavItem(Screen.Home,       "Hoy",    Icons.Outlined.Home,           Icons.Filled.Home),
+    NavItem(Screen.Rutas,      "Rutas",  Icons.Outlined.AltRoute,       Icons.Filled.AltRoute),
+    NavItem(Screen.Calendario, "Agenda", Icons.Outlined.CalendarMonth,  Icons.Filled.CalendarMonth),
+    NavItem(Screen.Kpis,       "KPIs",  Icons.Outlined.BarChart,       Icons.Filled.BarChart),
+    NavItem(Screen.Perfil,     "Perfil", Icons.Outlined.AccountCircle,  Icons.Filled.AccountCircle),
 )
 
 // Rutas donde se muestra la bottom bar

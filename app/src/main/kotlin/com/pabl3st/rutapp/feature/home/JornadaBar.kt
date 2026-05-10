@@ -1,6 +1,10 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.home
 
+import com.pabl3st.rutapp.core.ui.theme.RouteStatus
+
+import com.pabl3st.rutapp.core.ui.theme.StopStatus
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -47,7 +51,7 @@ fun JornadaBar(
                     color = when (state) {
                         "running" -> MaterialTheme.colorScheme.primary
                         "paused"  -> MaterialTheme.colorScheme.tertiary
-                        "done"    -> MaterialTheme.colorScheme.secondary
+                        StopStatus.DONE    -> MaterialTheme.colorScheme.secondary
                         else      -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
@@ -90,7 +94,7 @@ fun JornadaBar(
                         Icon(Icons.Default.FlagCircle, contentDescription = "Finalizar jornada")
                     }
                 }
-                "done" -> {
+                StopStatus.DONE -> {
                     SuggestionChip(
                         onClick = {},
                         label   = { Text("Finalizada", style = MaterialTheme.typography.labelSmall) },

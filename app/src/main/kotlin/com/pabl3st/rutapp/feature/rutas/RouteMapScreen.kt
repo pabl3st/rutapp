@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
@@ -193,8 +195,8 @@ fun RouteMapScreen(
 @Composable
 private fun StopsSummaryBar(stops: List<StopMapMarker>) {
     val total    = stops.size
-    val done     = stops.count { it.status == "done" }
-    val pending  = stops.count { it.status == "pending" || it.status == "visiting" }
+    val done     = stops.count { it.status == StopStatus.DONE }
+    val pending  = stops.count { it.status == StopStatus.PENDING || it.status == StopStatus.VISITING }
     val skipped  = stops.count { it.status == "skipped" }
     val withGps  = stops.count { it.latLng.lat != 0.0 }
 
@@ -253,8 +255,8 @@ private fun StopDistanceCard(
     item: StopMapMarker,
     onNavigate: () -> Unit,
 ) {
-    val isDone    = item.status == "done"
-    val isVisiting = item.status == "visiting"
+    val isDone    = item.status == StopStatus.DONE
+    val isVisiting = item.status == StopStatus.VISITING
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -274,8 +276,8 @@ private fun StopDistanceCard(
                 Surface(
                     shape = MaterialTheme.shapes.small,
                     color = when (item.status) {
-                        "done"     -> MaterialTheme.colorScheme.secondaryContainer
-                        "visiting" -> MaterialTheme.colorScheme.primaryContainer
+                        StopStatus.DONE     -> MaterialTheme.colorScheme.secondaryContainer
+                        StopStatus.VISITING -> MaterialTheme.colorScheme.primaryContainer
                         "skipped"  -> MaterialTheme.colorScheme.surfaceVariant
                         else       -> MaterialTheme.colorScheme.primaryContainer
                     },

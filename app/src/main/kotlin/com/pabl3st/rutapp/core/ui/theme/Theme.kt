@@ -288,6 +288,22 @@ object Spacing {
     val topBarHeight = 56.dp
 }
 
+// ── Constantes de status — única fuente de verdad ───────────
+// Evita string literals dispersos: "done", "active", "pending", "cancelled"
+object RouteStatus {
+    const val PENDING   = "pending"
+    const val ACTIVE    = "active"
+    const val DONE      = "done"
+    const val CANCELLED = "cancelled"
+}
+
+object StopStatus {
+    const val PENDING  = "pending"
+    const val VISITING = "visiting"
+    const val DONE     = "done"
+    const val SKIPPED  = "skipped"
+}
+
 // ── Tokens semánticos de estado — centralizados ───────────────
 // Uso: val c = RouteStatus.color(route.status)
 // Evita duplicar when(status) en 6+ pantallas
