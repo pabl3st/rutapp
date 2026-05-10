@@ -451,7 +451,7 @@ private fun GlobalStopCard(
                         }.getOrDefault(Color.LightGray)
                         val fg = runCatching {
                             Color(android.graphics.Color.parseColor(tag.textColorHex))
-                        }.getOrDefault(Color.Black)
+                        }.getOrDefault(MaterialTheme.colorScheme.onSurface)
                         Surface(shape = MaterialTheme.shapes.extraSmall, color = bg) {
                             Text(tag.name, style = MaterialTheme.typography.labelSmall,
                                 color = fg,

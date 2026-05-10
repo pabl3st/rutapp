@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.home
 
+import com.pabl3st.rutapp.core.ui.theme.RouteStatusTokens
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -218,13 +220,10 @@ private fun RouteProgressCard(
         label        = "progress_${route.uid}",
     )
 
-    // Color según estado
-    val (statusLabel, statusColor) = when (route.status) {
-        "active"    -> "Activa"    to MaterialTheme.colorScheme.primary
-        "done"      -> "Hecha"     to MaterialTheme.colorScheme.tertiary
-        "cancelled" -> "Cancelada" to MaterialTheme.colorScheme.error
-        else        -> "Pendiente" to MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    // Color según estado — tokens centralizados
+    val _st = RouteStatusTokens.of(route.status)
+    val statusLabel = _st.label
+    val statusColor = _st.color
 
     Card(
         onClick   = onClick,

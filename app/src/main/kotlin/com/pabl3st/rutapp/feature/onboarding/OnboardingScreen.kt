@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalAnimationApi::class)
 package com.pabl3st.rutapp.feature.onboarding
 
+import com.pabl3st.rutapp.core.ui.theme.RutasColors
+
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -33,13 +35,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.permission.AppPermission
 
 // Paleta Field Pro Dark — igual que AuthScreens
-private val CyanGlow   = Color(0xFF22D3EE)
-private val DarkBg     = Color(0xFF09090B)
-private val DarkCard   = Color(0xFF18181B)
-private val DarkBorder = Color(0xFF27272A)
-private val TextPrim   = Color(0xFFFAFAFA)
-private val TextMuted  = Color(0xFF71717A)
-private val TextSub    = Color(0xFFD4D4D8)
+// Onboarding es siempre dark — referencias directas a RutasColors
+private val CyanGlow   = RutasColors.Cyan400
+private val DarkBg     = RutasColors.Dark950
+private val DarkCard   = RutasColors.Dark800
+private val DarkBorder = RutasColors.Dark700
+private val TextPrim   = RutasColors.TextDark100
+private val TextMuted  = RutasColors.TextDark400
+private val TextSub    = RutasColors.TextDark200
 
 @Composable
 fun OnboardingScreen(
@@ -298,7 +301,7 @@ private fun PermissionPromptContent(
             shape    = RoundedCornerShape(14.dp),
             colors   = ButtonDefaults.buttonColors(
                 containerColor = CyanGlow,
-                contentColor   = Color(0xFF09090B),
+                contentColor   = RutasColors.Dark950,
             ),
             elevation = ButtonDefaults.buttonElevation(0.dp),
         ) {

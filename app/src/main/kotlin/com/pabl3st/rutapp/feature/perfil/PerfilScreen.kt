@@ -800,7 +800,7 @@ private fun TagEditorRow(
                             val sel = tag.colorHex == bg
                             val c = runCatching {
                                 Color(android.graphics.Color.parseColor(bg))
-                            }.getOrDefault(Color.Gray)
+                            }.getOrDefault(MaterialTheme.colorScheme.onSurfaceVariant)
                             Box(
                                 modifier = Modifier
                                     .size(28.dp)

@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.calendario
 
+import com.pabl3st.rutapp.core.ui.theme.RouteStatusTokens
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -465,24 +467,10 @@ private fun CalendarioRouteCard(
     onClick:         () -> Unit,
     onRemoveFromDay: (() -> Unit)? = null,
 ) {
-    val statusColor = when (route.status) {
-        "active"    -> MaterialTheme.colorScheme.primary
-        "done"      -> MaterialTheme.colorScheme.secondary
-        "cancelled" -> MaterialTheme.colorScheme.error
-        else        -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val statusIcon = when (route.status) {
-        "active"    -> Icons.Default.PlayCircle
-        "done"      -> Icons.Default.CheckCircle
-        "cancelled" -> Icons.Default.Cancel
-        else        -> Icons.Default.Schedule
-    }
-    val statusLabel = when (route.status) {
-        "active"    -> "Activa"
-        "done"      -> "Completada"
-        "cancelled" -> "Cancelada"
-        else        -> "Pendiente"
-    }
+    val st = RouteStatusTokens.of(route.status)
+    val statusColor = st.color
+    val statusIcon  = st.icon
+    val statusLabel = st.label
 
     // Parsear todas las fechas programadas para mostrarlas
     val allDates = remember(route.scheduledDates, route.dateAssigned) {

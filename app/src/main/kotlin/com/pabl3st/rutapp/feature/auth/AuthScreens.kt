@@ -45,15 +45,16 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 // ── Paleta local ──────────────────────────────────────────────
-private val CyanGlow    = Color(0xFF22D3EE)
-private val CyanDim     = Color(0xFF0E7490)
-private val DarkBg      = Color(0xFF09090B)
-private val DarkCard    = Color(0xFF18181B)
-private val DarkBorder  = Color(0xFF27272A)
-private val DarkBorder2 = Color(0xFF3F3F46)
-private val TextPrimary = Color(0xFFFAFAFA)
-private val TextMuted   = Color(0xFF71717A)
-private val TextSub     = Color(0xFFD4D4D8)
+// Auth es siempre dark — referencias directas a RutasColors (no dependen del theme)
+private val CyanGlow    = RutasColors.Cyan400
+private val CyanDim     = RutasColors.CyanLight
+private val DarkBg      = RutasColors.Dark950
+private val DarkCard    = RutasColors.Dark800
+private val DarkBorder  = RutasColors.Dark700
+private val DarkBorder2 = RutasColors.Dark600
+private val TextPrimary = RutasColors.TextDark100
+private val TextMuted   = RutasColors.TextDark400
+private val TextSub     = RutasColors.TextDark200
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -644,7 +645,7 @@ private fun CyanButton(text: String, loading: Boolean, onClick: () -> Unit) {
         shape    = RoundedCornerShape(14.dp),
         colors   = ButtonDefaults.buttonColors(
             containerColor = CyanGlow,
-            contentColor   = Color(0xFF09090B),
+            contentColor   = RutasColors.Dark950,
             disabledContainerColor = CyanGlow.copy(alpha = 0.4f),
         ),
         elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp),
@@ -652,7 +653,7 @@ private fun CyanButton(text: String, loading: Boolean, onClick: () -> Unit) {
         if (loading) {
             CircularProgressIndicator(
                 modifier    = Modifier.size(18.dp),
-                color       = Color(0xFF09090B),
+                color       = RutasColors.Dark950,
                 strokeWidth = 2.dp,
             )
         } else {

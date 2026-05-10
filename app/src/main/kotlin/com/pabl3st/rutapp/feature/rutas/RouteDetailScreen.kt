@@ -1,6 +1,9 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.ui.theme.RouteStatusTokens
+import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -183,12 +186,8 @@ private fun SortModeChip(
 
 @Composable
 private fun StatusChip(status: String, modifier: Modifier = Modifier) {
-    val (color, icon, label) = when (status) {
-        "active"    -> Triple(MaterialTheme.colorScheme.primary,          Icons.Default.PlayCircle, "Activa")
-        "done"      -> Triple(MaterialTheme.colorScheme.secondary,        Icons.Default.CheckCircle, "Completada")
-        "cancelled" -> Triple(MaterialTheme.colorScheme.error,            Icons.Default.Cancel, "Cancelada")
-        else        -> Triple(MaterialTheme.colorScheme.onSurfaceVariant, Icons.Default.Schedule, "Pendiente")
-    }
+    val st = RouteStatusTokens.of(status)
+    val color = st.color; val icon = st.icon; val label = st.label
     SuggestionChip(
         onClick  = {},
         modifier = modifier,

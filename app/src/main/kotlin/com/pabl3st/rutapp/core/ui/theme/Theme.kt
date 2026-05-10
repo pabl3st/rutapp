@@ -15,6 +15,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.pabl3st.rutapp.R
 
 // ── Field Pro Dark — Paleta ───────────────────────────────────
@@ -98,17 +104,6 @@ object RutasColors {
     val TextSecondaryDark = TextDark200
     val Border         = Light200
     val BorderInput    = Light200
-}
-
-// ── Espaciado ─────────────────────────────────────────────────
-object Spacing {
-    val xs  = 4.dp
-    val sm  = 8.dp
-    val md  = 12.dp
-    val lg  = 16.dp
-    val xl  = 24.dp
-    val xxl = 32.dp
-    val touchMin = 48.dp
 }
 
 object RutasShapes {
@@ -275,6 +270,60 @@ private val AppShapes = Shapes(
     large      = RoundedCornerShape(16.dp),  // bottom sheets, modales
     extraLarge = RoundedCornerShape(20.dp),  // FAB, surfaces grandes
 )
+
+// ── Spacing ampliado — grid 8pt completo ─────────────────────
+object Spacing {
+    val x2  = 2.dp    // hair-line
+    val xs  = 4.dp
+    val s3  = 6.dp    // entre xs y sm
+    val sm  = 8.dp
+    val md  = 12.dp
+    val lg  = 16.dp
+    val xl  = 24.dp
+    val xxl = 32.dp
+    val x3l = 40.dp
+    val x4l = 48.dp
+    val touchMin = 48.dp
+    val navHeight = 64.dp
+    val topBarHeight = 56.dp
+}
+
+// ── Tokens semánticos de estado — centralizados ───────────────
+// Uso: val c = RouteStatus.color(route.status)
+// Evita duplicar when(status) en 6+ pantallas
+
+data class StatusTokens(
+    val color:     Color,
+    val container: Color,
+    val icon:      ImageVector,
+    val label:     String,
+)
+
+object RouteStatusTokens {
+    @Composable
+    fun of(status: String): StatusTokens {
+        val cs = MaterialTheme.colorScheme
+        return when (status) {
+            "active"    -> StatusTokens(cs.primary,          cs.primaryContainer,   Icons.Default.PlayCircle,  "Activa")
+            "done"      -> StatusTokens(cs.secondary,        cs.secondaryContainer, Icons.Default.CheckCircle, "Completada")
+            "cancelled" -> StatusTokens(cs.error,            cs.errorContainer,     Icons.Default.Cancel,      "Cancelada")
+            else        -> StatusTokens(cs.onSurfaceVariant, cs.surfaceVariant,     Icons.Default.Schedule,    "Pendiente")
+        }
+    }
+}
+
+object StopStatusTokens {
+    @Composable
+    fun of(status: String): StatusTokens {
+        val cs = MaterialTheme.colorScheme
+        return when (status) {
+            "done"     -> StatusTokens(cs.secondary,        cs.secondaryContainer, Icons.Default.CheckCircle, "Visitado")
+            "visiting" -> StatusTokens(cs.primary,          cs.primaryContainer,   Icons.Default.PlayCircle,  "En visita")
+            "skipped"  -> StatusTokens(cs.error,            cs.errorContainer,     Icons.Default.Cancel,      "Saltado")
+            else       -> StatusTokens(cs.onSurfaceVariant, cs.surfaceVariant,     Icons.Default.Schedule,    "Pendiente")
+        }
+    }
+}
 
 // ── Theme composable ──────────────────────────────────────────
 @Composable
