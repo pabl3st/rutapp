@@ -82,7 +82,7 @@ class RouteRepository @Inject constructor(
         val newDateAssigned = remaining.minOrNull() ?: "1970-01-01"
         val otherDates      = remaining.filter { it != newDateAssigned }
         val newScheduled    = if (otherDates.isNotEmpty())
-            "[" + otherDates.joinToString(",") { d -> "\"" + d + "\"" } + "]"
+            "[" + otherDates.joinToString(",") { d -> "\"$d\"" } + "]"
         else null
 
         val updated = route.copy(
@@ -122,7 +122,7 @@ class RouteRepository @Inject constructor(
         val newMain     = dates.first()
         val otherDates  = dates.drop(1)
         val newScheduled = if (otherDates.isNotEmpty())
-            "[" + otherDates.joinToString(",") { d -> "\"" + d + "\"" } + "]"
+            "[" + otherDates.joinToString(",") { d -> "\"$d\"" } + "]"
         else null
 
         val updated = route.copy(
