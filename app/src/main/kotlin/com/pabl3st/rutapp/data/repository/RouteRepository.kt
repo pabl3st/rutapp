@@ -55,28 +55,81 @@ class RouteRepository @Inject constructor(
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
 
-    /** Desasigna la ruta del calendario — fecha se pone a 1970-01-01 */
-    suspend fun unassignDate(uid: String) {
+    /** Elimina una fecha concreta del array scheduledDates de la ruta.
+     *  Si era la fecha principal (dateAssigned), promueve la siguiente del array.
+     *  Si no quedan fechas, deja dateAssigned = "1970-01-01". */
+    suspend fun unassignDate(uid: String, dateStr: String? = null) {
         val route = routeDao.getByUid(uid) ?: return
         val now   = java.time.Instant.now().toString()
+
+        // Parsear scheduledDates actuales
+        val currentDates = mutableListOf<String>()
+        if (!route.scheduledDates.isNullOrEmpty()) {
+            runCatching {
+                val arr = org.json.JSONArray(route.scheduledDates)
+                for (i in 0 until arr.length()) arr.optString(i)?.let { currentDates.add(it) }
+            }
+        }
+        // Incluir dateAssigned si no está ya en el array
+        if (route.dateAssigned.isNotBlank() && route.dateAssigned != "1970-01-01"
+            && !currentDates.contains(route.dateAssigned)) {
+            currentDates.add(0, route.dateAssigned)
+        }
+
+        // Quitar la fecha indicada (o todas si dateStr == null)
+        val remaining = if (dateStr != null) currentDates.filter { it != dateStr } else emptyList()
+
+        val newDateAssigned = remaining.minOrNull() ?: "1970-01-01"
+        val otherDates      = remaining.filter { it != newDateAssigned }
+        val newScheduled    = if (otherDates.isNotEmpty())
+            "[" + otherDates.joinToString(",") { ""$it"" } + "]"
+        else null
+
         val updated = route.copy(
-            dateAssigned = "1970-01-01",
-            status       = "pending",
-            updatedAt    = now,
-            syncStatus   = "pending",
+            dateAssigned   = newDateAssigned,
+            scheduledDates = newScheduled,
+            status         = if (remaining.isEmpty()) "pending" else route.status,
+            updatedAt      = now,
+            syncStatus     = "pending",
         )
         routeDao.upsert(updated)
         enqueue("route", uid, "update", routeToMap(updated))
     }
 
-    /** Asigna la ruta a una fecha concreta del calendario */
+    /** Añade una fecha al array scheduledDates sin eliminar las existentes.
+     *  Si la ruta no tiene fecha principal válida, la convierte en dateAssigned. */
     suspend fun assignDate(uid: String, dateStr: String) {
         val route = routeDao.getByUid(uid) ?: return
         val now   = java.time.Instant.now().toString()
+
+        // Parsear scheduledDates actuales
+        val dates = mutableListOf<String>()
+        if (!route.scheduledDates.isNullOrEmpty()) {
+            runCatching {
+                val arr = org.json.JSONArray(route.scheduledDates)
+                for (i in 0 until arr.length()) arr.optString(i)?.let { dates.add(it) }
+            }
+        }
+        // Incluir dateAssigned actual si es válida
+        val currentMain = route.dateAssigned
+        if (currentMain.isNotBlank() && currentMain != "1970-01-01" && !dates.contains(currentMain)) {
+            dates.add(0, currentMain)
+        }
+        // Añadir la nueva fecha si no está ya
+        if (!dates.contains(dateStr)) dates.add(dateStr)
+        dates.sort()
+
+        val newMain     = dates.first()
+        val otherDates  = dates.drop(1)
+        val newScheduled = if (otherDates.isNotEmpty())
+            "[" + otherDates.joinToString(",") { ""$it"" } + "]"
+        else null
+
         val updated = route.copy(
-            dateAssigned = dateStr,
-            updatedAt    = now,
-            syncStatus   = "pending",
+            dateAssigned   = newMain,
+            scheduledDates = newScheduled,
+            updatedAt      = now,
+            syncStatus     = "pending",
         )
         routeDao.upsert(updated)
         enqueue("route", uid, "update", routeToMap(updated))

@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import java.time.DayOfWeek
+import org.json.JSONArray
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -158,7 +159,11 @@ fun CalendarioScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     items(ui.selectedRoutes, key = { it.uid }) { route ->
-                        CalendarioRouteCard(route = route, onClick = { onRouteClick(route.uid) })
+                        CalendarioRouteCard(
+                            route           = route,
+                            onClick         = { onRouteClick(route.uid) },
+                            onRemoveFromDay = { vm.onRemoveRouteFromDay(route) },
+                        )
                     }
                 }
             }
@@ -258,14 +263,24 @@ fun CalendarioScreen(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
-                                        val currentDate = runCatching {
-                                            val d = LocalDate.parse(route.dateAssigned)
-                                            if (d.year < 2000) "Sin fecha" else route.dateAssigned
-                                        }.getOrDefault("Sin fecha")
+                                        val dateCount = remember(route.scheduledDates, route.dateAssigned) {
+                                            val dates = mutableListOf<String>()
+                                            if (!route.scheduledDates.isNullOrEmpty()) {
+                                                runCatching {
+                                                    val arr = org.json.JSONArray(route.scheduledDates)
+                                                    for (i in 0 until arr.length()) arr.optString(i)?.let { dates.add(it) }
+                                                }
+                                            }
+                                            if (route.dateAssigned.isNotBlank() && route.dateAssigned != "1970-01-01"
+                                                && !dates.contains(route.dateAssigned)) dates.add(0, route.dateAssigned)
+                                            dates.size
+                                        }
                                         Text(
-                                            "Actualmente: $currentDate",
+                                            if (dateCount > 0) "$dateCount día${if (dateCount > 1) "s" else ""} asignado${if (dateCount > 1) "s" else ""}"
+                                            else "Sin fechas asignadas",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = if (dateCount > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
                                     Icon(
@@ -402,15 +417,34 @@ private fun CalendarGrid(
                                     },
                                 )
                                 when {
-                                    hasRoutes -> Box(
-                                        modifier = Modifier.size(5.dp).clip(CircleShape).background(
-                                            when {
-                                                isSelected -> MaterialTheme.colorScheme.onPrimary
-                                                allDone    -> MaterialTheme.colorScheme.secondary
-                                                else       -> MaterialTheme.colorScheme.tertiary
-                                            }
-                                        )
-                                    )
+                                    hasRoutes -> {
+                                        val routeCount = routes.size
+                                        if (routeCount > 1) {
+                                            // Mostrar número de rutas si hay más de una
+                                            Text(
+                                                text  = "$routeCount",
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = androidx.compose.ui.unit.TextUnit(7f, androidx.compose.ui.unit.TextUnitType.Sp)
+                                                ),
+                                                color = when {
+                                                    isSelected -> MaterialTheme.colorScheme.onPrimary
+                                                    allDone    -> MaterialTheme.colorScheme.secondary
+                                                    else       -> MaterialTheme.colorScheme.tertiary
+                                                },
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier.size(5.dp).clip(CircleShape).background(
+                                                    when {
+                                                        isSelected -> MaterialTheme.colorScheme.onPrimary
+                                                        allDone    -> MaterialTheme.colorScheme.secondary
+                                                        else       -> MaterialTheme.colorScheme.tertiary
+                                                    }
+                                                )
+                                            )
+                                        }
+                                    }
                                     holiday != null && !isSelected -> Box(
                                         modifier = Modifier.size(4.dp).clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
@@ -426,7 +460,11 @@ private fun CalendarGrid(
 }
 
 @Composable
-private fun CalendarioRouteCard(route: RouteEntity, onClick: () -> Unit) {
+private fun CalendarioRouteCard(
+    route:           RouteEntity,
+    onClick:         () -> Unit,
+    onRemoveFromDay: (() -> Unit)? = null,
+) {
     val statusColor = when (route.status) {
         "active"    -> MaterialTheme.colorScheme.primary
         "done"      -> MaterialTheme.colorScheme.secondary
@@ -446,12 +484,28 @@ private fun CalendarioRouteCard(route: RouteEntity, onClick: () -> Unit) {
         else        -> "Pendiente"
     }
 
+    // Parsear todas las fechas programadas para mostrarlas
+    val allDates = remember(route.scheduledDates, route.dateAssigned) {
+        val dates = mutableListOf<String>()
+        if (!route.scheduledDates.isNullOrEmpty()) {
+            runCatching {
+                val arr = org.json.JSONArray(route.scheduledDates)
+                for (i in 0 until arr.length()) arr.optString(i)?.let { dates.add(it) }
+            }
+        }
+        if (route.dateAssigned.isNotBlank() && route.dateAssigned != "1970-01-01"
+            && !dates.contains(route.dateAssigned)) {
+            dates.add(0, route.dateAssigned)
+        }
+        dates.sorted()
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick  = onClick,
     ) {
         Row(
-            modifier          = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            modifier          = Modifier.padding(start = Spacing.lg, end = Spacing.sm, top = Spacing.md, bottom = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(statusIcon, null, Modifier.size(20.dp), tint = statusColor)
@@ -463,22 +517,47 @@ private fun CalendarioRouteCard(route: RouteEntity, onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                route.notes?.let {
+                if (allDates.size > 1) {
+                    // Mostrar chips de fechas programadas
+                    val fmt = java.time.format.DateTimeFormatter.ofPattern("d/M")
+                    val dateChips = allDates.mapNotNull { d ->
+                        runCatching { java.time.LocalDate.parse(d).format(fmt) }.getOrNull()
+                    }.joinToString(" · ")
                     Text(
-                        it,
-                        style    = MaterialTheme.typography.bodySmall,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                        "📅 $dateChips",
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                } else {
+                    route.notes?.let {
+                        Text(
+                            it,
+                            style    = MaterialTheme.typography.bodySmall,
+                            color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Text(
+                    statusLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor,
+                )
+            }
+            // Botón quitar solo de este día
+            if (onRemoveFromDay != null) {
+                IconButton(onClick = onRemoveFromDay, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.RemoveCircleOutline,
+                        contentDescription = "Quitar de este día",
+                        tint   = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
-            Spacer(Modifier.width(Spacing.sm))
-            Text(
-                statusLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = statusColor,
-            )
         }
     }
 }

@@ -173,18 +173,29 @@ class CalendarioViewModel @Inject constructor(
         _ui.update { it.copy(showDayMenu = false, menuDay = null, snackbar = "Funcionalidad próximamente") }
     }
 
-    // ── Quitar ruta del día ────────────────────────────────
+    // ── Quitar ruta del día concreto (no de todos los días) ──
     fun onRemoveRoute() {
-        val day = _ui.value.menuDay ?: return
+        val day     = _ui.value.menuDay ?: return
         val dateStr = day.format(fmt)
         val routes  = _ui.value.routesByDate[dateStr] ?: return
         viewModelScope.launch {
             routes.forEach { route ->
-                routeRepo.unassignDate(route.uid)
+                // Quita solo esta fecha del array — las demás fechas de la ruta se conservan
+                routeRepo.unassignDate(route.uid, dateStr)
             }
-            _ui.update { it.copy(snackbar = "Ruta desasignada del día") }
+            _ui.update { it.copy(snackbar = "Ruta quitada del ${day.dayOfMonth}/${day.monthValue}") }
         }
         dismissDayMenu()
+    }
+
+    // ── Quitar UNA ruta concreta del día ──────────────────
+    fun onRemoveRouteFromDay(route: RouteEntity) {
+        val day     = _ui.value.menuDay ?: _ui.value.selectedDay ?: return
+        val dateStr = day.format(fmt)
+        viewModelScope.launch {
+            routeRepo.unassignDate(route.uid, dateStr)
+            _ui.update { it.copy(snackbar = ""${route.name}" quitada del ${day.dayOfMonth}/${day.monthValue}") }
+        }
     }
 
     // ── Mostrar selector de ruta para asignar ─────────────
