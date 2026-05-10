@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.mapa
 
+import com.pabl3st.rutapp.core.ui.theme.StopStatus
 import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
 
 import androidx.compose.foundation.layout.*

@@ -63,7 +63,9 @@ fun CalendarioScreen(
                             Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                         }
                     }
-                } else null,
+                } else {
+                    {}  // slot vacío — sin flecha atrás cuando es tab del BottomNav
+                },
             )
         }
     ) { padding ->
