@@ -38,6 +38,7 @@ import java.util.Locale
 @Composable
 fun CalendarioScreen(
     onBack: () -> Unit = {},
+    showBackButton: Boolean = false,
     onRouteClick: (String) -> Unit = {},
     vm: CalendarioViewModel = hiltViewModel(),
 ) {
@@ -56,11 +57,13 @@ fun CalendarioScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Calendario") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                navigationIcon = if (showBackButton) {
+                    {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        }
                     }
-                },
+                } else null,
             )
         }
     ) { padding ->

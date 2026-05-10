@@ -202,15 +202,14 @@ fun RutasNavGraph(
                 )
             }
             composable(
-                route              = Screen.Calendario.route,
-                enterTransition    = { enterPush },
-                exitTransition     = { exitPush },
-                popEnterTransition = { enterPop },
-                popExitTransition  = { exitPop },
+                route = Screen.Calendario.route,
+                // Tab del BottomNav → fade como el resto de tabs
             ) {
                 CalendarioScreen(
-                    onBack       = { navController.popBackStack() },
-                    onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                    onBack          = { navController.popBackStack() },
+                    showBackButton  = navController.previousBackStackEntry?.destination?.route
+                                          ?.let { it !in BOTTOM_BAR_ROUTES } ?: false,
+                    onRouteClick    = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
             composable(
