@@ -184,7 +184,7 @@ class CalendarioViewModel @Inject constructor(
                 routeRepo.unassignDate(route.uid, dateStr)
             }
             val names = routes.joinToString(", ") { it.name }
-            _ui.update { it.copy(snackbar = "\"${route.name}\" quitada del ${day.dayOfMonth}/${day.monthValue}") }
+            _ui.update { it.copy(snackbar = "\"$names\" quitada del ${day.dayOfMonth}/${day.monthValue}") }
         }
         dismissDayMenu()
     }
