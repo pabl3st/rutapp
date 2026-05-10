@@ -16,11 +16,11 @@ private data class NavItem(
 )
 
 private val NAV_ITEMS = listOf(
-    NavItem(Screen.Home,      "Hoy",     Icons.Default.Home,          Icons.Default.Home),
-    NavItem(Screen.Rutas,     "Rutas",   Icons.Default.Route,         Icons.Default.Route),
-    NavItem(Screen.Mapa,      "Mapa",    Icons.Default.Map,           Icons.Default.Map),
-    NavItem(Screen.Kpis,      "KPIs",    Icons.Default.BarChart,      Icons.Default.BarChart),
-    NavItem(Screen.Perfil,    "Perfil",  Icons.Default.AccountCircle, Icons.Default.AccountCircle),
+    NavItem(Screen.Home,       "Hoy",     Icons.Default.Home,           Icons.Default.Home),
+    NavItem(Screen.Rutas,      "Rutas",   Icons.Default.Route,          Icons.Default.Route),
+    NavItem(Screen.Calendario, "Agenda",  Icons.Default.CalendarMonth,  Icons.Default.CalendarMonth),
+    NavItem(Screen.Kpis,       "KPIs",    Icons.Default.BarChart,       Icons.Default.BarChart),
+    NavItem(Screen.Perfil,     "Perfil",  Icons.Default.AccountCircle,  Icons.Default.AccountCircle),
 )
 
 // Rutas donde se muestra la bottom bar

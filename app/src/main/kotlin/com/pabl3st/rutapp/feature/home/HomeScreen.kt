@@ -34,8 +34,9 @@ import java.util.Locale
 // ────────────────────────────────────────────────────────────
 @Composable
 fun HomeScreen(
-    onRouteClick: (String) -> Unit = {},
-    onStopClick:  (String) -> Unit = {},
+    onRouteClick:     (String) -> Unit = {},
+    onStopClick:      (String) -> Unit = {},
+    onNavigateToMapa: () -> Unit        = {},
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val ui    by vm.ui.collectAsStateWithLifecycle()
@@ -61,6 +62,14 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    // Acceso rápido al mapa global (fuera del BottomNav desde S25)
+                    IconButton(onClick = onNavigateToMapa) {
+                        Icon(
+                            Icons.Default.Map,
+                            contentDescription = "Mapa del día",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (ui.isSyncing) {
                         CircularProgressIndicator(
                             modifier    = Modifier.size(20.dp),
