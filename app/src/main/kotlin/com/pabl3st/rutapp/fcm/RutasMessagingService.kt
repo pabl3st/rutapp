@@ -10,6 +10,8 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.pabl3st.rutapp.MainActivity
 import com.pabl3st.rutapp.R
+import androidx.work.WorkManager
+import com.pabl3st.rutapp.sync.SyncWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,7 @@ import javax.inject.Inject
 class RutasMessagingService : FirebaseMessagingService() {
 
     @Inject lateinit var fcmTokenRepository: FcmTokenRepository
+    @Inject lateinit var workManager: WorkManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -35,9 +38,18 @@ class RutasMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        val title = message.notification?.title ?: message.data["title"] ?: "RutasApp"
-        val body  = message.notification?.body  ?: message.data["body"]  ?: return
+        // Si el push trae type=sync → disparar sync inmediato sin esperar el periódico (15min)
+        if (message.data["type"] == "sync") {
+            workManager.enqueueUniqueWork(
+                SyncWorker.WORK_NAME_ONDEMAND,
+                androidx.work.ExistingWorkPolicy.REPLACE,
+                SyncWorker.onDemandRequest(),
+            )
+        }
 
+        // Mostrar notificación si tiene título/cuerpo
+        val title = message.notification?.title ?: message.data["title"] ?: return
+        val body  = message.notification?.body  ?: message.data["body"]  ?: return
         showNotification(title, body)
     }
 

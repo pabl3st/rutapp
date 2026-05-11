@@ -960,6 +960,10 @@ if ($action === 'batch_sync') {
         'errors'      => $errors,
         'server_time' => date('c'),
     ]);
+    // Notificar a otros dispositivos del account cuando hay datos subidos
+    if ($synced > 0) {
+        try { pushSyncToAccount($aid); } catch (Throwable $e) { /* silent fail */ }
+    }
 }
 
 
@@ -1179,6 +1183,33 @@ if ($action === 'god_users_all') {
         return $u;
     }, $rows);
     ok(['users' => $rows]);
+}
+
+// ── Helper: push FCM sync a todos los tokens del account ─────────────────
+function pushSyncToAccount(int $accountId): void {
+    $serverKey = defined('FCM_SERVER_KEY') ? FCM_SERVER_KEY : ($_ENV['FCM_SERVER_KEY'] ?? null);
+    if (!$serverKey) return;
+    // El token FCM está en sessions.fcm_token (no tabla separada)
+    $st = db()->prepare(
+        "SELECT DISTINCT s.fcm_token FROM sessions s
+         JOIN users u ON s.user_id = u.id
+         WHERE u.account_id = ? AND s.fcm_token IS NOT NULL AND s.fcm_token != ''
+           AND s.expires_at > NOW()
+         LIMIT 500"
+    );
+    $st->execute([$accountId]);
+    $tokens = $st->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($tokens)) return;
+    $ch = curl_init('https://fcm.googleapis.com/fcm/send');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Authorization: key=' . $serverKey],
+        CURLOPT_POSTFIELDS     => json_encode(['registration_ids' => $tokens, 'data' => ['type' => 'sync'], 'priority' => 'high']),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 5,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
 }
 
 if ($action === 'god_set_role') {
