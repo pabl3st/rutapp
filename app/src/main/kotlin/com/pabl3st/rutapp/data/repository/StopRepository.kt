@@ -44,6 +44,8 @@ class StopRepository @Inject constructor(
         priority:       Int     = 3,
         segment:        String? = null,
     ): StopEntity {
+        require(name.isNotBlank())     { "Nombre de parada vacío" }
+        require(routeUid.isNotBlank()) { "routeUid vacío" }
         val now  = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         val stop = StopEntity(

@@ -75,9 +75,8 @@ class SyncRepository @Inject constructor(
         if (items.isEmpty()) return true
 
         val ops = items.mapNotNull { item ->
-            val data = runCatching {
-                mapAdapter.fromJson(item.payload) ?: emptyMap()
-            }.getOrElse { emptyMap<String, Any?>() }
+            val data = runCatching { mapAdapter.fromJson(item.payload) }.getOrNull()
+            if (data == null) { syncQueueDao.delete(item.id); return@mapNotNull null }
             SyncOperation(
                 entity    = item.entity,
                 uid       = item.entityUid,

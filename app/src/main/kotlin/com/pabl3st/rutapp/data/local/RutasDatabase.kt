@@ -29,7 +29,7 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         BusinessProfileEntity::class,
         KpiValueEntity::class,
     ],
-    version      = 10,
+    version      = 11,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -138,6 +138,14 @@ abstract class RutasDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Fechas de visita programadas por ruta (JSON array)
                 db.execSQL("ALTER TABLE routes ADD COLUMN scheduledDates TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Índice UNIQUE en sync_queue — last-write-wins, evita duplicados al servidor
+                // DROP+RECREATE porque SQLite no soporta ADD UNIQUE INDEX inline
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_sq_unique ON sync_queue (entity, entityUid, operation)")
             }
         }
 

@@ -9,6 +9,8 @@ interface SyncQueueDao {
     @Query("SELECT * FROM sync_queue ORDER BY createdAt ASC LIMIT 50")
     suspend fun getNext50(): List<SyncQueueEntity>
 
+    // REPLACE: si ya existe (entity+entityUid+operation), sobreescribe con el payload más reciente
+    // Esto implementa "last-write-wins" — solo el último estado se sube al servidor
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun enqueue(item: SyncQueueEntity)
 

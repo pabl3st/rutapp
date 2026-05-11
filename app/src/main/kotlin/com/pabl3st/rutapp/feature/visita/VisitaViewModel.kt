@@ -103,6 +103,11 @@ class VisitaViewModel @Inject constructor(
     }
 
     fun saveVisit() {
+        // Guardia: no guardar si no hay resultado seleccionado
+        if (_ui.value.selectedResult.isBlank()) {
+            _ui.update { it.copy(error = "Selecciona un resultado antes de guardar") }
+            return
+        }
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
 

@@ -99,6 +99,9 @@ class RouteRepository @Inject constructor(
     /** Añade una fecha al array scheduledDates sin eliminar las existentes.
      *  Si la ruta no tiene fecha principal válida, la convierte en dateAssigned. */
     suspend fun assignDate(uid: String, dateStr: String) {
+        // Validar formato ISO antes de procesar — rechazar strings inválidos
+        val validDate = runCatching { java.time.LocalDate.parse(dateStr) }.getOrNull()
+            ?: return  // fecha inválida → ignorar silenciosamente
         val route = routeDao.getByUid(uid) ?: return
         val now   = java.time.Instant.now().toString()
 
@@ -142,6 +145,7 @@ class RouteRepository @Inject constructor(
         notes: String? = null,
         scheduledDates: String? = null,
     ): RouteEntity {
+        require(name.isNotBlank()) { "Nombre de ruta vacío" }
         val now   = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         val route = RouteEntity(
