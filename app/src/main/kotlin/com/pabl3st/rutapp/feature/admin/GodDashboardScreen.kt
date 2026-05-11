@@ -244,7 +244,7 @@ private fun UsersTab(ui: GodDashboardUiState, vm: GodDashboardViewModel) {
                     readOnly = true,
                     label = { Text("Filtrar por rol") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(roleExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 )
                 ExposedDropdownMenu(expanded = roleExpanded, onDismissRequest = { roleExpanded = false }) {
                     vm.roleOptions.forEach { role ->

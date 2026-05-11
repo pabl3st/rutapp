@@ -334,7 +334,7 @@ private fun ColumnMappingRow(
                 onValueChange  = {},
                 readOnly       = true,
                 trailingIcon   = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                modifier       = Modifier.menuAnchor().fillMaxWidth(),
+                modifier       = Modifier.menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 singleLine     = true,
                 textStyle      = MaterialTheme.typography.bodySmall,
             )

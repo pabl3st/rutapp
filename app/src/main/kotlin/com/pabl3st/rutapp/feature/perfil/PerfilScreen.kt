@@ -706,7 +706,7 @@ private fun TagEditorRow(
                             readOnly = true,
                             label = { Text("Condición") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(condExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            modifier = Modifier.menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         )
                         ExposedDropdownMenu(
                             expanded = condExpanded,
