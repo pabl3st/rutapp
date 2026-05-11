@@ -45,12 +45,14 @@ class BusinessProfileRepository @Inject constructor(
 
     // ── KPIs ─────────────────────────────────────────────────
 
-    fun observeActiveKpis(): Flow<List<KpiDefinitionEntity>> =
-        // Leer el sector del perfil en tiempo real — no hardcodeado a telco
-        profileDao.observe().flatMapLatest { profile ->
+    fun observeActiveKpis(): Flow<List<KpiDefinitionEntity>> {
+        // Capturar accountId antes del lambda para evitar ambigüedad con BusinessProfileEntity.accountId
+        val repoAccountId = accountId
+        return profileDao.observe().flatMapLatest { profile ->
             val sector = profile?.sector?.takeIf { it.isNotBlank() } ?: "telco"
-            kpiDao.observeActive(accountId, sector)
+            kpiDao.observeActive(repoAccountId, sector)
         }
+    }
 
     fun observeActiveKpis(sector: String): Flow<List<KpiDefinitionEntity>> =
         kpiDao.observeActive(accountId, sector)

@@ -99,6 +99,14 @@ for filepath in staged:
     if src.count("object Spacing {") > 1:
         warnings.append((filepath, 0, "W1", "object Spacing duplicado"))
 
+    # E_LOADING: onCoroutineError resetea campo de loading que no existe en UiState
+    import re as _re
+    override_m = _re.search(r'override fun onCoroutineError.*?_ui\.update.*?it\.copy\((.*?)\)', src, _re.DOTALL)
+    if override_m:
+        for field in _re.findall(r'(\w+)\s*=\s*false', override_m.group(1)):
+            if field.startswith("isLoad") and not _re.search(rf"\bval {field}\b", src):
+                errors.append((filepath, 0, "E_LOADING", f"onCoroutineError resetea '{field}' que no existe"))
+
 # Output
 print(f"\n{BOLD}🔍 Pre-commit — {len(staged)} fichero(s) Kotlin verificados{RESET}\n")
 for f, ln, code, msg in warnings:

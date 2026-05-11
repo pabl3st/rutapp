@@ -172,8 +172,9 @@ class GodDashboardViewModel @Inject constructor(
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
     override fun onCoroutineError(t: Throwable) {
         _ui.update { it.copy(
-            isLoading = false,
-            error     = t.message ?: "Error inesperado",
+            isLoadingStats = false,
+            isLoadingUsers = false,
+            error          = t.message ?: "Error inesperado",
         )}
     }
 
