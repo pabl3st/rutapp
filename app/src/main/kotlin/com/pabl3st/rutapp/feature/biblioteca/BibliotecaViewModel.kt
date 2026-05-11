@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.biblioteca
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.GpsOff
@@ -40,7 +41,7 @@ class BibliotecaViewModel @Inject constructor(
     private val stopRepo:  StopRepository,
     private val prefsRepo: UserPrefsRepository,
     private val session:   SessionManager,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _tab   = MutableStateFlow(BibliotecaTab.ALL)
     private val _query = MutableStateFlow("")

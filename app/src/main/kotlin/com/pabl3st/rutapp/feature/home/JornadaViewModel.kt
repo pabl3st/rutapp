@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.home
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.core.location.LocationManager
@@ -23,7 +24,7 @@ data class JornadaUiState(
 class JornadaViewModel @Inject constructor(
     private val jornadaRepo: JornadaRepository,
     private val locationMgr: LocationManager,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(JornadaUiState())
     val ui: StateFlow<JornadaUiState> = _ui.asStateFlow()

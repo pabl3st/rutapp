@@ -10,7 +10,11 @@ import dagger.Provides
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.Authenticator
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.Route
 import okhttp3.logging.HttpLoggingInterceptor
 import com.pabl3st.rutapp.BuildConfig
 import retrofit2.Retrofit
@@ -33,16 +37,49 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(
+        sessionManager: com.pabl3st.rutapp.data.session.SessionManager,
+    ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             // BODY solo en debug — evita loguear tokens y datos sensibles en producción
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
                     else HttpLoggingInterceptor.Level.NONE
         }
+        // Auth interceptor — añadir token a cada request automáticamente
+        val authInterceptor = okhttp3.Interceptor { chain ->
+            val token = sessionManager.token
+            val req   = if (token != null)
+                chain.request().newBuilder()
+                    .header("X-Auth-Token", token)
+                    .build()
+            else chain.request()
+            chain.proceed(req)
+        }
+
+        // Authenticator — refresca sesión automáticamente cuando el servidor devuelve 401
+        val tokenAuthenticator = object : Authenticator {
+            override fun authenticate(route: Route?, response: Response): Request? {
+                // Evitar bucle infinito: si ya intentamos con el token actual, rendirse
+                if (response.request.header("X-Auth-Token") == sessionManager.token) {
+                    return null  // ya reintentamos — logout implícito (SyncWorker lo gestiona)
+                }
+                // Token nuevo del servidor si viene en la respuesta
+                val newToken = response.header("X-New-Token")
+                return if (newToken != null) {
+                    sessionManager.token = newToken
+                    response.request.newBuilder()
+                        .header("X-Auth-Token", newToken)
+                        .build()
+                } else null
+            }
+        }
+
         return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
             .addInterceptor(logging)
-            .connectTimeout(15, TimeUnit.SECONDS)   // +5s para conexiones lentas de campo
-            .readTimeout(60, TimeUnit.SECONDS)       // batch_sync 149 paradas en 3G
+            .authenticator(tokenAuthenticator)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .build()
     }

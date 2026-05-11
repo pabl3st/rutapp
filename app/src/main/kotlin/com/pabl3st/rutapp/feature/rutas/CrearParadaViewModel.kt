@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,7 +32,7 @@ class CrearParadaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val stopRepo:    StopRepository,
     private val mapProvider: MapProvider,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 

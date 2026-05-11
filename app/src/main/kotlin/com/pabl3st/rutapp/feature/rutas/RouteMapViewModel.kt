@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -37,7 +38,7 @@ class RouteMapViewModel @Inject constructor(
     private val locationMgr: LocationManager,
     val mapProvider: MapProvider,     // expuesto para que Screen lo use directamente
     val mapConfig: MapConfig,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 

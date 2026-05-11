@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.mapa
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.core.location.LocationManager
@@ -88,7 +89,7 @@ class GlobalMapViewModel @Inject constructor(
     private val prefsRepo:   UserPrefsRepository,
     val mapProvider: MapProvider,
     val mapConfig:   MapConfig,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(GlobalMapUiState())
     val ui: StateFlow<GlobalMapUiState> = _ui.asStateFlow()
@@ -294,6 +295,13 @@ class GlobalMapViewModel @Inject constructor(
                 _ui.update { it.copy(stopTags = prefs.stopTags.filter { t -> t.condition in mapConditions }) }
             }
         }
+    }
+
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
     }
 
 }

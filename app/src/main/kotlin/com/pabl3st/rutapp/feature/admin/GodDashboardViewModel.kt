@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.admin
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.network.GodAccountDto
@@ -60,7 +61,7 @@ class GodDashboardViewModel @Inject constructor(
     private val session:   SessionManager,
     private val adminRepo: AdminRepository,
     private val api:       RutasApiService,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(GodDashboardUiState())
     val ui: StateFlow<GodDashboardUiState> = _ui.asStateFlow()
@@ -169,6 +170,13 @@ class GodDashboardViewModel @Inject constructor(
 
     fun clearError()    = _ui.update { it.copy(error = null) }
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }
 
 

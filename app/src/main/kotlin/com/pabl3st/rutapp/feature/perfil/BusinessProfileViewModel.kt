@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.perfil
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
@@ -28,7 +29,7 @@ data class BusinessProfileUiState(
 @HiltViewModel
 class BusinessProfileViewModel @Inject constructor(
     private val repo: BusinessProfileRepository,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(BusinessProfileUiState())
     val ui: StateFlow<BusinessProfileUiState> = _ui.asStateFlow()
@@ -100,4 +101,11 @@ class BusinessProfileViewModel @Inject constructor(
 
     fun sectorLabel(sector: String) = repo.sectorLabel(sector)
     val sectors get() = repo.sectors
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }

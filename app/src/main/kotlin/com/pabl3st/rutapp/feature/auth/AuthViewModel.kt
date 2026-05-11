@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.auth
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.repository.AuthRepository
@@ -38,7 +39,7 @@ class AuthViewModel @Inject constructor(
     private val repo:    AuthRepository,
     private val session: SessionManager,
     private val db:      com.pabl3st.rutapp.data.local.RutasDatabase,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(AuthUiState())
     val ui: StateFlow<AuthUiState> = _ui.asStateFlow()
@@ -201,5 +202,12 @@ class AuthViewModel @Inject constructor(
             password.length < 8-> { _ui.update { it.copy(error = "La contraseña debe tener al menos 8 caracteres") };      false }
             else               -> true
         }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }
 

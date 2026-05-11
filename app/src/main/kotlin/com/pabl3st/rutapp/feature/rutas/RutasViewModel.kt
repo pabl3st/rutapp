@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
@@ -27,7 +28,7 @@ data class RutasUiState(
 class RutasViewModel @Inject constructor(
     private val routeRepo: RouteRepository,
     private val session:   SessionManager,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(RutasUiState(userRole = session.userRole))
     val ui: StateFlow<RutasUiState> = _ui.asStateFlow()
@@ -76,4 +77,11 @@ class RutasViewModel @Inject constructor(
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }
+    override fun onCoroutineError(t: Throwable) {
+        _ui.update { it.copy(
+            isLoading = false,
+            error     = t.message ?: "Error inesperado",
+        )}
+    }
+
 }

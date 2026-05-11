@@ -7,6 +7,7 @@ import com.pabl3st.rutapp.data.local.entity.KpiCatalog
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.session.SessionManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.firstOrNull
 import java.util.UUID
 import javax.inject.Inject
@@ -44,10 +45,12 @@ class BusinessProfileRepository @Inject constructor(
 
     // ── KPIs ─────────────────────────────────────────────────
 
-    fun observeActiveKpis(): Flow<List<KpiDefinitionEntity>> {
-        val sector = "telco" // default — se actualiza en collect del perfil
-        return kpiDao.observeActive(accountId, sector)
-    }
+    fun observeActiveKpis(): Flow<List<KpiDefinitionEntity>> =
+        // Leer el sector del perfil en tiempo real — no hardcodeado a telco
+        profileDao.observe().flatMapLatest { profile ->
+            val sector = profile?.sector?.takeIf { it.isNotBlank() } ?: "telco"
+            kpiDao.observeActive(accountId, sector)
+        }
 
     fun observeActiveKpis(sector: String): Flow<List<KpiDefinitionEntity>> =
         kpiDao.observeActive(accountId, sector)

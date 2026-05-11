@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.importar
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -159,7 +160,7 @@ class ImportarViewModel @Inject constructor(
     private val routeRepo:  RouteRepository,
     private val kpiValueDao: KpiValueDao,
     private val session:    SessionManager,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(ImportarUiState())
     val ui: StateFlow<ImportarUiState> = _ui.asStateFlow()

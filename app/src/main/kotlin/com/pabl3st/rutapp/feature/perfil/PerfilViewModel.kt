@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.perfil
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.BuildConfig
@@ -38,7 +39,7 @@ class PerfilViewModel @Inject constructor(
     private val authRepo:    AuthRepository,
     private val profileRepo: BusinessProfileRepository,
     private val prefsRepo:   UserPrefsRepository,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(
         PerfilUiState(

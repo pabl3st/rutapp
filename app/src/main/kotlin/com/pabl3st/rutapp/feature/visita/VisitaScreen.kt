@@ -326,10 +326,10 @@ fun VisitaScreen(
                         }
                     }
 
-                                        OutlinedTextField(value = ui.notes, onValueChange = vm::onNotesChange, label = { Text("Notas de la visita") }, placeholder = { Text("Observaciones, incidencias...") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6)
+                                        OutlinedTextField(value = ui.notes, onValueChange = { if (it.length <= 500) vm.onNotesChange(it) }, label = { Text("Notas de la visita") }, placeholder = { Text("Observaciones, incidencias...") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6)
 
                     if (ui.prefs.showNextAction) {
-                        OutlinedTextField(value = ui.nextAction, onValueChange = vm::onNextActionChange, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.Default.NextPlan, null, Modifier.size(18.dp)) })
+                        OutlinedTextField(value = ui.nextAction, onValueChange = { if (it.length <= 255) vm.onNextActionChange(it) }, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.Default.NextPlan, null, Modifier.size(18.dp)) })
                     }
 
                     Spacer(Modifier.height(8.dp))

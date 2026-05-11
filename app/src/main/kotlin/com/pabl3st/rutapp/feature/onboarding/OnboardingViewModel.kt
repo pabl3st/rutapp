@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.onboarding
 
+import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.core.permission.AppPermission
@@ -33,7 +34,7 @@ data class OnboardingUiState(
 class OnboardingViewModel @Inject constructor(
     private val permissionManager: PermissionManager,
     private val session: SessionManager,
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(OnboardingUiState())
     val ui: StateFlow<OnboardingUiState> = _ui.asStateFlow()
