@@ -9,6 +9,7 @@ import com.pabl3st.rutapp.data.network.RegisterIndividualRequest
 import com.pabl3st.rutapp.data.network.RegisterWithInviteRequest
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
+import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,8 +34,9 @@ data class AuthSuccess(
 
 @Singleton
 class AuthRepository @Inject constructor(
-    private val api: RutasApiService,
-    private val session: SessionManager,
+    private val api:           RutasApiService,
+    private val session:       SessionManager,
+    private val userPrefsRepo: UserPrefsRepository,
     @ApplicationContext private val context: Context,
 ) {
     private val deviceName: String
@@ -162,6 +164,8 @@ class AuthRepository @Inject constructor(
                 accountType     = account.type,
                 accountName     = account.name,
             )
+            // Restaurar vacaciones y prefs desde el servidor (recuperación tras reinstalación)
+            userPrefsRepo.restoreFromServer(body.prefs)
             AuthResult.Success(success)
         }.getOrElse {
             // En modo offline usar datos cacheados

@@ -208,11 +208,28 @@ class UserPrefsRepository @Inject constructor(
                         "auto_sync"             to p.autoSync,
                         "jornada_reminder"      to p.jornadaReminder,
                         "jornada_reminder_hour" to p.jornadaReminderHour,
+                        "vacation_days"         to p.vacationDays.toList(),
                     )
                 )
             )
         }
         // Fallo silencioso — DataStore es la fuente de verdad
+    }
+
+    // ── Restaurar prefs desde el servidor al hacer login ─────────
+    // Llama /me → prefs y persiste en DataStore local.
+    // Si el servidor no tiene vacation_days (primer login), DataStore gana.
+    suspend fun restoreFromServer(serverPrefs: Map<String, Any>?) {
+        if (serverPrefs == null) return
+        val current = prefs.first()
+        // Restaurar vacation_days desde el servidor (fuente de verdad tras reinstalación)
+        val serverVacations = (serverPrefs["vacation_days"] as? List<*>)?.filterIsInstance<String>()?.toSet()
+            ?: emptySet()
+        // Merge: unión de días locales y del servidor (ambos son válidos)
+        val merged = current.vacationDays + serverVacations
+        if (merged != current.vacationDays) {
+            persist(current.copy(vacationDays = merged))
+        }
     }
 }
 
