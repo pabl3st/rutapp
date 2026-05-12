@@ -1123,6 +1123,59 @@ if ($action === 'update_user_prefs') {
 
 
 // ══════════════════════════════════════════════════════════════
+// FILE UPLOAD — fotos de visita
+// ══════════════════════════════════════════════════════════════
+
+if ($action === 'file_upload') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+
+    $stopUid  = san($_POST['stop_uid']  ?? '', 36);
+    $photoUid = san($_POST['photo_uid'] ?? '', 36);
+
+    if (!$stopUid || !$photoUid) err('stop_uid y photo_uid requeridos', 400, $action);
+    if (empty($_FILES['file'])) err('Archivo no recibido', 400, $action);
+
+    $file  = $_FILES['file'];
+    if ($file['error'] !== UPLOAD_ERR_OK) err('Error en la subida del archivo', 400, $action);
+
+    // Validar tipo MIME
+    $allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    $finfo   = new finfo(FILEINFO_MIME_TYPE);
+    $mime    = $finfo->file($file['tmp_name']);
+    if (!in_array($mime, $allowed, true)) err('Tipo de archivo no permitido', 400, $action);
+
+    // Limitar tamaño: 10 MB
+    if ($file['size'] > 10 * 1024 * 1024) err('Archivo demasiado grande (máx 10 MB)', 400, $action);
+
+    // Directorio de destino: uploads/photos/{account_id}/{año}/{mes}/
+    $ext     = $mime === 'image/png' ? 'png' : 'jpg';
+    $year    = date('Y');
+    $month   = date('m');
+    $dir     = __DIR__ . "/uploads/photos/{$aid}/{$year}/{$month}";
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+    $filename = "photo_{$photoUid}.{$ext}";
+    $filepath = "{$dir}/{$filename}";
+    $fileurl  = "/rutasproapk/uploads/photos/{$aid}/{$year}/{$month}/{$filename}";
+
+    if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+        err('Error al guardar el archivo en disco', 500, $action);
+    }
+
+    // Guardar en BD — ON DUPLICATE KEY ignora re-uploads del mismo photo_uid
+    db()->prepare(
+        'INSERT INTO visit_photos (account_id, user_id, stop_uid, photo_uid, file_path, file_url)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE file_path=VALUES(file_path), file_url=VALUES(file_url)'
+    )->execute([$aid, $uid, $stopUid, $photoUid, $filepath, $fileurl]);
+
+    apiLog($action, $uid, $aid);
+    ok(['url' => $fileurl, 'path' => $filepath]);
+}
+
+// ══════════════════════════════════════════════════════════════
 // GOD DASHBOARD
 // ══════════════════════════════════════════════════════════════
 
