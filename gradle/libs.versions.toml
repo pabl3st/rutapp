@@ -2,7 +2,7 @@
 compileSdk        = "35"
 minSdk            = "26"
 targetSdk         = "35"
-agp               = "8.5.2"
+agp               = "8.7.3"
 kotlin            = "2.0.21"
 ksp               = "2.0.21-1.0.25"
 coreKtx           = "1.13.1"

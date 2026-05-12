@@ -7,6 +7,12 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.NextPlan
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,7 +57,7 @@ fun PerfilScreen(
                 title = { Text("Perfil") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 }
             )
@@ -140,7 +146,7 @@ fun PerfilScreen(
                 )
                 Div()
                 SwitchRow(
-                    icon    = Icons.Default.NextPlan,
+                    icon    = Icons.AutoMirrored.Filled.NextPlan,
                     label   = "Mostrar próxima acción",
                     detail  = "Campo de planificación de siguiente visita",
                     checked = prefs.showNextAction,
@@ -247,7 +253,7 @@ fun PerfilScreen(
                     contentColor   = MaterialTheme.colorScheme.error,
                 ),
             ) {
-                Icon(Icons.Default.Logout, null, Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.Logout, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(Spacing.sm))
                 Text("Cerrar sesión")
             }
@@ -265,7 +271,7 @@ fun PerfilScreen(
     if (ui.showLogoutDialog) {
         AlertDialog(
             onDismissRequest = vm::onLogoutDismiss,
-            icon  = { Icon(Icons.Default.Logout, null) },
+            icon  = { Icon(Icons.AutoMirrored.Filled.Logout, null) },
             title = { Text("Cerrar sesión") },
             text  = { Text("¿Seguro que quieres cerrar sesión?") },
             confirmButton = {
@@ -505,8 +511,8 @@ private val TAG_ICON_OPTIONS = listOf(
     "ThumbUp" to Icons.Default.ThumbUp,
     "ThumbDown" to Icons.Default.ThumbDown,
     "Store" to Icons.Default.Store,
-    "TrendingUp" to Icons.Default.TrendingUp,
-    "TrendingDown" to Icons.Default.TrendingDown,
+    "TrendingUp" to Icons.AutoMirrored.Filled.TrendingUp,
+    "TrendingDown" to Icons.AutoMirrored.Filled.TrendingDown,
     "Schedule" to Icons.Default.Schedule,
     "Flag" to Icons.Default.Flag,
     "LocalOffer" to Icons.Default.LocalOffer,
@@ -631,7 +637,7 @@ private fun TagEditorRow(
         Color(android.graphics.Color.parseColor(tag.textColorHex))
     }.getOrDefault(MaterialTheme.colorScheme.onSurface)
     val iconVec = TAG_ICON_OPTIONS.firstOrNull { it.first == tag.icon }?.second
-        ?: Icons.Default.Label
+        ?: Icons.AutoMirrored.Filled.Label
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {

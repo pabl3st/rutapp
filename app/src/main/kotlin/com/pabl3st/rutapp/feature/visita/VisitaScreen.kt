@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.NextPlan
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -98,7 +100,7 @@ fun VisitaScreen(
                         }
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Volver") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver") } },
             )
         },
         bottomBar = {
@@ -329,7 +331,7 @@ fun VisitaScreen(
                                         OutlinedTextField(value = ui.notes, onValueChange = { if (it.length <= 500) vm.onNotesChange(it) }, label = { Text("Notas de la visita") }, placeholder = { Text("Observaciones, incidencias...") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6)
 
                     if (ui.prefs.showNextAction) {
-                        OutlinedTextField(value = ui.nextAction, onValueChange = { if (it.length <= 255) vm.onNextActionChange(it) }, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.Default.NextPlan, null, Modifier.size(18.dp)) })
+                        OutlinedTextField(value = ui.nextAction, onValueChange = { if (it.length <= 255) vm.onNextActionChange(it) }, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.AutoMirrored.Filled.NextPlan, null, Modifier.size(18.dp)) })
                     }
 
                     Spacer(Modifier.height(8.dp))

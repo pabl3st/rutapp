@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,7 +48,7 @@ fun KpisScreen(
                 title = { Text("KPIs") },
                 actions = {
                     IconButton(onClick = onNavigateToBiblioteca) {
-                        Icon(Icons.Default.LibraryBooks, contentDescription = "Biblioteca de paradas")
+                        Icon(Icons.AutoMirrored.Filled.LibraryBooks, contentDescription = "Biblioteca de paradas")
                     }
                 },
             )
@@ -108,7 +110,7 @@ fun KpisScreen(
                         modifier = Modifier.weight(1f),
                         value    = "${(ui.metrics.completionRate * 100).toInt()}%",
                         label    = "Ratio visita",
-                        icon     = Icons.Default.TrendingUp,
+                        icon     = Icons.AutoMirrored.Filled.TrendingUp,
                         color    = MaterialTheme.colorScheme.primary,
                     )
                 }

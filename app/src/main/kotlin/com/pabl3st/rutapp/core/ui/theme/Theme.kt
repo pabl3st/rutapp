@@ -353,7 +353,8 @@ fun RutasAppTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Status bar transparente — deja que el background del tema se vea
+            // Status bar transparente — API 35+ gestiona el color vía edge-to-edge
+            @Suppress("DEPRECATION")
             window.statusBarColor = Color.Transparent.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }

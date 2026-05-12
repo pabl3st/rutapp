@@ -240,7 +240,7 @@ private fun PhaseChoose(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape  = RoundedCornerShape(12.dp),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
+            border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
                 width = 1.dp,
             ),
             colors = ButtonDefaults.outlinedButtonColors(

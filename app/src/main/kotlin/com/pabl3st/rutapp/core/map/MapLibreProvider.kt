@@ -25,6 +25,7 @@ import org.maplibre.android.annotations.PolylineOptions as MLPolylineOptions
  * MapLibre Provider — OpenStreetMap
  * Sin API key, sin cuenta, sin límites, offline-capable.
  */
+@Suppress("DEPRECATION")
 class MapLibreProvider(private val context: Context) : MapProvider {
 
     override val type             = MapProviderType.MAPLIBRE
