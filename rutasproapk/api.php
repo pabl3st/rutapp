@@ -1105,6 +1105,7 @@ if ($action === 'update_user_prefs') {
         'language', 'show_visit_duration', 'show_next_action',
         'show_photos', 'require_result', 'push_enabled',
         'auto_sync', 'jornada_reminder', 'jornada_reminder_hour',
+        'vacation_days',  // JSON array de fechas ISO ["2026-05-12", ...]
     ];
     $clean = [];
     foreach ($prefsInput as $k => $v) {
