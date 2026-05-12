@@ -77,6 +77,12 @@
             android:name="com.google.android.gms.maps.MapsInitializer.RENDERER"
             android:value="LEGACY" />
 
+
+        <!-- GPS Foreground Service para tracking de jornada en background -->
+        <service
+            android:name=".core.location.LocationForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
     </application>
 </manifest>
 

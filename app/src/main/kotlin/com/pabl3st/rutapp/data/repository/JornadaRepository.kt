@@ -1,6 +1,6 @@
 package com.pabl3st.rutapp.data.repository
 
-import com.pabl3st.rutapp.core.location.LocationManager
+import android.location.Location
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
@@ -16,7 +16,6 @@ import javax.inject.Singleton
 class JornadaRepository @Inject constructor(
     private val dao:          DaySessionDao,
     private val syncQueueDao: SyncQueueDao,
-    private val locationMgr:  LocationManager,
     private val moshi:        Moshi,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
@@ -79,7 +78,9 @@ class JornadaRepository @Inject constructor(
         val session = dao.get(routeUid, dateStr) ?: return
         if (session.state != "running") return
         val added = if (session.lastLat != null && session.lastLng != null) {
-            locationMgr.distanceBetween(session.lastLat, session.lastLng, lat, lng) / 1000.0
+            val results = FloatArray(1)
+            Location.distanceBetween(session.lastLat, session.lastLng, lat, lng, results)
+            results[0] / 1000.0
         } else 0.0
         val newKm = session.distanceKm + added
         dao.updateDistance(routeUid, dateStr, newKm, lat, lng, System.currentTimeMillis())
