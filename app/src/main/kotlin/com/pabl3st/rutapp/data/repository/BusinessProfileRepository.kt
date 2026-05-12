@@ -68,12 +68,22 @@ class BusinessProfileRepository @Inject constructor(
         return kpiDao.getVisible(accountId, sector)
     }
 
-    /** Semilla: inserta KPIs predefinidos del sector si no existen */
+    /** Semilla: inserta KPIs predefinidos del sector si no existen.
+     *  Verifica sector y common por separado para evitar el bug en el que
+     *  countSystem("common") > 0 hace que nunca se inserten los KPIs del sector. */
     suspend fun seedKpisIfNeeded(sector: String) {
-        val count = kpiDao.countSystem(sector) +
-                    kpiDao.countSystem("common")
-        if (count == 0) {
-            kpiDao.upsertAll(KpiCatalog.forSector(sector))
+        // Siempre asegurar que existen los KPIs comunes
+        val commonCount = kpiDao.countSystem("common")
+        if (commonCount == 0) {
+            kpiDao.upsertAll(KpiCatalog.COMMON)
+        }
+        // Insertar KPIs del sector solo si ese sector no tiene KPIs aún
+        if (sector != "common" && sector != "custom") {
+            val sectorCount = kpiDao.countSystem(sector)
+            if (sectorCount == 0) {
+                val sectorKpis = KpiCatalog.forSector(sector).filter { it.sector == sector }
+                if (sectorKpis.isNotEmpty()) kpiDao.upsertAll(sectorKpis)
+            }
         }
     }
 
