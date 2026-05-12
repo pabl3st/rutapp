@@ -2,11 +2,15 @@ package com.pabl3st.rutapp.data.network
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Query
 
 const val API_PATH = "rutasproapk/api.php"
@@ -300,6 +304,14 @@ data class BaseResponse(
     val error: String? = null,
 )
 
+@JsonClass(generateAdapter = true)
+data class FileUploadResponse(
+    val ok: Boolean,
+    val url: String?   = null,   // URL pública de la foto subida
+    val path: String?  = null,   // path relativo en el servidor
+    val error: String? = null,
+)
+
 // ── Retrofit interface ───────────────────────────────────────
 
 
@@ -458,6 +470,17 @@ interface RutasApiService {
         @Body body: DeactivateUserRequest,
     ): Response<AdminActionResponse>
 
+
+    // ── file_upload — subida de fotos de visita ──────────────
+    @Multipart
+    @POST(API_PATH)
+    suspend fun fileUpload(
+        @Query("action")         action: String = "file_upload",
+        @Header("X-Auth-Token")  token: String,
+        @Part("stop_uid")        stopUid: RequestBody,
+        @Part("photo_uid")       photoUid: RequestBody,
+        @Part                    file: MultipartBody.Part,
+    ): Response<FileUploadResponse>
 
     // ── God Dashboard ─────────────────────────────────────────
     @GET(API_PATH)

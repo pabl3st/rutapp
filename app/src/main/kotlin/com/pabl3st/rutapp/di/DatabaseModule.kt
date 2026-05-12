@@ -39,4 +39,5 @@ object DatabaseModule {
     @Provides fun provideKpiDefinitionDao(db: RutasDatabase)   = db.kpiDefinitionDao()
     @Provides fun provideBusinessProfileDao(db: RutasDatabase) = db.businessProfileDao()
     @Provides fun provideKpiValueDao(db: RutasDatabase)        = db.kpiValueDao()
+    @Provides fun provideVisitPhotoDao(db: RutasDatabase)      = db.visitPhotoDao()
 }

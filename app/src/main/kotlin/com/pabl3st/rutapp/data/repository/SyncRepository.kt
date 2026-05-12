@@ -1,6 +1,7 @@
 package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
+import com.pabl3st.rutapp.data.repository.PhotoRepository
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
@@ -36,6 +37,7 @@ class SyncRepository @Inject constructor(
     private val daySessionDao:   DaySessionDao,
     private val kpiValueDao:     KpiValueDao,
     private val businessProfileDao: BusinessProfileDao,
+    private val photoRepo:       PhotoRepository,
     private val api:             RutasApiService,
     private val session:         SessionManager,
     private val moshi:           Moshi,
@@ -61,6 +63,9 @@ class SyncRepository @Inject constructor(
             token = token,
             since = session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" },
         )
+
+        // Subir fotos pendientes en background — fallo no bloquea el sync de datos
+        val photosOk = runCatching { photoRepo.uploadPending() }.getOrDefault(false)
 
         return when {
             uploaded && downloaded -> SyncResult.Success

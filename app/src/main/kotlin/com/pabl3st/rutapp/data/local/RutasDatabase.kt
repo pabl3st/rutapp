@@ -15,9 +15,11 @@ import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
+import com.pabl3st.rutapp.data.local.dao.VisitPhotoDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
+import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
 
 @Database(
     entities = [
@@ -28,8 +30,9 @@ import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
         KpiDefinitionEntity::class,
         BusinessProfileEntity::class,
         KpiValueEntity::class,
+        VisitPhotoEntity::class,
     ],
-    version      = 11,
+    version      = 12,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -40,6 +43,7 @@ abstract class RutasDatabase : RoomDatabase() {
     abstract fun kpiDefinitionDao(): KpiDefinitionDao
     abstract fun businessProfileDao(): BusinessProfileDao
     abstract fun kpiValueDao(): KpiValueDao
+    abstract fun visitPhotoDao(): VisitPhotoDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -138,6 +142,24 @@ abstract class RutasDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Fechas de visita programadas por ruta (JSON array)
                 db.execSQL("ALTER TABLE routes ADD COLUMN scheduledDates TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS visit_photos (
+                        uid        TEXT NOT NULL PRIMARY KEY,
+                        stopUid    TEXT NOT NULL,
+                        localPath  TEXT NOT NULL,
+                        serverUrl  TEXT,
+                        syncStatus TEXT NOT NULL DEFAULT 'pending',
+                        createdAt  INTEGER NOT NULL DEFAULT 0,
+                        lastError  TEXT
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vp_stop   ON visit_photos (stopUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_vp_sync   ON visit_photos (syncStatus)")
             }
         }
 

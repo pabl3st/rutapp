@@ -12,6 +12,7 @@ import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
+import com.pabl3st.rutapp.data.repository.PhotoRepository
 import com.pabl3st.rutapp.data.repository.UserPrefs
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
@@ -46,6 +47,7 @@ class VisitaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val stopRepo:     StopRepository,
     private val profileRepo:  BusinessProfileRepository,
+    private val photoRepo:    PhotoRepository,
     private val kpiValueDao:  KpiValueDao,
     private val syncQueueDao: SyncQueueDao,
     private val prefsRepo:    UserPrefsRepository,
@@ -65,6 +67,7 @@ class VisitaViewModel @Inject constructor(
         loadKpiFields()
         loadPrefs()
         loadExistingKpiValues()
+        observeExistingPhotos()
     }
 
     private fun loadStop() {
@@ -152,7 +155,26 @@ class VisitaViewModel @Inject constructor(
                 )
             }
 
+            // 4. Persistir fotos en Room (se subirán al servidor en background via SyncWorker)
+            val currentPhotos = _ui.value.photos
+            if (currentPhotos.isNotEmpty()) {
+                photoRepo.savePhotos(stopUid, currentPhotos)
+            }
+
             _ui.update { it.copy(isSaving = false, saved = true) }
+        }
+    }
+
+    private fun observeExistingPhotos() {
+        viewModelScope.launch {
+            photoRepo.observeByStop(stopUid).collect { photos ->
+                // Mostrar fotos ya guardadas (synced o pending) como URIs
+                val existingUris = photos.map { android.net.Uri.parse(it.localPath) }
+                // Solo pre-cargar si la lista actual está vacía (no sobreescribir las recién tomadas)
+                if (_ui.value.photos.isEmpty()) {
+                    _ui.update { it.copy(photos = existingUris) }
+                }
+            }
         }
     }
 
