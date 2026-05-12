@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.repository.RouteRepository
+import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -39,11 +40,13 @@ data class CalendarioUiState(
     val allRoutes:         List<RouteEntity>           = emptyList(),
     val snackbar:          String?                     = null,
     val error:             String?                     = null,
+    val vacationDays:      Set<String>                 = emptySet(),
 )
 
 @HiltViewModel
 class CalendarioViewModel @Inject constructor(
-    private val routeRepo: RouteRepository,
+    private val routeRepo:     RouteRepository,
+    private val userPrefsRepo: UserPrefsRepository,
 ) : BaseViewModel() {
 
     private val fmt = DateTimeFormatter.ISO_LOCAL_DATE
@@ -55,7 +58,16 @@ class CalendarioViewModel @Inject constructor(
 
     init {
         observeAllRoutes()
+        observeVacations()
         fetchHolidaysForYear(LocalDate.now().year)
+    }
+
+    private fun observeVacations() {
+        viewModelScope.launch {
+            userPrefsRepo.prefs.collect { p ->
+                _ui.update { it.copy(vacationDays = p.vacationDays) }
+            }
+        }
     }
 
     private fun observeAllRoutes() {
@@ -170,9 +182,19 @@ class CalendarioViewModel @Inject constructor(
 
     // ── Marcar vacaciones ──────────────────────────────────
     fun onMarkVacation() {
-        // TODO: guardar en user_prefs el día como vacaciones
-        // Por ahora solo cerramos el menú con feedback
-        _ui.update { it.copy(showDayMenu = false, menuDay = null, snackbar = "Funcionalidad próximamente") }
+        val day = _ui.value.menuDay ?: return
+        val dateStr = day.format(fmt)
+        viewModelScope.launch {
+            userPrefsRepo.toggleVacationDay(dateStr)
+            val isNowVacation = userPrefsRepo.isVacationDay(
+                userPrefsRepo.prefs.first(), dateStr
+            )
+            val msg = if (isNowVacation)
+                "Día ${day.dayOfMonth}/${day.monthValue} marcado como vacaciones"
+            else
+                "Día ${day.dayOfMonth}/${day.monthValue} quitado de vacaciones"
+            _ui.update { it.copy(showDayMenu = false, menuDay = null, snackbar = msg) }
+        }
     }
 
     // ── Quitar ruta del día concreto (no de todos los días) ──

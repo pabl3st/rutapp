@@ -88,6 +88,7 @@ fun CalendarioScreen(
                 selectedDay    = ui.selectedDay,
                 routesByDate   = ui.routesByDate,
                 holidays       = ui.holidays,
+                vacationDays   = ui.vacationDays,
                 onDayClick     = vm::selectDay,
                 onDayLongPress = vm::onDayLongPress,
             )
@@ -122,6 +123,23 @@ fun CalendarioScreen(
                             text  = selectedHoliday.localName.ifBlank { selectedHoliday.name },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                val selectedDateStr = ui.selectedDay?.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE) ?: ""
+                if (selectedDateStr in ui.vacationDays) {
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.BeachAccess, null,
+                            modifier = Modifier.size(12.dp),
+                            tint     = MaterialTheme.colorScheme.tertiary,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text  = "Vacaciones",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                 }
@@ -188,6 +206,9 @@ fun CalendarioScreen(
             ui.routesByDate[it.format(DateTimeFormatter.ISO_LOCAL_DATE)]?.isNotEmpty() == true
         } == true
 
+        val menuDateStr = ui.menuDay?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: ""
+        val isVacationDay = menuDateStr in ui.vacationDays
+
         AlertDialog(
             onDismissRequest = vm::dismissDayMenu,
             title = { Text(dayLabel, style = MaterialTheme.typography.titleSmall) },
@@ -211,6 +232,23 @@ fun CalendarioScreen(
                             Spacer(Modifier.width(8.dp))
                             Text("Quitar ruta de este día")
                         }
+                    }
+                    // Toggle vacaciones
+                    TextButton(
+                        onClick  = vm::onMarkVacation,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            if (isVacationDay) Icons.Default.EventAvailable else Icons.Default.BeachAccess,
+                            null,
+                            Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (isVacationDay) "Quitar vacaciones" else "Marcar como vacaciones",
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
                     }
                 }
             },
@@ -362,6 +400,7 @@ private fun CalendarGrid(
     selectedDay:    LocalDate?,
     routesByDate:   Map<String, List<RouteEntity>>,
     holidays:       Map<String, PublicHoliday>,
+    vacationDays:   Set<String>                    = emptySet(),
     onDayClick:     (LocalDate) -> Unit,
     onDayLongPress: (LocalDate) -> Unit = {},
 ) {
@@ -390,6 +429,7 @@ private fun CalendarGrid(
                         val isWeekend  = date.dayOfWeek.value >= 6
                         val hasRoutes  = routes.isNotEmpty()
                         val allDone    = hasRoutes && routes.all { it.status == "done" }
+                        val isVacation = dateStr in vacationDays
 
                         Box(
                             modifier          = Modifier.weight(1f).aspectRatio(1f)
@@ -397,11 +437,12 @@ private fun CalendarGrid(
                                 .clip(CircleShape)
                                 .background(
                                     when {
-                                        isSelected -> MaterialTheme.colorScheme.primary
-                                        isToday    -> MaterialTheme.colorScheme.primaryContainer
-                                        allDone    -> MaterialTheme.colorScheme.tertiaryContainer
+                                        isSelected  -> MaterialTheme.colorScheme.primary
+                                        isToday     -> MaterialTheme.colorScheme.primaryContainer
+                                        allDone     -> MaterialTheme.colorScheme.tertiaryContainer
+                                        isVacation  -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
                                         holiday != null -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
-                                        else       -> androidx.compose.ui.graphics.Color.Transparent
+                                        else        -> androidx.compose.ui.graphics.Color.Transparent
                                     }
                                 )
                                 .combinedClickable(
@@ -453,6 +494,10 @@ private fun CalendarGrid(
                                             )
                                         }
                                     }
+                                    isVacation && !isSelected && !hasRoutes -> Box(
+                                        modifier = Modifier.size(4.dp).clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f))
+                                    )
                                     holiday != null && !isSelected -> Box(
                                         modifier = Modifier.size(4.dp).clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.error.copy(alpha = 0.6f))

@@ -48,6 +48,10 @@ data class UserPrefs(
     // El owner puede definir un umbral numérico genérico (ej: activaciones mínimas).
     // Se usa en condiciones KPI_ABOVE / KPI_BELOW de los tags.
     val kpiThreshold:         Double = 0.0,
+
+    // ── Días de vacaciones del usuario ───────────────────────
+    // Set de fechas ISO ("YYYY-MM-DD") marcadas como vacaciones.
+    val vacationDays:         Set<String> = emptySet(),
 )
 
 private val Context.userPrefsStore: DataStore<Preferences>
@@ -73,6 +77,7 @@ class UserPrefsRepository @Inject constructor(
         val JORNADA_HOUR      = intPreferencesKey("jornada_reminder_hour")
         val STOP_TAGS         = stringPreferencesKey("stop_tags_json")   // JSON array
         val KPI_THRESHOLD     = stringPreferencesKey("kpi_threshold")    // Double as string
+        val VACATION_DAYS     = stringPreferencesKey("vacation_days_json") // JSON array de fechas ISO
     }
 
     // ── Flow reactivo — la UI observa esto ───────────────────
@@ -90,6 +95,7 @@ class UserPrefsRepository @Inject constructor(
             jornadaReminderHour = p[K.JORNADA_HOUR]     ?: 9,
             stopTags            = deserializeTags(p[K.STOP_TAGS] ?: "[]"),
             kpiThreshold        = p[K.KPI_THRESHOLD]?.toDoubleOrNull() ?: 0.0,
+            vacationDays        = deserializeVacations(p[K.VACATION_DAYS] ?: "[]"),
         )
     }
 
@@ -157,8 +163,31 @@ class UserPrefsRepository @Inject constructor(
             store[K.JORNADA_HOUR]     = p.jornadaReminderHour
             store[K.STOP_TAGS]        = serializeTags(p.stopTags)
             store[K.KPI_THRESHOLD]    = p.kpiThreshold.toString()
+            store[K.VACATION_DAYS]    = serializeVacations(p.vacationDays)
         }
     }
+
+    // ── Vacaciones ───────────────────────────────────────────
+    private fun serializeVacations(days: Set<String>): String =
+        org.json.JSONArray(days.toList()).toString()
+
+    private fun deserializeVacations(json: String): Set<String> = runCatching {
+        val arr = org.json.JSONArray(json)
+        (0 until arr.length()).map { arr.getString(it) }.toSet()
+    }.getOrDefault(emptySet())
+
+    /** Añade o quita un día de vacaciones y persiste. */
+    suspend fun toggleVacationDay(dateStr: String) {
+        val current = prefs.first()
+        val updated = if (dateStr in current.vacationDays)
+            current.copy(vacationDays = current.vacationDays - dateStr)
+        else
+            current.copy(vacationDays = current.vacationDays + dateStr)
+        persist(updated)
+    }
+
+    fun isVacationDay(prefs: UserPrefs, dateStr: String): Boolean =
+        dateStr in prefs.vacationDays
 
     // ── Sincronizar con user_prefs del servidor ───────────────
     // No bloquea: error de red → preferencias siguen en DataStore

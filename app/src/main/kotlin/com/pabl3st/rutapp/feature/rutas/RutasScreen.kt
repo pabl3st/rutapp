@@ -132,6 +132,15 @@ fun RutasScreen(
                             { Text(err, color = MaterialTheme.colorScheme.error) }
                         },
                     )
+                    OutlinedTextField(
+                        value         = ui.newRouteDate,
+                        onValueChange = vm::onNewRouteDateChange,
+                        label         = { Text("Fecha (YYYY-MM-DD)") },
+                        placeholder   = { Text(java.time.LocalDate.now().toString()) },
+                        singleLine    = true,
+                        modifier      = Modifier.fillMaxWidth(),
+                        leadingIcon   = { Icon(Icons.Default.CalendarToday, null, Modifier.size(18.dp)) },
+                    )
                 }
             },
             confirmButton = {
