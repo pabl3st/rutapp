@@ -25,6 +25,7 @@ data class RouteMapUiState(
     val isLocating: Boolean                = false,
     val locationPermissionGranted: Boolean = false,
     val showPermissionRationale: Boolean   = false,
+    val showSettingsRationale:   Boolean   = false,
     val isOptimizing: Boolean              = false,
     val routePolyline: List<MapLatLng>     = emptyList(),
     val error: String?                     = null,
@@ -76,8 +77,16 @@ class RouteMapViewModel @Inject constructor(
         _ui.update { it.copy(showPermissionRationale = true) }
     }
 
+    fun onPermissionPermanentlyDenied() {
+        _ui.update { it.copy(showSettingsRationale = true) }
+    }
+
     fun dismissPermissionRationale() {
         _ui.update { it.copy(showPermissionRationale = false) }
+    }
+
+    fun dismissSettingsRationale() {
+        _ui.update { it.copy(showSettingsRationale = false) }
     }
 
     // ── GPS ───────────────────────────────────────────────────

@@ -225,8 +225,16 @@ class GlobalMapViewModel @Inject constructor(
         _ui.update { it.copy(showPermissionRationale = true) }
     }
 
+    fun onPermissionPermanentlyDenied() {
+        _ui.update { it.copy(showSettingsRationale = true) }
+    }
+
     fun dismissPermissionRationale() {
         _ui.update { it.copy(showPermissionRationale = false) }
+    }
+
+    fun dismissSettingsRationale() {
+        _ui.update { it.copy(showSettingsRationale = false) }
     }
 
     private fun startLocationUpdates() {

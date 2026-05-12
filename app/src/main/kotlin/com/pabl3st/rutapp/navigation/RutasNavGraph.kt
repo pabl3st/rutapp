@@ -156,8 +156,9 @@ fun RutasNavGraph(
             ) { backStackEntry ->
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteMapScreen(
-                    routeUid = routeUid,
-                    onBack   = { navController.popBackStack() },
+                    routeUid    = routeUid,
+                    onBack      = { navController.popBackStack() },
+                    onStopClick = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                 )
             }
 

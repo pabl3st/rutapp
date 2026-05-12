@@ -222,17 +222,19 @@ class KpisViewModel @Inject constructor(
         stopUids: List<String>
     ): List<Triple<KpiDefinitionEntity, String, Boolean>> {
         if (stopUids.isEmpty()) return emptyList()
-        val profile  = profileRepo.getOrCreateProfile()
-        val kpiDefs  = profileRepo.getVisibleKpisForSector(profile.sector)
+        val profile = profileRepo.getOrCreateProfile()
+        val kpiDefs = profileRepo.getVisibleKpisForSector(profile.sector)
             .filter { it.type == "number" || it.type == "boolean" }
             .filter { it.id !in setOf("common_resultado", "common_duracion") }
 
         if (kpiDefs.isEmpty()) return emptyList()
 
+        // Carga todos los kpi_values del período en una sola query (eficiente)
+        val allValues = kpiValueDao.getByStops(stopUids)
+        val byKpi = allValues.groupBy { it.kpiId }
+
         return kpiDefs.mapNotNull { def ->
-            val values = stopUids.flatMap { uid ->
-                kpiValueDao.getByStop(uid).filter { it.kpiId == def.id }
-            }
+            val values = byKpi[def.id] ?: return@mapNotNull null
             if (values.isEmpty()) return@mapNotNull null
             val display = when (def.type) {
                 "boolean" -> {

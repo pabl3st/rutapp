@@ -6,6 +6,7 @@ import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +34,7 @@ import com.pabl3st.rutapp.core.map.StopMapMarker
 fun RouteMapScreen(
     routeUid: String,
     onBack: () -> Unit,
+    onStopClick: (String) -> Unit = {},
     vm: RouteMapViewModel = hiltViewModel(),
 ) {
     val ui             by vm.ui.collectAsStateWithLifecycle()
@@ -51,8 +53,9 @@ fun RouteMapScreen(
 
     // ── Permiso GPS ───────────────────────────────────────────
     val requestPermission = rememberLocationPermissionLauncher(
-        onGranted = vm::onPermissionGranted,
-        onDenied  = vm::onPermissionDenied,
+        onGranted            = vm::onPermissionGranted,
+        onDenied             = vm::onPermissionDenied,
+        onPermanentlyDenied  = { vm.onPermissionPermanentlyDenied() },
     )
     LaunchedEffect(Unit) {
         when (context.locationPermissionState()) {
@@ -122,6 +125,7 @@ fun RouteMapScreen(
                 onStopClick  = { uid ->
                     val idx = ui.stops.indexOfFirst { it.uid == uid }
                     if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                    onStopClick(uid)
                 },
                 onMapClick   = { /* nada por ahora */ },
                 onCameraIdle = { _, _ -> },
@@ -172,6 +176,31 @@ fun RouteMapScreen(
                 }
             }
         }
+    }
+
+
+    // ── Diálogo GPS permanentemente denegado → Ajustes ───────────
+    if (ui.showSettingsRationale) {
+        val ctx = LocalContext.current
+        AlertDialog(
+            onDismissRequest = vm::dismissSettingsRationale,
+            icon  = { Icon(Icons.Default.LocationOff, null) },
+            title = { Text("GPS desactivado") },
+            text  = { Text("Has denegado el permiso de ubicación. Para activarlo, ve a Ajustes → Aplicaciones → RutasApp → Permisos → Ubicación.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.dismissSettingsRationale()
+                    ctx.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", ctx.packageName, null)
+                        }
+                    )
+                }) { Text("Ir a Ajustes") }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissSettingsRationale) { Text("Ahora no") }
+            },
+        )
     }
 
     // ── Diálogo permiso GPS ───────────────────────────────────

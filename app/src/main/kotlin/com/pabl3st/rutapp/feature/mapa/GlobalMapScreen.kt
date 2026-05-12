@@ -47,8 +47,9 @@ fun GlobalMapScreen(
 
     // ── Permiso GPS ───────────────────────────────────────────
     val requestPermission = rememberLocationPermissionLauncher(
-        onGranted = vm::onPermissionGranted,
-        onDenied  = vm::onPermissionDenied,
+        onGranted            = vm::onPermissionGranted,
+        onDenied             = vm::onPermissionDenied,
+        onPermanentlyDenied  = { vm.onPermissionPermanentlyDenied() },
     )
     LaunchedEffect(Unit) {
         when (context.locationPermissionState()) {
@@ -192,6 +193,31 @@ fun GlobalMapScreen(
                 }
             }
         }
+    }
+
+
+    // ── Diálogo GPS permanentemente denegado → Ajustes ───────────
+    if (ui.showSettingsRationale) {
+        val ctx = LocalContext.current
+        AlertDialog(
+            onDismissRequest = vm::dismissSettingsRationale,
+            icon  = { Icon(Icons.Default.LocationOff, null) },
+            title = { Text("GPS desactivado") },
+            text  = { Text("Has denegado el permiso de ubicación. Para activarlo, ve a Ajustes → Aplicaciones → RutasApp → Permisos → Ubicación.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.dismissSettingsRationale()
+                    ctx.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", ctx.packageName, null)
+                        }
+                    )
+                }) { Text("Ir a Ajustes") }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissSettingsRationale) { Text("Ahora no") }
+            },
+        )
     }
 
     // ── Diálogo permiso GPS ───────────────────────────────────
