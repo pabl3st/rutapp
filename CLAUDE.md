@@ -23,7 +23,7 @@ de rutas comerciales de campo. Es independiente de la PWA existente en
 
 | Dependencia        | Versión          | Nota                                        |
 |--------------------|------------------|---------------------------------------------|
-| AGP                | 8.5.2            | Compatible con Gradle 8.9                   |
+| AGP                | 8.7.3            | Compatible con compileSdk 35                |
 | Kotlin             | 2.0.21           | Con Compose compiler plugin integrado       |
 | KSP                | 2.0.21-1.0.25    | Prefijo DEBE coincidir con versión Kotlin   |
 | Hilt               | 2.52             | —                                           |
@@ -31,8 +31,9 @@ de rutas comerciales de campo. Es independiente de la PWA existente en
 | Navigation Compose | 2.8.3            | —                                           |
 | Retrofit           | 2.11.0           | —                                           |
 | OkHttp             | 4.12.0           | —                                           |
-| Moshi              | 1.15.1           | Codegen vía KSP (migrar de kapt en S02)     |
+| Moshi              | 1.15.1           | Codegen vía KSP                             |
 | security-crypto    | 1.1.0            | Ver ERROR 6 abajo                           |
+| MapLibre           | 11.5.1           | —                                           |
 | minSdk             | 26               | Android 8.0+                                |
 | compileSdk         | 35               | —                                           |
 
@@ -49,16 +50,24 @@ app/src/main/kotlin/com/pabl3st/rutapp/
 ├── MainActivity.kt
 ├── core/
 │   ├── importer/           CsvParser.kt, GeoCluster.kt
-│   ├── location/           LocationManager.kt, PermissionHandler.kt
+│   ├── location/           LocationManager.kt, PermissionHandler.kt,
+│   │                       LocationForegroundService.kt
 │   ├── map/                MapLibreProvider.kt, MapProvider.kt, MapProviderFactory.kt, OtherProviders.kt
 │   └── ui/theme/           Theme.kt, ThemeRepository.kt, ThemeViewModel.kt
 ├── data/
 │   ├── local/
-│   │   ├── RutasDatabase.kt   (version=6, migrations 1→6)
-│   │   ├── dao/               RouteDao, StopDao, SyncQueueDao, DaySessionDao, KpiDefinitionDao, BusinessProfileDao, KpiValueDao
-│   │   └── entity/            RouteEntity, StopEntity, SyncQueueEntity, DaySessionEntity, KpiDefinitionEntity, KpiValueEntity, BusinessProfileEntity, KpiCatalog
+│   │   ├── RutasDatabase.kt   (version=12, migrations 1→12)
+│   │   ├── dao/               RouteDao, StopDao, SyncQueueDao, DaySessionDao,
+│   │   │                      KpiDefinitionDao, BusinessProfileDao, KpiValueDao,
+│   │   │                      VisitPhotoDao
+│   │   └── entity/            RouteEntity, StopEntity, SyncQueueEntity, DaySessionEntity,
+│   │                          KpiDefinitionEntity, KpiValueEntity, BusinessProfileEntity,
+│   │                          VisitPhotoEntity, StopTagConfig, KpiCatalog
 │   ├── network/               RutasApiService.kt + DTOs
-│   └── repository/            AuthRepository, RouteRepository, StopRepository, SyncRepository, JornadaRepository, BusinessProfileRepository, DtoMappers
+│   └── repository/            AuthRepository, RouteRepository, StopRepository,
+│                              SyncRepository, JornadaRepository, BusinessProfileRepository,
+│                              UserPrefsRepository, PhotoRepository, AdminRepository,
+│                              DtoMappers
 ├── di/                    DatabaseModule, NetworkModule, LocationModule, MapModule
 ├── fcm/                   FcmTokenRepository, RutasMessagingService
 ├── feature/
@@ -70,7 +79,8 @@ app/src/main/kotlin/com/pabl3st/rutapp/
 │   ├── importar/          ImportarScreen, ImportarViewModel
 │   ├── kpis/              KpisScreen, KpisViewModel
 │   ├── mapa/              GlobalMapScreen, GlobalMapViewModel
-│   ├── perfil/            PerfilScreen, PerfilViewModel, BusinessProfileScreen, BusinessProfileViewModel
+│   ├── perfil/            PerfilScreen, PerfilViewModel, BusinessProfileScreen,
+│   │                      BusinessProfileViewModel
 │   ├── rutas/             RutasScreen, RutasViewModel, RouteDetailScreen, RouteDetailViewModel,
 │   │                      RouteMapScreen, RouteMapViewModel, CrearParadaScreen, CrearParadaViewModel
 │   └── visita/            VisitaScreen, VisitaViewModel
@@ -78,9 +88,19 @@ app/src/main/kotlin/com/pabl3st/rutapp/
 └── sync/                  SyncWorker.kt
 ```
 
-### Room — versión actual: 6
-Migrations: 1→2 (stops campos visita), 2→3 (stops campos comerciales), 3→4 (day_sessions),
-4→5 (kpi_definitions + business_profiles), 5→6 (kpi_values).
+### Room — versión actual: 12
+Migrations:
+- 1→2: stops campos visita (externalId, contactName, contactPhone, visitResult, nextAction)
+- 2→3: stops campos comerciales (visitFrequency, priority, segment, accountStatus, openingHours)
+- 3→4: day_sessions table
+- 4→5: kpi_definitions + business_profiles tables
+- 5→6: kpi_values table
+- 6→7: stops.pdvOpen
+- 7→8: stops.pdvInactive
+- 8→9: routes.scheduledDates
+- 9→10: índices de performance (routes, stops, kpi_values, sync_queue)
+- 10→11: sync_queue UNIQUE INDEX
+- 11→12: visit_photos table
 
 ### Screen routes disponibles
 ```kotlin
@@ -101,7 +121,7 @@ Screen.Importar        // importar
 
 ### S01 — COMPLETADO ✅
 - Auth completo: register_individual, register_company, register_with_invite, login, logout, me, token_refresh, health
-- SessionManager con EncryptedSharedPreferences
+- SessionManager con EncryptedSharedPreferences (MasterKey.Builder — no usar MasterKeys deprecated)
 - Clean Architecture + MVVM base
 - CI/CD GitHub Actions: push → assembleDebug → artifact
 
@@ -122,10 +142,15 @@ Screen.Importar        // importar
 - VisitaScreen: formulario de visita con resultado, notas, próxima acción, estado PDV
 - VisitaViewModel: actualiza stop en Room + KpiValues
 - Fotos en visita: CameraX captura + Coil preview
+- PhotoRepository: savePhotos() persiste URIs, uploadPending() sube al servidor vía multipart
+- VisitPhotoEntity + VisitPhotoDao (Room v11→v12)
+- api.php: endpoint file_upload (POST multipart, 10MB max, MIME validation)
 
 ### S06 — COMPLETADO ✅
 - KpisScreen: estadísticas de visitas, tendencia semanal/mensual, filtro por ruta, KPIs del sector
-- KpisViewModel: cálculos sobre Room, SIX_MONTHS, buildSectorKpis()
+- KpisViewModel: cálculos sobre Room, SIX_MONTHS, buildSectorKpis() con getByStops() batch query
+- stats_month endpoint (GET, manager+): agrega visitas + KPIs + desglose por agente del mes
+- KpisScreen sección "Equipo este mes" visible solo para manager/admin/owner/god
 
 ### S07 — COMPLETADO ✅
 - CrearParadaScreen: formulario completo (nombre, código, dirección, GPS, contacto, prioridad, notas)
@@ -135,6 +160,8 @@ Screen.Importar        // importar
 - DaySessionEntity + JornadaRepository + JornadaViewModel + JornadaBar
 - HomeScreen con JornadaBar cuando hay exactamente 1 ruta hoy
 - RutasDatabase v3→v4
+- LocationForegroundService: GPS tracking en background durante jornada activa
+  (startForegroundService desde JornadaViewModel, notificación persistente)
 
 ### S09 — COMPLETADO ✅
 - BusinessProfileEntity + KpiDefinitionEntity + KpiValueEntity (Room v4→v6)
@@ -157,6 +184,13 @@ Screen.Importar        // importar
 - BibliotecaScreen: tabs Todas/Sin GPS/Sin ruta, búsqueda en tiempo real, bulk actions
 - BibliotecaViewModel: combine(_tab, _query.debounce(200)) + flatMapLatest
 
+### S12 — COMPLETADO ✅ (Calendario)
+- CalendarioScreen: grid mensual, selección de día, festivos ES vía date.nager.at
+- CalendarioViewModel: pulsación larga → selector de rutas para asignar al día; unassignDate/assignDate
+- RouteRepository: assignDate(uid, dateStr) + unassignDate(uid)
+- UserPrefsRepository.vacation_days sincronizado con servidor vía update_user_prefs
+- verifySession() restaura vacation_days del servidor al arrancar (recuperación tras reinstalación)
+
 ### S13 — COMPLETADO ✅ (Import CSV)
 - CsvParser: auto-detecta separador, maneja comillas, UTF-8
 - GeoCluster: K-means++ geográfico con estrategias AUTO/FIXED_K/RADIUS
@@ -164,22 +198,29 @@ Screen.Importar        // importar
 - ImportarViewModel: autoMap(), buildClusters(), onSaveConfirm() crea rutas+stops en Room
 - RutasScreen: botón import en TopAppBar → navega a Screen.Importar
 
+### S14 — COMPLETADO ✅ (Admin panel)
+- AdminScreen: sesión activa, estadísticas Room, gestión de usuarios, invitaciones
+- AdminViewModel + AdminRepository: listUsers, inviteUser, updateRole, deactivateUser,
+  reactivateUser, listInvites, deleteInvite, godSetRole
+- Flujo de invitación: genera código (no envía email) → InviteCodeDialog con copiar al portapapeles
+- Lista de invitaciones activas con InviteCard (código, rol, usos, expiración, botón eliminar)
+- RolePicker con descripciones de cada rol
+- account_config_save: owner/admin puede editar nombre de empresa desde PerfilScreen
+- push_register: registra/actualiza token FCM en sesión activa del dispositivo
+- api.php: users_list, invite_user, update_role, deactivate_user, reactivate_user,
+  invite_list, invite_delete, account_config_save, push_register, stats_month, file_upload
+
 ### PENDIENTES ⏳
-
-### S12 — COMPLETADO ✅ (Calendario)
-- CalendarioScreen: grid mensual, selección de día, festivos ES vía date.nager.at
-- CalendarioViewModel: pulsación larga → selector de rutas para asignar al día; unassignDate/assignDate
-- RouteRepository: assignDate(uid, dateStr) + unassignDate(uid)
-
-#### S14 — Admin panel completo (depende S09)
-- AdminScreen existe (170 líneas) — base con gestión básica
-- Pendiente: roles completos owner/admin/manager/agent/viewer, gestión de empleados/invites,
-  asignación de perfil de negocio por empleado, empViewPrefs
 
 #### S15 — IA (depende S08+S09+S11)
 - Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)
 - Asesor pre-visita por PDV: risk score + objetivo
 - Contexto: historial KpiDefinition + JornadaSession
+
+#### S16 — Play Store
+- Firma release: keystore, secrets GitHub (KEYSTORE_BASE64, KEY_ALIAS, KEY_PASSWORD, STORE_PASSWORD)
+- build-release.yml: assembleRelease + zipalign + apksigner
+- Ficha Play Store: descripción ES+EN, capturas, icono 512×512, política privacidad
 
 ---
 
@@ -201,12 +242,15 @@ session.userDisplayName, session.accountId, session.accountType
 session.accountName, session.isCompany, session.deviceId
 session.lastSyncTimestamp  // ISO8601, usado para delta_sync
 session.saveAuth(...), session.clear()
+// accountName es var — se puede actualizar tras account_config_save
 ```
 
 ### `RutasApiService` — BASE_URL
 ```kotlin
 private const val BASE_URL = "https://mejoresiagratis.com/"
 // API_PATH = "rutasproapk/api.php" — todos los endpoints usan @Query("action")
+// Header de autenticación: @Header("X-Auth-Token") token: String
+// NUNCA usar "Bearer {token}" — el servidor espera el token limpio
 ```
 
 ### `BusinessProfileRepository` — API disponible
@@ -234,7 +278,6 @@ stopRepo.observeWithoutGps(accountId)         // Flow<List<StopEntity>>
 stopRepo.observeOrphaned(accountId)           // Flow<List<StopEntity>>
 stopRepo.getByUid(uid)                        // suspend → StopEntity?
 stopRepo.saveVisitResult(uid, result, notes?, nextAction?)
-stopRepo.reorderStops(stops)                  // suspend
 stopRepo.reorderStops(stops)                  // suspend — bulk update orderIndex
 // Nota: sorting GPS/Greedy se implementa en RouteDetailViewModel
 ```
@@ -245,6 +288,51 @@ routeRepo.createRoute(name, dateAssigned)     // suspend → RouteEntity
 routeRepo.observeAll()                        // Flow<List<RouteEntity>>
 routeRepo.observeToday()                      // Flow<List<RouteEntity>>
 routeRepo.getByUid(uid)                       // suspend → RouteEntity?
+routeRepo.assignDate(uid, dateStr)            // suspend
+routeRepo.unassignDate(uid, dateStr)          // suspend
+```
+
+### `JornadaRepository` — API disponible
+```kotlin
+jornadaRepo.observe(routeUid, dateStr)        // Flow<DaySessionEntity?>
+jornadaRepo.get(routeUid, dateStr)            // suspend → DaySessionEntity?
+jornadaRepo.start(routeUid, dateStr)          // suspend
+jornadaRepo.pause(routeUid, dateStr)          // suspend
+jornadaRepo.resume(routeUid, dateStr)         // suspend
+jornadaRepo.finish(routeUid, dateStr)         // suspend
+jornadaRepo.updateGps(routeUid, dateStr, lat, lng) // suspend — llamado desde LocationForegroundService
+jornadaRepo.elapsedMs(session)                // Long — ms transcurridos corregidos por pausas
+jornadaRepo.todayStr()                        // String ISO "2026-05-13"
+```
+
+### `UserPrefsRepository` — API disponible
+```kotlin
+prefsRepo.prefs                               // Flow<UserPrefs>
+prefsRepo.update(transform)                   // suspend — actualiza DataStore + server
+prefsRepo.toggleVacationDay(dateStr)          // suspend
+prefsRepo.restoreFromServer(serverPrefs)      // suspend — merge vacation_days desde servidor
+```
+
+### `PhotoRepository` — API disponible
+```kotlin
+photoRepo.observeByStop(stopUid)              // Flow<List<VisitPhotoEntity>>
+photoRepo.savePhotos(stopUid, uris)           // suspend — persiste URIs en Room
+photoRepo.uploadPending()                     // suspend — sube fotos pendientes al servidor
+```
+
+### `AdminRepository` — API disponible
+```kotlin
+adminRepo.isOwnerOrAdmin, adminRepo.isGod, adminRepo.canManageUsers, adminRepo.isOwner
+adminRepo.listUsers()                         // suspend → AuthResult<List<AccountUserDto>>
+adminRepo.inviteUser(email, role)             // suspend → AuthResult<String> (devuelve código)
+adminRepo.listInvites()                       // suspend → AuthResult<List<InviteDto>>
+adminRepo.deleteInvite(inviteId)              // suspend → AuthResult<String>
+adminRepo.updateRole(targetUserId, role)      // suspend → AuthResult<String>
+adminRepo.deactivateUser(targetUserId)        // suspend → AuthResult<String>
+adminRepo.reactivateUser(targetUserId)        // suspend → AuthResult<String>
+adminRepo.godSetRole(targetUserId, role)      // suspend → AuthResult<String>
+adminRepo.availableRoles                      // List<String> — roles asignables (SIN god/owner)
+adminRepo.roleLabel(role)                     // String localizado
 ```
 
 ---
@@ -314,7 +402,18 @@ content = content.replace(b'\xe2\x80\x94', b'--')
 
 ### ERROR 12: Composables privados no pueden capturar lambdas del scope exterior — propagar por toda la cadena
 
-### ERROR 13: Imports duplicados por edición con scripts replace — reescribir el fichero completo si >3 replace
+### ERROR 13: Imports duplicados por scripts `sed` con múltiples matches
+`sed -i 's/^import kotlinx.coroutines/NUEVO_IMPORT\nimport kotlinx.coroutines/'` inserta el import
+una vez POR CADA LÍNEA que empieza por ese prefijo. Si hay 4 líneas `import kotlinx.coroutines.*`
+el resultado son 4 imports duplicados → error de compilación.
+Solución: usar Python para manipular imports, nunca sed para insertar.
+```python
+# CORRECTO: deduplicar después de insertar
+from collections import Counter
+lines = content.split('\n')
+seen = set()
+cleaned = [l for l in lines if not l.strip().startswith('import ') or l.strip() not in seen and not seen.add(l.strip())]
+```
 
 ### ERROR 14: MapLibre 11.x — isZoomControlsEnabled no existe. Usar `isZoomGesturesEnabled = true`
 
@@ -331,6 +430,32 @@ package com.pabl3st.rutapp.core.importer
 ```
 Si un script genera ficheros en `core/import/`, el build falla con "Expecting a top level declaration".
 La carpeta `core/import/` fue eliminada. Solo existe `core/importer/`.
+
+### ERROR 17: Bearer token en X-Auth-Token header
+```kotlin
+// ROMPE — servidor devuelve 401:
+token = "Bearer ${session.token}"
+// CORRECTO:
+token = session.token ?: ""
+```
+El servidor usa `requireAuth()` que lee `X-Auth-Token` directamente, sin prefijo Bearer.
+
+### ERROR 18: Campo en `.copy()` que no existe en `data class UiState`
+Si un método del ViewModel hace `_ui.update { it.copy(showSettingsRationale = true) }` pero
+`showSettingsRationale` no está declarado en el `data class UiState`, el compilador da
+"No parameter with name 'showSettingsRationale' found" — error que no siempre se detecta
+en auditoría estática porque el data class puede estar en otro archivo.
+Solución: verificar que TODOS los campos usados en `.copy()` existen en el UiState antes de commitear.
+
+### ERROR 19: Roles no asignables en availableRoles
+El servidor solo acepta `admin/manager/agent/viewer` en `update_role`.
+`god` y `owner` son roles de sistema no asignables vía API.
+`availableRoles` NUNCA debe incluir "god" ni "owner" — el servidor devuelve "Rol inválido 400".
+
+### ERROR 20: Migration FK en cPanel MySQL
+`CONSTRAINT FOREIGN KEY ... REFERENCES` puede fallar con Error 150 en cPanel aunque los tipos
+coincidan. Solución: añadir `SET FOREIGN_KEY_CHECKS=0;` al inicio de la migration y
+`SET FOREIGN_KEY_CHECKS=1;` al final. Alternativa: eliminar las FK y usar solo índices.
 
 ---
 
@@ -364,6 +489,10 @@ Resultado: 1 commit, 1 build CI.
 - [ ] Nuevos repositorios usan `AuthResult<T>` del mismo sealed class
 - [ ] NO crear carpetas con `import` en el nombre del package
 - [ ] Imports duplicados: `grep "^import" fichero | sort | uniq -d`
+- [ ] X-Auth-Token sin prefijo Bearer
+- [ ] Todos los campos de `.copy()` existen en el UiState correspondiente
+- [ ] availableRoles no incluye "god" ni "owner"
+- [ ] Migrations con FK usan SET FOREIGN_KEY_CHECKS=0/1
 
 ---
 
