@@ -1,6 +1,9 @@
 -- migration_v10.sql — tabla visit_photos en servidor
 -- Aplicar en phpMyAdmin sobre cqvkelal_rutasapp_android
 
+
+SET FOREIGN_KEY_CHECKS=0;
+
 CREATE TABLE IF NOT EXISTS `visit_photos` (
     `id`         INT NOT NULL AUTO_INCREMENT,
     `account_id` INT NOT NULL,
@@ -17,3 +20,5 @@ CREATE TABLE IF NOT EXISTS `visit_photos` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO `schema_migrations` (`version`) VALUES ('v10.0.0');
+
+SET FOREIGN_KEY_CHECKS=1;

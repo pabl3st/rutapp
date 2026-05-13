@@ -5,6 +5,9 @@
 --  Charset: utf8mb4 · Engine: InnoDB
 -- ============================================================
 
+
+SET FOREIGN_KEY_CHECKS=0;
+
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 SET foreign_key_checks = 0;
@@ -148,3 +151,5 @@ SET foreign_key_checks = 1;
 -- FIN migration_v1.sql
 -- Ejecutar en phpMyAdmin seleccionando la BD cqvkelal_rutasapp_android
 -- ============================================================
+
+SET FOREIGN_KEY_CHECKS=1;
