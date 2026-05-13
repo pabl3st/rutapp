@@ -54,7 +54,31 @@ class LocationManager @Inject constructor(
 
         fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
         awaitClose { fusedClient.removeLocationUpdates(callback) }
-    }.catch { /* GPS no disponible — fallar silenciosamente */ }
+    }.catch { e ->
+        // Emitir error como evento de log — el ViewModel puede observar
+        // el flow vacío para detectar GPS no disponible
+        android.util.Log.w("LocationManager", "GPS no disponible: ${e.message}")
+    }
+
+    // Flow de errores de GPS — emite mensajes cuando el provider falla
+    // Los ViewModels pueden colectarlo para mostrar un aviso al usuario
+    fun locationErrors(
+        intervalMs: Long  = 5_000L,
+        minDistance: Float = 10f,
+    ): kotlinx.coroutines.flow.Flow<String> = callbackFlow {
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
+            .setMinUpdateDistanceMeters(minDistance)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                // Éxito — no enviar error
+            }
+        }
+        runCatching {
+            fusedClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        }.onFailure { e -> trySend(e.message ?: "GPS error") }
+        awaitClose { fusedClient.removeLocationUpdates(callback) }
+    }.catch { e -> emit(e.message ?: "GPS unavailable") }
 
     // ── Distancia entre dos puntos en metros ──────────────────
     fun distanceBetween(

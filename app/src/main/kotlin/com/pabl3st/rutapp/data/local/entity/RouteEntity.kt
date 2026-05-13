@@ -18,7 +18,7 @@ data class RouteEntity(
     val deletedAt: String? = null,
     val syncStatus: String = "pending",    // pending|synced|error
     val syncedAt: String?  = null,
-    /** JSON array de fechas de visita programadas: ["2026-05-12","2026-05-21"] */
-    val scheduledDates: String? = null,
+    /** Fechas de visita programadas — convertido automáticamente a/desde JSON por RutasTypeConverters */
+    val scheduledDates: List<String>? = null,
 )
 

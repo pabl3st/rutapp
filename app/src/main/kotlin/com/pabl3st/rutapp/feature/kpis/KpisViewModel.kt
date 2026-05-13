@@ -61,6 +61,11 @@ data class KpiMetrics(
     val resultReturn:     Int    = 0,    // visitResult = "volvemos"
     val resultRejected:   Int    = 0,    // visitResult = "rechazado"
 
+    // Plus/PlusLL (solo sector telco)
+    val plusPdvs:    Int = 0,   // PDVs que cumplen Plus: activaciones>=5 OR primerBono>=50€
+    val plusLlPdvs:  Int = 0,   // PDVs Plus marcados manualmente como "Plus LL" (telco_plus=true)
+    val totalTelco:  Int = 0,   // PDVs con algún KPI telco registrado
+
     // Tendencia (7 días) — lista de (fecha, nStops) para mini-chart
     val weeklyTrend: List<Pair<String, Int>> = emptyList(),
 
@@ -228,11 +233,55 @@ class KpisViewModel @Inject constructor(
             routes   = allRoutes.distinctBy { it.uid },
             isLoading = false,
         ) }
-        // buildSectorKpis es suspend — lanzar en coroutine separada
+        // buildSectorKpis + Plus lógica — en coroutine separada (suspend)
         viewModelScope.launch {
-            val sectorKpis = buildSectorKpis(stops.map { it.uid })
-            _ui.update { it.copy(sectorKpis = sectorKpis) }
+            val stopUids = stops.map { it.uid }
+            val sectorKpis = buildSectorKpis(stopUids)
+            val (plusCount, plusLlCount, totalTelco) = calcPlusMetrics(stopUids)
+            _ui.update { it.copy(
+                sectorKpis = sectorKpis,
+                metrics    = _ui.value.metrics.copy(
+                    plusPdvs   = plusCount,
+                    plusLlPdvs = plusLlCount,
+                    totalTelco = totalTelco,
+                ),
+            ) }
         }
+    }
+
+    /**
+     * Calcula métricas Plus/PlusLL para sector telco.
+     * Plus: activaciones >= 5 OR primer_bono >= 50€ (lógica OR, igual que PWA)
+     * PlusLL: telco_plus boolean = true
+     * Returns Triple(plusCount, plusLlCount, totalTelcoStops)
+     */
+    private suspend fun calcPlusMetrics(stopUids: List<String>): Triple<Int, Int, Int> {
+        if (stopUids.isEmpty()) return Triple(0, 0, 0)
+        val profile = profileRepo.getOrCreateProfile()
+        if (profile.sector != "telco") return Triple(0, 0, 0)
+
+        val allValues = kpiValueDao.getByStops(stopUids)
+        val byStop = allValues.groupBy { it.stopUid }
+
+        var plusCount  = 0
+        var plusLlCount = 0
+        var telcoCount = 0
+
+        for ((_, values) in byStop) {
+            val kpiMap = values.associateBy { it.kpiId }
+            val activaciones = kpiMap["telco_activaciones"]?.valueText?.toDoubleOrNull() ?: 0.0
+            val primerBono   = kpiMap["telco_primer_bono"]?.valueText?.toDoubleOrNull() ?: 0.0
+            val isPlus       = kpiMap["telco_plus"]?.valueText == "true"
+
+            // Solo contar como telco si tiene algún KPI registrado
+            if (kpiMap.isNotEmpty()) {
+                telcoCount++
+                // OR logic: activaciones>=5 OR primerBono>=50
+                if (activaciones >= 5.0 || primerBono >= 50.0) plusCount++
+                if (isPlus) plusLlCount++
+            }
+        }
+        return Triple(plusCount, plusLlCount, telcoCount)
     }
 
     private suspend fun buildSectorKpis(

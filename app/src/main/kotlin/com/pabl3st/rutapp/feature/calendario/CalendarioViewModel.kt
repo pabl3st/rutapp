@@ -1,5 +1,6 @@
 package com.pabl3st.rutapp.feature.calendario
 
+import org.json.JSONArray
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import java.net.URL
 import java.time.LocalDate
 import java.time.YearMonth
@@ -82,17 +82,10 @@ class CalendarioViewModel @Inject constructor(
                     active.forEach { route ->
                         // Fecha principal
                         byDate.getOrPut(route.dateAssigned) { mutableListOf() }.add(route)
-                        // Fechas adicionales programadas (JSON array)
-                        if (!route.scheduledDates.isNullOrEmpty()) {
-                            runCatching {
-                                org.json.JSONArray(route.scheduledDates)
-                            }.getOrNull()?.let { arr ->
-                                (0 until arr.length()).forEach { i ->
-                                    val d = arr.optString(i)
-                                    if (d.isNotEmpty() && d != route.dateAssigned) {
-                                        byDate.getOrPut(d) { mutableListOf() }.add(route)
-                                    }
-                                }
+                        // Fechas adicionales programadas
+                        route.scheduledDates?.forEach { d ->
+                            if (d.isNotEmpty() && d != route.dateAssigned) {
+                                byDate.getOrPut(d) { mutableListOf() }.add(route)
                             }
                         }
                     }

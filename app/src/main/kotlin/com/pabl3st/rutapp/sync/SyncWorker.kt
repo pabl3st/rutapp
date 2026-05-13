@@ -19,7 +19,8 @@ class SyncWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         return when (syncRepository.runSync()) {
             SyncResult.Success       -> Result.success()
-            SyncResult.NoAuth        -> Result.success()    // sin auth = no reintentar
+            SyncResult.NoAuth        -> Result.success()      // sin token — no reintentar
+            SyncResult.Unauthorized  -> Result.success()      // 401 — OkHttp Authenticator se encarga
             SyncResult.UploadError   -> if (runAttemptCount < 3) Result.retry() else Result.failure()
             SyncResult.DownloadError -> if (runAttemptCount < 3) Result.retry() else Result.failure()
         }

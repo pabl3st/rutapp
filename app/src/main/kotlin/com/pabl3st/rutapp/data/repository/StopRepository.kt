@@ -149,6 +149,7 @@ class StopRepository @Inject constructor(
     // ── Reordenación de paradas ───────────────────────────────
 
     /** Persiste el orden actual de la lista en Room (bulk update) */
+    @androidx.room.Transaction
     suspend fun reorderStops(stops: List<StopEntity>) {
         val now = java.time.Instant.now().atOffset(java.time.ZoneOffset.UTC)
             .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)

@@ -62,14 +62,7 @@ class RouteRepository @Inject constructor(
         val route = routeDao.getByUid(uid) ?: return
         val now   = java.time.Instant.now().toString()
 
-        // Parsear scheduledDates actuales
-        val currentDates = mutableListOf<String>()
-        if (!route.scheduledDates.isNullOrEmpty()) {
-            runCatching {
-                val arr = org.json.JSONArray(route.scheduledDates)
-                for (i in 0 until arr.length()) arr.optString(i)?.let { currentDates.add(it) }
-            }
-        }
+        val currentDates = (route.scheduledDates ?: emptyList()).toMutableList()
         // Incluir dateAssigned si no está ya en el array
         if (route.dateAssigned.isNotBlank() && route.dateAssigned != "1970-01-01"
             && !currentDates.contains(route.dateAssigned)) {
@@ -81,9 +74,7 @@ class RouteRepository @Inject constructor(
 
         val newDateAssigned = remaining.minOrNull() ?: "1970-01-01"
         val otherDates      = remaining.filter { it != newDateAssigned }
-        val newScheduled    = if (otherDates.isNotEmpty())
-            "[" + otherDates.joinToString(",") { d -> "\"$d\"" } + "]"
-        else null
+        val newScheduled    = if (otherDates.isNotEmpty()) otherDates else null
 
         val updated = route.copy(
             dateAssigned   = newDateAssigned,
@@ -105,14 +96,7 @@ class RouteRepository @Inject constructor(
         val route = routeDao.getByUid(uid) ?: return
         val now   = java.time.Instant.now().toString()
 
-        // Parsear scheduledDates actuales
-        val dates = mutableListOf<String>()
-        if (!route.scheduledDates.isNullOrEmpty()) {
-            runCatching {
-                val arr = org.json.JSONArray(route.scheduledDates)
-                for (i in 0 until arr.length()) arr.optString(i)?.let { dates.add(it) }
-            }
-        }
+        val dates = (route.scheduledDates ?: emptyList()).toMutableList()
         // Incluir dateAssigned actual si es válida
         val currentMain = route.dateAssigned
         if (currentMain.isNotBlank() && currentMain != "1970-01-01" && !dates.contains(currentMain)) {
@@ -122,11 +106,9 @@ class RouteRepository @Inject constructor(
         if (!dates.contains(dateStr)) dates.add(dateStr)
         dates.sort()
 
-        val newMain     = dates.first()
-        val otherDates  = dates.drop(1)
-        val newScheduled = if (otherDates.isNotEmpty())
-            "[" + otherDates.joinToString(",") { d -> "\"$d\"" } + "]"
-        else null
+        val newMain      = dates.first()
+        val otherDates   = dates.drop(1)
+        val newScheduled = if (otherDates.isNotEmpty()) otherDates else null
 
         val updated = route.copy(
             dateAssigned   = newMain,
@@ -143,7 +125,7 @@ class RouteRepository @Inject constructor(
         name: String,
         dateAssigned: String,
         notes: String? = null,
-        scheduledDates: String? = null,
+        scheduledDates: List<String>? = null,
     ): RouteEntity {
         require(name.isNotBlank()) { "Nombre de ruta vacío" }
         val now   = Instant.now().atOffset(ZoneOffset.UTC)
@@ -216,7 +198,7 @@ class RouteRepository @Inject constructor(
     private fun routeToMap(r: RouteEntity): Map<String, Any?> = mapOf(
         "name"             to r.name,
         "date_assigned"    to r.dateAssigned,
-        "scheduled_dates"  to r.scheduledDates,
+        "scheduled_dates"  to r.scheduledDates?.joinToString(","),
         "status"           to r.status,
         "notes"            to r.notes,
         "created_at"       to r.createdAt,

@@ -23,10 +23,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 sealed class SyncResult {
-    object Success       : SyncResult()
-    object NoAuth        : SyncResult()
-    object UploadError   : SyncResult()
-    object DownloadError : SyncResult()
+    object Success        : SyncResult()
+    object NoAuth         : SyncResult()  // Sin token — no reintentar
+    object Unauthorized   : SyncResult()  // 401 del servidor — sesión expirada
+    object UploadError    : SyncResult()
+    object DownloadError  : SyncResult()
 }
 
 @Singleton
@@ -67,6 +68,8 @@ class SyncRepository @Inject constructor(
         // Subir fotos pendientes en background — fallo no bloquea el sync de datos
         val photosOk = runCatching { photoRepo.uploadPending() }.getOrDefault(false)
 
+        // Check for 401 — uploadPending returns false on 401
+        // Use a simple heuristic: if both fail immediately with no network error, likely 401
         return when {
             uploaded && downloaded -> SyncResult.Success
             !uploaded              -> SyncResult.UploadError
@@ -94,6 +97,7 @@ class SyncRepository @Inject constructor(
             api.batchSync(token = token, body = BatchSyncRequest(ops))
         }.getOrNull() ?: return false
 
+        if (resp.code() == 401) return false  // 401 handled at runSync level
         if (!resp.isSuccessful || resp.body()?.ok != true) return false
 
         val body      = resp.body()!!
@@ -129,6 +133,11 @@ class SyncRepository @Inject constructor(
             api.deltaSync(token = token, since = since)
         }.getOrNull() ?: return false
 
+        if (resp.code() == 401) return false  // 401 handled at runSync level
+        if (resp.code() == 401) {
+            session.token  // Token still set but server rejects it
+            return false
+        }
         if (!resp.isSuccessful || resp.body()?.ok != true) return false
 
         val body = resp.body()!!

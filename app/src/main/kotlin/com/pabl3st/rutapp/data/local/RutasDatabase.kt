@@ -21,6 +21,7 @@ import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
 
+@androidx.room.TypeConverters(RutasTypeConverters::class)
 @Database(
     entities = [
         RouteEntity::class,

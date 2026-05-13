@@ -28,7 +28,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import java.time.DayOfWeek
-import org.json.JSONArray
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -310,13 +309,7 @@ fun CalendarioScreen(
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                         val dateCount = remember(route.scheduledDates, route.dateAssigned) {
-                                            val dates = mutableListOf<String>()
-                                            if (!route.scheduledDates.isNullOrEmpty()) {
-                                                runCatching {
-                                                    val arr = org.json.JSONArray(route.scheduledDates)
-                                                    for (i in 0 until arr.length()) arr.optString(i)?.let { dates.add(it) }
-                                                }
-                                            }
+                                            val dates = (route.scheduledDates ?: emptyList()).toMutableList()
                                             if (route.dateAssigned.isNotBlank() && route.dateAssigned != "1970-01-01"
                                                 && !dates.contains(route.dateAssigned)) dates.add(0, route.dateAssigned)
                                             dates.size
@@ -525,13 +518,7 @@ private fun CalendarioRouteCard(
 
     // Parsear todas las fechas programadas para mostrarlas
     val allDates = remember(route.scheduledDates, route.dateAssigned) {
-        val dates = mutableListOf<String>()
-        if (!route.scheduledDates.isNullOrEmpty()) {
-            runCatching {
-                val arr = org.json.JSONArray(route.scheduledDates)
-                for (i in 0 until arr.length()) arr.optString(i)?.let { dates.add(it) }
-            }
-        }
+        val dates = (route.scheduledDates ?: emptyList()).toMutableList()
         if (route.dateAssigned.isNotBlank() && route.dateAssigned != "1970-01-01"
             && !dates.contains(route.dateAssigned)) {
             dates.add(0, route.dateAssigned)
