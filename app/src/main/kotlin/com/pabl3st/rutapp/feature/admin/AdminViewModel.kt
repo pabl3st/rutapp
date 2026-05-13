@@ -135,6 +135,15 @@ class AdminViewModel @Inject constructor(
         }
     }
 
+    fun reactivateUser(user: AccountUserDto) {
+        viewModelScope.launch {
+            when (val result = adminRepo.reactivateUser(user.userId)) {
+                is AuthResult.Success -> { _ui.update { it.copy(snackbar = "${user.displayName} reactivado") }; loadUsers() }
+                is AuthResult.Error   -> _ui.update { it.copy(error = result.message) }
+            }
+        }
+    }
+
     fun roleLabel(role: String) = adminRepo.roleLabel(role)
     val availableRoles get()    = adminRepo.availableRoles
 

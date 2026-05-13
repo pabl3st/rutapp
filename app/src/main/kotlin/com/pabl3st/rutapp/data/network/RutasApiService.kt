@@ -288,6 +288,11 @@ data class UpdateRoleRequest(
 )
 
 @JsonClass(generateAdapter = true)
+data class ReactivateUserRequest(
+    @Json(name = "target_user_id") val targetUserId: Int,
+)
+
+@JsonClass(generateAdapter = true)
 data class DeactivateUserRequest(
     @Json(name = "target_user_id") val targetUserId: Int,
 )
@@ -550,6 +555,13 @@ interface RutasApiService {
         @Query("action") action: String = "deactivate_user",
         @Header("X-Auth-Token") token: String,
         @Body body: DeactivateUserRequest,
+    ): Response<AdminActionResponse>
+
+    @POST(API_PATH)
+    suspend fun reactivateUser(
+        @Query("action") action: String = "reactivate_user",
+        @Header("X-Auth-Token") token: String,
+        @Body body: ReactivateUserRequest,
     ): Response<AdminActionResponse>
 
 

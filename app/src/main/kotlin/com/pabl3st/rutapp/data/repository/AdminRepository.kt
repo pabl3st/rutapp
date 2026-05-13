@@ -2,6 +2,7 @@ package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.network.DeactivateUserRequest
+import com.pabl3st.rutapp.data.network.ReactivateUserRequest
 import com.pabl3st.rutapp.data.network.InviteUserRequest
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.network.UpdateRoleRequest
@@ -38,7 +39,7 @@ class AdminRepository @Inject constructor(
         get() = session.userRole == "owner"
 
     suspend fun listUsers(): AuthResult<List<AccountUserDto>> = runCatching {
-        val resp = api.usersList(token = "Bearer ${session.token}")
+        val resp = api.usersList(token = session.token ?: "")
         if (resp.isSuccessful) {
             val body = resp.body()
             if (body?.success == true) AuthResult.Success(body.users)
@@ -50,7 +51,7 @@ class AdminRepository @Inject constructor(
 
     suspend fun inviteUser(email: String, role: String): AuthResult<String> = runCatching {
         val resp = api.inviteUser(
-            token = "Bearer ${session.token}",
+            token = session.token ?: "",
             body  = InviteUserRequest(email = email.trim(), role = role),
         )
         if (resp.isSuccessful) {
@@ -64,7 +65,7 @@ class AdminRepository @Inject constructor(
 
     suspend fun updateRole(targetUserId: Int, role: String): AuthResult<String> = runCatching {
         val resp = api.updateRole(
-            token = "Bearer ${session.token}",
+            token = session.token ?: "",
             body  = UpdateRoleRequest(targetUserId = targetUserId, role = role),
         )
         if (resp.isSuccessful) {
@@ -78,7 +79,7 @@ class AdminRepository @Inject constructor(
 
     suspend fun deactivateUser(targetUserId: Int): AuthResult<String> = runCatching {
         val resp = api.deactivateUser(
-            token = "Bearer ${session.token}",
+            token = session.token ?: "",
             body  = DeactivateUserRequest(targetUserId = targetUserId),
         )
         if (resp.isSuccessful) {
@@ -98,9 +99,23 @@ class AdminRepository @Inject constructor(
             else           -> emptyList()
         }
 
+    suspend fun reactivateUser(targetUserId: Int): AuthResult<String> = runCatching {
+        val resp = api.reactivateUser(
+            token = session.token ?: "",
+            body  = ReactivateUserRequest(targetUserId = targetUserId),
+        )
+        if (resp.isSuccessful) {
+            val body = resp.body()
+            if (body?.success == true) AuthResult.Success(body.message)
+            else AuthResult.Error(body?.message ?: "Error al reactivar usuario")
+        } else {
+            AuthResult.Error("HTTP ${resp.code()}")
+        }
+    }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
+
     suspend fun godSetRole(targetUserId: Int, role: String): AuthResult<String> = runCatching {
         val resp = api.godSetRole(
-            token = "Bearer ${session.token}",
+            token = session.token ?: "",
             body  = com.pabl3st.rutapp.data.network.GodSetRoleRequest(userId = targetUserId, role = role),
         )
         if (resp.isSuccessful) {

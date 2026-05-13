@@ -152,10 +152,11 @@ fun AdminScreen(
                     items(ui.users, key = { it.userId }) { user ->
                         UserCard(
                             user           = user,
-                            currentUserId  = 0, // No revelamos ID propio, gestionamos con session
+                            currentUserId  = 0,
                             roleLabel      = vm::roleLabel,
                             onChangeRole   = { vm.onShowRolePicker(user) },
                             onDeactivate   = { vm.deactivateUser(user) },
+                            onReactivate   = { vm.reactivateUser(user) },
                             canEdit        = ui.userRole == "god" || (ui.userRole in setOf("owner", "admin") && user.role !in setOf("owner", "god")),
                         )
                     }
@@ -169,8 +170,8 @@ fun AdminScreen(
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(Spacing.lg)) {
                         AdminInfoRow(Icons.Default.Android, "Versión", BuildConfig.VERSION_NAME)
-                        AdminInfoRow(Icons.Default.Storage, "BD Local", "Room v7")
-                        AdminInfoRow(Icons.Default.Cloud,   "API",      "v1.1.0")
+                        AdminInfoRow(Icons.Default.Storage, "BD Local", "Room v12")
+                        AdminInfoRow(Icons.Default.Cloud,   "API",      "v1.1.0 (api.php)")
                         AdminInfoRow(Icons.Default.Map,     "Mapa",     "MapLibre 11.5.1")
                     }
                 }
@@ -198,6 +199,7 @@ private fun UserCard(
     roleLabel:     (String) -> String,
     onChangeRole:  () -> Unit,
     onDeactivate:  () -> Unit,
+    onReactivate:  () -> Unit,
     canEdit:       Boolean,
 ) {
     var showConfirmDeactivate by remember { mutableStateOf(false) }
@@ -248,9 +250,19 @@ private fun UserCard(
                     modifier   = Modifier.height(24.dp),
                 )
             }
-            if (canEdit && user.isActive) {
-                IconButton(onClick = { showConfirmDeactivate = true }) {
-                    Icon(Icons.Default.PersonOff, "Desactivar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+            if (canEdit) {
+                if (user.isActive) {
+                    IconButton(onClick = { showConfirmDeactivate = true }) {
+                        Icon(Icons.Default.PersonOff, "Desactivar",
+                            tint     = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp))
+                    }
+                } else {
+                    IconButton(onClick = onReactivate) {
+                        Icon(Icons.Default.PersonAdd, "Reactivar",
+                            tint     = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
