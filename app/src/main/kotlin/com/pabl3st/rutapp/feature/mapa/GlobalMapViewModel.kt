@@ -68,6 +68,7 @@ data class GlobalMapUiState(
     // Permisos
     val locationPermissionGranted: Boolean = false,
     val showPermissionRationale:   Boolean = false,
+    val showSettingsRationale:     Boolean = false,
 
     // Estado de carga
     val isLoading: Boolean = true,

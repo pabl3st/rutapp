@@ -4,6 +4,9 @@ package com.pabl3st.rutapp.feature.mapa
 import com.pabl3st.rutapp.core.ui.theme.StopStatus
 import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
