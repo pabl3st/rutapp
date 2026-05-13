@@ -4,6 +4,8 @@ import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.BuildConfig
+import com.pabl3st.rutapp.data.network.AccountConfigSaveRequest
+import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.repository.AuthRepository
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.UserPrefs
@@ -29,8 +31,14 @@ data class PerfilUiState(
     val plan:             String  = "",
     val appVersion:       String  = "",
     val sectorLabel:      String  = "",
-    val showLogoutDialog: Boolean = false,
-    val isLoggingOut:     Boolean = false,
+    val showLogoutDialog:    Boolean = false,
+    val isLoggingOut:        Boolean = false,
+    // Edición nombre de empresa (owner/admin)
+    val isOwnerOrAdmin:      Boolean = false,
+    val editingAccountName:  Boolean = false,
+    val accountNameDraft:    String  = "",
+    val isSavingAccount:     Boolean = false,
+    val accountSaveError:    String? = null,
 )
 
 @HiltViewModel
@@ -39,18 +47,21 @@ class PerfilViewModel @Inject constructor(
     private val authRepo:    AuthRepository,
     private val profileRepo: BusinessProfileRepository,
     private val prefsRepo:   UserPrefsRepository,
+    private val api:         RutasApiService,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(
         PerfilUiState(
-            displayName = session.userDisplayName,
-            username    = session.userName,
-            email       = session.userEmail,
-            role        = session.userRole,
-            accountName = session.accountName,
-            accountType = session.accountType,
-            plan        = "free",
-            appVersion  = BuildConfig.VERSION_NAME,
+            displayName      = session.userDisplayName,
+            username         = session.userName,
+            email            = session.userEmail,
+            role             = session.userRole,
+            accountName      = session.accountName,
+            accountType      = session.accountType,
+            plan             = "free",
+            appVersion       = BuildConfig.VERSION_NAME,
+            isOwnerOrAdmin   = session.userRole in listOf("owner", "admin", "god"),
+            accountNameDraft = session.accountName,
         )
     )
     val ui: StateFlow<PerfilUiState> = _ui.asStateFlow()
@@ -89,6 +100,51 @@ class PerfilViewModel @Inject constructor(
 
     private fun pref(transform: UserPrefs.() -> UserPrefs) {
         viewModelScope.launch { prefsRepo.update(transform) }
+    }
+
+    // ── Edición nombre de empresa ─────────────────────────────
+    fun onEditAccountName()  = _ui.update { it.copy(editingAccountName = true) }
+    fun onAccountNameChange(v: String) = _ui.update { it.copy(accountNameDraft = v, accountSaveError = null) }
+    fun onCancelAccountEdit() = _ui.update {
+        it.copy(editingAccountName = false, accountNameDraft = it.accountName)
+    }
+
+    fun onSaveAccountName() {
+        val draft = _ui.value.accountNameDraft.trim()
+        if (draft.length < 2) {
+            _ui.update { it.copy(accountSaveError = "Mínimo 2 caracteres") }
+            return
+        }
+        val token = session.token ?: return
+        _ui.update { it.copy(isSavingAccount = true, accountSaveError = null) }
+        viewModelScope.launch {
+            runCatching {
+                val resp = api.accountConfigSave(
+                    token = token,
+                    body  = AccountConfigSaveRequest(name = draft),
+                )
+                if (resp.isSuccessful && resp.body()?.ok == true) {
+                    val newName = resp.body()?.account?.name ?: draft
+                    session.accountName = newName          // actualizar caché local
+                    _ui.update { it.copy(
+                        accountName       = newName,
+                        accountNameDraft  = newName,
+                        editingAccountName = false,
+                        isSavingAccount   = false,
+                    ) }
+                } else {
+                    _ui.update { it.copy(
+                        isSavingAccount  = false,
+                        accountSaveError = resp.body()?.error ?: "Error al guardar",
+                    ) }
+                }
+            }.onFailure { e ->
+                _ui.update { it.copy(
+                    isSavingAccount  = false,
+                    accountSaveError = e.message ?: "Error de red",
+                ) }
+            }
+        }
     }
 
     // ── Logout ────────────────────────────────────────────────

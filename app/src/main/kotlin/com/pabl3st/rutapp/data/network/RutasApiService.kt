@@ -352,6 +352,31 @@ data class StatsMonthResponse(
     val error:           String?                = null,
 )
 
+// ── account_config_save DTOs ─────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class AccountConfigSaveRequest(
+    @Json(name = "name")        val name:       String? = null,
+    @Json(name = "plus_config") val plusConfig:  Any?   = null,
+    @Json(name = "form_config") val formConfig:  Any?   = null,
+    @Json(name = "ai_settings") val aiSettings:  Any?   = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class AccountConfigSaveResponse(
+    val ok:      Boolean = false,
+    val account: AccountData? = null,
+    val error:   String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class AccountData(
+    val id:    Int    = 0,
+    val name:  String = "",
+    val type:  String = "",
+    val slug:  String = "",
+    val plan:  String = "",
+)
+
 @JsonClass(generateAdapter = true)
 data class PushRegisterRequest(
     @Json(name = "fcm_token")   val fcmToken:   String,
@@ -535,6 +560,14 @@ interface RutasApiService {
         @Header("X-Auth-Token") token:  String,
         @Query("month")         month:  String,
     ): Response<StatsMonthResponse>
+
+    // ── account_config_save — actualiza nombre/config de cuenta ─
+    @POST(API_PATH)
+    suspend fun accountConfigSave(
+        @Query("action")        action: String = "account_config_save",
+        @Header("X-Auth-Token") token:  String,
+        @Body                   body:   AccountConfigSaveRequest,
+    ): Response<AccountConfigSaveResponse>
 
     // ── push_register — registro token FCM por dispositivo ───
     @POST(API_PATH)

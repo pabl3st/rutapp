@@ -14,6 +14,11 @@ import androidx.compose.material.icons.automirrored.filled.NextPlan
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -111,7 +116,60 @@ fun PerfilScreen(
             InfoCard {
                 InfoRow(Icons.Default.Email,            "Email",   ui.email)
                 Div()
-                InfoRow(Icons.Default.Business,         "Empresa", ui.accountName)
+                if (ui.isOwnerOrAdmin) {
+                    // Empresa editable para owner/admin
+                    Row(
+                        modifier          = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.Business, null,
+                            Modifier.size(18.dp).padding(start = 2.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(12.dp))
+                        if (ui.editingAccountName) {
+                            OutlinedTextField(
+                                value         = ui.accountNameDraft,
+                                onValueChange = vm::onAccountNameChange,
+                                label         = { Text("Empresa") },
+                                singleLine    = true,
+                                modifier      = Modifier.weight(1f),
+                                isError       = ui.accountSaveError != null,
+                                supportingText = ui.accountSaveError?.let {
+                                    { Text(it, color = MaterialTheme.colorScheme.error) }
+                                },
+                                trailingIcon  = {
+                                    if (ui.isSavingAccount) {
+                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Row {
+                                            IconButton(onClick = vm::onSaveAccountName) {
+                                                Icon(Icons.Default.Check, "Guardar",
+                                                    tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                            IconButton(onClick = vm::onCancelAccountEdit) {
+                                                Icon(Icons.Default.Close, "Cancelar",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                },
+                            )
+                        } else {
+                            Text(
+                                text     = ui.accountName,
+                                style    = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = vm::onEditAccountName, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Edit, "Editar empresa",
+                                    Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                } else {
+                    InfoRow(Icons.Default.Business, "Empresa", ui.accountName)
+                }
                 Div()
                 InfoRow(Icons.Default.WorkspacePremium, "Plan",
                     ui.plan.replaceFirstChar { it.uppercase() })
