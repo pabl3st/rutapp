@@ -17,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -68,7 +70,7 @@ fun GlobalMapScreen(
                 actions = {
                     if (ui.isLocating) {
                         CircularProgressIndicator(
-                            modifier    = Modifier
+                            modifier    = Modifier.semantics { testTag = "mapa-screen" }
                                 .size(20.dp)
                                 .padding(end = Spacing.xs),
                             strokeWidth = 2.dp,

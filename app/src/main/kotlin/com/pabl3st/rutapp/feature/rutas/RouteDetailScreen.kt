@@ -14,6 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,6 +42,9 @@ fun RouteDetailScreen(
     }
 
     Scaffold(
+
+
+        modifier = Modifier.semantics { testTag = "route-detail-screen" },
         topBar = {
             TopAppBar(
                 title = { Text(ui.route?.name ?: "Ruta") },
@@ -104,8 +109,9 @@ fun RouteDetailScreen(
                     contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(ui.stops, key = { it.uid }) { stop ->
+                    itemsIndexed(ui.stops, key = { _, s -> s.uid }) { idx, stop ->
                         StopCard(
+                    modifier = Modifier.semantics { testTag = "stop-card-$idx" },
                             stop         = stop,
                             onOpenVisita = { onStopClick(stop.uid) },
                         )

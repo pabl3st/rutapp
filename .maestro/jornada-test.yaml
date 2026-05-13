@@ -1,0 +1,78 @@
+appId: com.pabl3st.rutapp
+tags:
+  - ci
+  - jornada
+---
+# ══════════════════════════════════════════════════════════════
+# TEST — Jornada laboral: inicio, pausa, reanudación, fin
+#
+# Prerequisitos:
+#   - Sesión activa (ejecutar después de smoke-test o login manual)
+#   - Ruta asignada para hoy con JornadaBar visible en HomeScreen
+# ══════════════════════════════════════════════════════════════
+
+- launchApp:
+    clearState: false
+
+- swipe:
+    direction: DOWN
+    duration: 200
+
+# Auth adaptativa
+- runFlow:
+    when:
+      visible:
+        text: "Iniciar sesión"
+    file: flows/login.yaml
+
+# Ir a Home
+- tapOn:
+    id: "bottom-nav-home"
+
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 8000
+
+- takeScreenshot: "jornada_01_home"
+
+# Iniciar jornada (si el botón está disponible)
+- extendedWaitUntil:
+    visible:
+      id: "jornada-start-button"
+    timeout: 5000
+
+- tapOn:
+    id: "jornada-start-button"
+
+- takeScreenshot: "jornada_02_iniciada"
+
+# Verificar que el timer está corriendo
+- assertVisible:
+    id: "jornada-timer"
+
+# Pausar jornada
+- tapOn:
+    id: "jornada-pause-button"
+
+- takeScreenshot: "jornada_03_pausada"
+
+- assertVisible:
+    id: "jornada-resume-button"
+
+# Reanudar
+- tapOn:
+    id: "jornada-resume-button"
+
+- takeScreenshot: "jornada_04_reanudada"
+
+# Finalizar jornada
+- tapOn:
+    id: "jornada-finish-button"
+
+# Confirmar diálogo si aparece
+- tapOn:
+    text: "Finalizar"
+    optional: true
+
+- takeScreenshot: "jornada_05_finalizada"

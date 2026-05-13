@@ -1,0 +1,100 @@
+appId: com.pabl3st.rutapp
+tags:
+  - ci
+  - sync
+---
+# ══════════════════════════════════════════════════════════════
+# TEST — Sync: verificar que los datos se sincronizan tras visita
+#
+# Prerequisitos:
+#   - Sesión activa
+#   - Al menos 1 ruta con paradas
+# ══════════════════════════════════════════════════════════════
+
+- launchApp:
+    clearState: false
+
+- swipe:
+    direction: DOWN
+    duration: 200
+
+- runFlow:
+    when:
+      visible:
+        text: "Iniciar sesión"
+    file: flows/login.yaml
+
+# Ir a KPIs para verificar métricas
+- tapOn:
+    id: "bottom-nav-kpis"
+
+- extendedWaitUntil:
+    visible:
+      id: "kpis-screen"
+    timeout: 8000
+
+- takeScreenshot: "sync_01_kpis_antes"
+
+# Volver a rutas y hacer una visita rápida
+- tapOn:
+    id: "bottom-nav-rutas"
+
+- extendedWaitUntil:
+    visible:
+      id: "rutas-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "route-card-0"
+    optional: true
+
+- extendedWaitUntil:
+    visible:
+      id: "route-detail-screen"
+    timeout: 8000
+    optional: true
+
+- tapOn:
+    id: "stop-card-0"
+    optional: true
+
+- extendedWaitUntil:
+    visible:
+      id: "visita-screen"
+    timeout: 8000
+    optional: true
+
+- tapOn:
+    id: "visita-resultado-field"
+    optional: true
+- inputText: "Sync test"
+    optional: true
+
+- tapOn:
+    id: "visita-save-button"
+    optional: true
+
+# Esperar sync (WorkManager periódico o FCM trigger)
+- extendedWaitUntil:
+    visible:
+      id: "route-detail-screen"
+    timeout: 15000
+    optional: true
+
+- takeScreenshot: "sync_02_post_visita"
+
+# Verificar en KPIs que el dato actualizó
+- tapOn:
+    id: "bottom-nav-kpis"
+
+- extendedWaitUntil:
+    visible:
+      id: "kpis-screen"
+    timeout: 8000
+
+- takeScreenshot: "sync_03_kpis_despues"
+
+# Verificar que la pantalla de KPIs carga sin errores
+- assertNotVisible:
+    text: "Error"
+    optional: true

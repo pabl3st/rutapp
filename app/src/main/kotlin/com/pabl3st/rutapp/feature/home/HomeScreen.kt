@@ -16,6 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +47,9 @@ fun HomeScreen(
         .replaceFirstChar { it.uppercase() }
 
     Scaffold(
+
+
+        modifier = Modifier.semantics { testTag = "home-screen" },
         topBar = {
             TopAppBar(
                 title = {

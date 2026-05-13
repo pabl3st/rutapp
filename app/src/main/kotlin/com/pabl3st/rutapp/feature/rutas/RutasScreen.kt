@@ -17,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,7 +50,7 @@ fun RutasScreen(
                 actions = {
                     if (ui.isSyncing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp).padding(end = 4.dp),
+                            modifier = Modifier.semantics { testTag = "rutas-screen" }.size(20.dp).padding(end = 4.dp),
                             strokeWidth = 2.dp,
                         )
                         Spacer(Modifier.width(12.dp))
@@ -106,7 +108,7 @@ fun RutasScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(padding),
             ) {
-                items(ui.routes, key = { it.uid }) { route ->
+                itemsIndexed(ui.routes, key = { _, r -> r.uid }) { idx, route ->
                     RouteListItem(route = route, onClick = { onRouteClick(route.uid) })
                 }
             }
@@ -171,7 +173,8 @@ private fun StatusChip(status: String) {
 @Composable
 private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
 
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(
+                    modifier = Modifier.semantics { testTag = "route-card-$idx" },modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier          = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,

@@ -33,6 +33,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -85,6 +87,9 @@ fun VisitaScreen(
     }
 
     Scaffold(
+
+
+        modifier = Modifier.semantics { testTag = "visita-screen" },
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
@@ -107,6 +112,7 @@ fun VisitaScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick  = vm::saveVisit,
+                    modifier = Modifier.semantics { testTag = "visita-save-button" },
                     // Guardar requiere resultado seleccionado — si está en blanco el botón está desactivado
                     enabled  = !ui.isSaving && ui.selectedResult.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),

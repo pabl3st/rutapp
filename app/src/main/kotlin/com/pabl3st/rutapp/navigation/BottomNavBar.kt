@@ -55,6 +55,7 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
                         }
                     }
                 },
+                modifier = Modifier.semantics { testTag = "bottom-nav-${item.screen.route}" },
                 icon  = {
                     Icon(
                         imageVector        = if (selected) item.selectedIcon else item.icon,

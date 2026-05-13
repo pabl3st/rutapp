@@ -1,0 +1,34 @@
+appId: com.pabl3st.rutapp
+# Sub-flow: autenticación
+# Uso: runFlow: file: flows/login.yaml
+# Prerequisito: la app está en la pantalla de login (AUTH_CHOOSE_TYPE o LOGIN)
+---
+# Manejar permiso de notificaciones (Android 13+)
+- tapOn:
+    text: "Allow"
+    optional: true
+
+# Si estamos en CHOOSE_TYPE, navegar a login
+- tapOn:
+    text: "Iniciar sesión"
+    optional: true
+
+# Rellenar credenciales
+- tapOn:
+    id: "auth-username-field"
+- clearText
+- inputText: "god"
+
+- tapOn:
+    id: "auth-password-field"
+- clearText
+- inputText: "God2026!"
+
+- tapOn:
+    id: "auth-login-button"
+
+# Esperar a que la autenticación se complete
+- extendedWaitUntil:
+    visible:
+      id: "bottom-nav-home"
+    timeout: 15000

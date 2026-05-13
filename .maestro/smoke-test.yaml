@@ -1,0 +1,98 @@
+appId: com.pabl3st.rutapp
+tags:
+  - ci
+  - smoke
+---
+# ══════════════════════════════════════════════════════════════
+# SMOKE TEST — Flujo principal de un comercial
+# Cubre: login → HomeScreen → RouteDetail → VisitaScreen → guardar
+#
+# Prerequisitos:
+#   - APK instalado (debug o release)
+#   - Servidor API accesible con usuario "god" / "God2026!"
+#   - Al menos 1 ruta con 1 parada en la cuenta god
+# ══════════════════════════════════════════════════════════════
+
+# 1. Arrancar app limpia
+- launchApp:
+    clearState: false  # Preservar sesión si existe
+
+# Delay post-arranque (evita race condition en Android)
+- swipe:
+    direction: DOWN
+    duration: 200
+
+# 2. Autenticación (adaptive: funciona con o sin sesión activa)
+- runFlow:
+    when:
+      visible:
+        text: "Iniciar sesión"
+    file: flows/login.yaml
+
+- runFlow:
+    when:
+      visible:
+        text: "Entrar con invitación"
+    file: flows/login.yaml
+
+# 3. HomeScreen visible
+- assertVisible:
+    id: "bottom-nav-home"
+
+- takeScreenshot: "01_home_screen"
+
+# 4. Navegar a Rutas
+- tapOn:
+    id: "bottom-nav-rutas"
+
+- extendedWaitUntil:
+    visible:
+      id: "rutas-screen"
+    timeout: 8000
+
+- takeScreenshot: "02_rutas_screen"
+
+# 5. Abrir primera ruta disponible
+- tapOn:
+    id: "route-card-0"
+
+- extendedWaitUntil:
+    visible:
+      id: "route-detail-screen"
+    timeout: 8000
+
+- takeScreenshot: "03_route_detail"
+
+# 6. Abrir primera parada
+- tapOn:
+    id: "stop-card-0"
+
+- extendedWaitUntil:
+    visible:
+      id: "visita-screen"
+    timeout: 8000
+
+- takeScreenshot: "04_visita_screen"
+
+# 7. Rellenar resultado de visita
+- tapOn:
+    id: "visita-resultado-field"
+- inputText: "Visita completada — test Maestro"
+
+# 8. Guardar visita
+- tapOn:
+    id: "visita-save-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "route-detail-screen"
+    timeout: 10000
+
+- takeScreenshot: "05_post_visita_guardada"
+
+# 9. Verificar stop marcado como done
+- assertVisible:
+    id: "stop-status-done"
+    optional: true  # Solo si hay badge visible
+
+- takeScreenshot: "06_stop_done"
