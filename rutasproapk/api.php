@@ -1176,6 +1176,38 @@ if ($action === 'file_upload') {
 }
 
 // ══════════════════════════════════════════════════════════════
+// PUSH REGISTER — actualiza fcm_token cuando Firebase lo rota
+// ══════════════════════════════════════════════════════════════
+
+if ($action === 'push_register') {
+    $sess     = requireAuth();
+    $uid      = (int)$sess['uid'];
+    $body     = $body ?? [];
+
+    $fcmToken  = san($body['fcm_token']  ?? '', 4096);
+    $deviceId  = san($body['device_id']  ?? '', 64);
+    $platform  = san($body['platform']   ?? 'android', 16);
+    $appVersion= san($body['app_version'] ?? '', 32);
+
+    if (!$fcmToken || !$deviceId) err('fcm_token y device_id son obligatorios', 400, $action);
+
+    // Actualizar fcm_token en la sesión activa del dispositivo
+    // Si el device_id no tiene sesión activa (no debería ocurrir), no hace nada
+    $updated = db()->prepare(
+        'UPDATE sessions
+         SET fcm_token    = ?,
+             app_version  = COALESCE(?, app_version),
+             last_used_at = NOW()
+         WHERE user_id   = ?
+           AND device_id = ?
+           AND expires_at > NOW()'
+    )->execute([$fcmToken, $appVersion ?: null, $uid, $deviceId]);
+
+    apiLog($action, $uid, (int)$sess['account_id']);
+    ok(['updated' => $updated]);
+}
+
+// ══════════════════════════════════════════════════════════════
 // GOD DASHBOARD
 // ══════════════════════════════════════════════════════════════
 
