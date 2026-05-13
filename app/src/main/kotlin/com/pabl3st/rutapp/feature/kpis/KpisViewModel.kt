@@ -8,9 +8,14 @@ import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.network.RutasApiService
+import com.pabl3st.rutapp.data.network.StatsMonthAgent
+import com.pabl3st.rutapp.data.network.StatsMonthKpi
+import com.pabl3st.rutapp.data.network.StatsMonthVisits
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,6 +84,12 @@ data class KpisUiState(
     val sectorKpis:      List<Triple<KpiDefinitionEntity, String, Boolean>> = emptyList(),
     val isLoading:       Boolean    = true,
     val error:           String?    = null,
+    // Datos del servidor (solo manager/admin/owner)
+    val serverStats:     StatsMonthVisits?    = null,
+    val serverKpis:      List<StatsMonthKpi>  = emptyList(),
+    val serverAgents:    List<StatsMonthAgent> = emptyList(),
+    val isManager:       Boolean              = false,
+    val isLoadingServer: Boolean              = false,
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -90,6 +101,8 @@ class KpisViewModel @Inject constructor(
     private val stopRepo:     StopRepository,
     private val kpiValueDao:  KpiValueDao,
     private val profileRepo:  BusinessProfileRepository,
+    private val api:          RutasApiService,
+    private val session:      SessionManager,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(KpisUiState())
@@ -99,7 +112,11 @@ class KpisViewModel @Inject constructor(
     private var allStops:  List<StopEntity>  = emptyList()
 
     init {
+        val role = session.userRole
+        val isManager = role in listOf("manager", "admin", "owner", "god")
+        _ui.update { it.copy(isManager = isManager) }
         observeData()
+        if (isManager) loadServerStats()
     }
 
     private fun observeData() {
@@ -251,6 +268,37 @@ class KpisViewModel @Inject constructor(
             }
             Triple(def, display, def.type == "number")
         }
+    }
+
+    // ── Stats del servidor (manager/owner) ───────────────────
+    private fun loadServerStats(month: String = java.time.YearMonth.now().toString()) {
+        viewModelScope.launch {
+            _ui.update { it.copy(isLoadingServer = true) }
+            val token = session.token ?: run {
+                _ui.update { it.copy(isLoadingServer = false) }
+                return@launch
+            }
+            runCatching {
+                val resp = api.statsMonth(token = token, month = month)
+                if (resp.isSuccessful && resp.body()?.ok == true) {
+                    val body = resp.body()!!
+                    _ui.update { it.copy(
+                        serverStats     = body.visits,
+                        serverKpis      = body.kpiAggregates,
+                        serverAgents    = body.agents,
+                        isLoadingServer = false,
+                    ) }
+                } else {
+                    _ui.update { it.copy(isLoadingServer = false) }
+                }
+            }.onFailure {
+                _ui.update { it.copy(isLoadingServer = false) }
+            }
+        }
+    }
+
+    fun refreshServerStats() {
+        if (_ui.value.isManager) loadServerStats()
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }

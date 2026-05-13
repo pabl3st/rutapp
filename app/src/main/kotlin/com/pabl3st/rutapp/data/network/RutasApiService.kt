@@ -304,6 +304,54 @@ data class BaseResponse(
     val error: String? = null,
 )
 
+// ── stats_month DTOs ─────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class StatsMonthVisits(
+    @Json(name = "total_stops")    val totalStops:    Int = 0,
+    @Json(name = "done_stops")     val doneStops:     Int = 0,
+    @Json(name = "skipped_stops")  val skippedStops:  Int = 0,
+    @Json(name = "pending_stops")  val pendingStops:  Int = 0,
+    @Json(name = "contacted")      val contacted:     Int = 0,
+    @Json(name = "not_home")       val notHome:       Int = 0,
+    @Json(name = "return_visit")   val returnVisit:   Int = 0,
+    @Json(name = "rejected")       val rejected:      Int = 0,
+    @Json(name = "active_agents")  val activeAgents:  Int = 0,
+    @Json(name = "total_routes")   val totalRoutes:   Int = 0,
+    @Json(name = "done_routes")    val doneRoutes:    Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class StatsMonthKpi(
+    @Json(name = "kpi_id")        val kpiId:       String  = "",
+    @Json(name = "label")         val label:       String  = "",
+    @Json(name = "type")          val type:        String  = "",
+    @Json(name = "unit")          val unit:        String? = null,
+    @Json(name = "section")       val section:     String  = "general",
+    @Json(name = "count_entries") val countEntries: Int    = 0,
+    @Json(name = "total_value")   val totalValue:  Double  = 0.0,
+    @Json(name = "true_count")    val trueCount:   Int     = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class StatsMonthAgent(
+    @Json(name = "user_id")    val userId:     Int    = 0,
+    @Json(name = "name")       val name:       String = "",
+    @Json(name = "username")   val username:   String = "",
+    @Json(name = "total_stops") val totalStops: Int   = 0,
+    @Json(name = "done_stops")  val doneStops:  Int   = 0,
+    @Json(name = "contacted")   val contacted:  Int   = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class StatsMonthResponse(
+    val ok:              Boolean                = false,
+    val month:           String                 = "",
+    val visits:          StatsMonthVisits?      = null,
+    @Json(name = "kpi_aggregates") val kpiAggregates: List<StatsMonthKpi>   = emptyList(),
+    val agents:          List<StatsMonthAgent>  = emptyList(),
+    val error:           String?                = null,
+)
+
 @JsonClass(generateAdapter = true)
 data class PushRegisterRequest(
     @Json(name = "fcm_token")   val fcmToken:   String,
@@ -479,6 +527,14 @@ interface RutasApiService {
         @Body body: DeactivateUserRequest,
     ): Response<AdminActionResponse>
 
+
+    // ── stats_month — agregados del mes para manager/owner ───
+    @GET(API_PATH)
+    suspend fun statsMonth(
+        @Query("action")        action: String = "stats_month",
+        @Header("X-Auth-Token") token:  String,
+        @Query("month")         month:  String,
+    ): Response<StatsMonthResponse>
 
     // ── push_register — registro token FCM por dispositivo ───
     @POST(API_PATH)

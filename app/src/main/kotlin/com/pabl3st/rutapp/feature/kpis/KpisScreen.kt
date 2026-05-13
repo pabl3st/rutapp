@@ -25,6 +25,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.pabl3st.rutapp.data.network.StatsMonthAgent
+import com.pabl3st.rutapp.data.network.StatsMonthKpi
+import com.pabl3st.rutapp.data.network.StatsMonthVisits
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
@@ -251,6 +254,48 @@ fun KpisScreen(
                     SectionTitle("KPIs del sector")
                     Spacer(Modifier.height(Spacing.sm))
                     SectorKpisGrid(sectorKpis = ui.sectorKpis)
+                }
+            }
+
+            // ── Equipo este mes (solo manager/owner) ──────────
+            if (ui.isManager) {
+                item {
+                    Spacer(Modifier.height(Spacing.sm))
+                    SectionTitle("Equipo este mes")
+                }
+                if (ui.isLoadingServer) {
+                    item {
+                        Box(
+                            Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
+                            contentAlignment = androidx.compose.ui.Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                } else {
+                    ui.serverStats?.let { sv -> item { TeamSummaryCard(sv) } }
+                    if (ui.serverAgents.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Por agente",
+                                style    = MaterialTheme.typography.labelSmall,
+                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                            )
+                        }
+                        items(ui.serverAgents) { agent -> AgentRow(agent) }
+                    }
+                    if (ui.serverKpis.isNotEmpty()) {
+                        item {
+                            Text(
+                                "KPIs del equipo",
+                                style    = MaterialTheme.typography.labelSmall,
+                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                        }
+                        items(ui.serverKpis) { kpi -> ServerKpiRow(kpi) }
+                    }
                 }
             }
 
@@ -486,6 +531,96 @@ private fun SectorKpisGrid(
 }
 
 // ── Título de sección ─────────────────────────────────────────
+@Composable
+private fun TeamSummaryCard(sv: StatsMonthVisits) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                TeamStatCell("Visitas",    sv.totalStops.toString(),    Modifier.weight(1f))
+                TeamStatCell("Completadas", sv.doneStops.toString(),    Modifier.weight(1f))
+                TeamStatCell("Agentes",    sv.activeAgents.toString(),  Modifier.weight(1f))
+            }
+            if (sv.totalStops > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    TeamStatCell(
+                        "Ratio visita",
+                        "${"%.0f".format(sv.doneStops * 100f / sv.totalStops)}%",
+                        Modifier.weight(1f),
+                    )
+                    TeamStatCell(
+                        "Contactados",
+                        "${"%.0f".format(sv.contacted * 100f / sv.totalStops)}%",
+                        Modifier.weight(1f),
+                    )
+                    TeamStatCell("Rutas", sv.totalRoutes.toString(), Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamStatCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AgentRow(agent: StatsMonthAgent) {
+    val ratio = if (agent.totalStops > 0)
+        "${"%.0f".format(agent.doneStops * 100f / agent.totalStops)}%" else "—"
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(agent.name, style = MaterialTheme.typography.bodyMedium)
+                Text("@${agent.username}", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                Text("${agent.doneStops}/${agent.totalStops}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary)
+                Text(ratio, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerKpiRow(kpi: StatsMonthKpi) {
+    val display = when (kpi.type) {
+        "boolean" -> "${kpi.trueCount}/${kpi.countEntries}"
+        "number"  -> {
+            val v = kpi.totalValue
+            val formatted = if (v == v.toLong().toDouble()) "${v.toLong()}" else "%.1f".format(v)
+            kpi.unit?.let { "$formatted $it" } ?: formatted
+        }
+        else -> kpi.countEntries.toString()
+    }
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(kpi.label, style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f))
+            Text(display, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
 @Composable
 private fun SectionTitle(text: String) {
     Text(
