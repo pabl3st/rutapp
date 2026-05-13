@@ -132,10 +132,14 @@ private fun RouteListContent(
             )
         }
 
-        // ── JornadaBar por cada ruta activa ───────────────────
-        val activeRoutes = ui.routes.filter { it.route.status == "active" }
-        if (activeRoutes.isNotEmpty()) {
-            items(activeRoutes, key = { "jornada_${it.route.uid}" }) { rwp ->
+        // ── JornadaBar para todas las rutas de hoy operativas ──
+        // La jornada se gestiona via DaySessionEntity (idle/running/paused/done)
+        // independientemente del route.status — no filtrar por "active"
+        val jornadaRoutes = ui.routes.filter {
+            it.route.status !in listOf("cancelled", "done")
+        }
+        if (jornadaRoutes.isNotEmpty()) {
+            items(jornadaRoutes, key = { "jornada_${it.route.uid}" }) { rwp ->
                 JornadaBar(routeUid = rwp.route.uid)
             }
         }
