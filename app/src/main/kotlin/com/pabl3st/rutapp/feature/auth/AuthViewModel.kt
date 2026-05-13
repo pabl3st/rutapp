@@ -102,6 +102,7 @@ class AuthViewModel @Inject constructor(
                 } else {
                     _ui.update { it.copy(screen = AuthScreen.CHOOSE_TYPE, error = null) }
                 }
+                true
             }
             AuthScreen.REGISTER_INDIVIDUAL, AuthScreen.REGISTER_COMPANY -> {
                 val hasData = s.name.isNotBlank() || s.username.isNotBlank() ||
