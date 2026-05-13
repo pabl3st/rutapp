@@ -521,14 +521,12 @@ class ImportarViewModel @Inject constructor(
                         // scheduledDates JSON — todas las fechas de visita programadas
                         // dateAssigned = primera fecha; scheduledDates = resto del array
                         val allDates = entry.scheduledDates.map { it.toString() }.sorted()
-                        val scheduledJson: String? = if (allDates.size > 1) {
-                            "[" + allDates.drop(1).joinToString(",") { d -> "\"$d\"" } + "]"
-                        } else null
+                        val scheduledList: List<String>? = if (allDates.size > 1) allDates.drop(1) else null
 
                         val route = routeRepo.createRoute(
                             name           = entry.routeName,
                             dateAssigned   = allDates.firstOrNull() ?: date,
-                            scheduledDates = scheduledJson,
+                            scheduledDates = scheduledList,
                         )
 
                         stops.forEachIndexed { stopIdx, preview ->
