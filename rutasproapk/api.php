@@ -1064,6 +1064,34 @@ if ($action === 'update_role') {
     ok(['success' => true, 'message' => 'Rol actualizado correctamente']);
 }
 
+// ── reactivate_user ──────────────────────────────────────────
+if ($action === 'reactivate_user') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+
+    $targetId = (int)($body['target_user_id'] ?? 0);
+    if (!$targetId) err('target_user_id requerido', 400);
+
+    // Verificar que el target pertenece a la misma cuenta
+    $st = db()->prepare('SELECT id, role FROM users WHERE id=? AND account_id=?');
+    $st->execute([$targetId, $aid]);
+    $target = $st->fetch();
+    if (!$target) err('Usuario no encontrado en tu cuenta', 404);
+
+    // No puede reactivar a alguien de mayor rango
+    if (roleLevel($target['role']) >= roleLevel($sess['role'])) {
+        err('No puedes reactivar a un usuario con rol igual o superior', 403);
+    }
+
+    db()->prepare('UPDATE users SET active=1 WHERE id=? AND account_id=?')
+       ->execute([$targetId, $aid]);
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'message' => 'Usuario reactivado correctamente']);
+}
+
 // ── deactivate_user ───────────────────────────────────────────
 if ($action === 'deactivate_user') {
     $sess      = requireAuth();
