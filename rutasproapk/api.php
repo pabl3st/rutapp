@@ -1208,6 +1208,79 @@ if ($action === 'push_register') {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ACCOUNT CONFIG SAVE — actualiza configuración de la cuenta
+// Solo owner/admin pueden modificar su propia cuenta.
+// ══════════════════════════════════════════════════════════════
+
+if ($action === 'account_config_save') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    $role = $sess['role'] ?? 'agent';
+
+    if (!in_array($role, ['owner', 'admin', 'god'], true)) {
+        err('Sin permisos — requiere owner o admin', 403, $action);
+    }
+
+    $allowed = ['name', 'plus_config', 'form_config', 'ai_settings'];
+    $updates = [];
+    $params  = [];
+
+    if (isset($body['name'])) {
+        $name = san($body['name'], 100);
+        if (strlen($name) < 2) err('El nombre debe tener al menos 2 caracteres', 400, $action);
+        $updates[] = 'name = ?';
+        $params[]  = $name;
+    }
+
+    // JSON fields — almacenados como texto, validados como JSON
+    foreach (['plus_config', 'form_config', 'ai_settings'] as $field) {
+        if (isset($body[$field])) {
+            $val = $body[$field];
+            // Aceptar null (borrar) o array/objeto
+            if ($val === null) {
+                $updates[] = "$field = NULL";
+            } else {
+                if (!is_array($val) && !is_object($val)) {
+                    err("$field debe ser un objeto JSON o null", 400, $action);
+                }
+                $updates[] = "$field = ?";
+                $params[]  = json_encode($val, JSON_UNESCAPED_UNICODE);
+            }
+        }
+    }
+
+    if (empty($updates)) err('No hay campos que actualizar', 400, $action);
+
+    $params[] = $aid;
+    db()->prepare(
+        'UPDATE accounts SET ' . implode(', ', $updates) . ', updated_at = NOW() WHERE id = ?'
+    )->execute($params);
+
+    // Devolver la cuenta actualizada
+    $st = db()->prepare(
+        'SELECT id, name, type, slug, plan, plus_config, form_config, ai_settings
+         FROM accounts WHERE id = ?'
+    );
+    $st->execute([$aid]);
+    $row = $st->fetch();
+
+    apiLog($action, $uid, $aid);
+    ok([
+        'account' => [
+            'id'          => (int)$row['id'],
+            'name'        => $row['name'],
+            'type'        => $row['type'],
+            'slug'        => $row['slug'],
+            'plan'        => $row['plan'],
+            'plus_config' => $row['plus_config']  ? json_decode($row['plus_config'],  true) : null,
+            'form_config' => $row['form_config']  ? json_decode($row['form_config'],  true) : null,
+            'ai_settings' => $row['ai_settings']  ? json_decode($row['ai_settings'],  true) : null,
+        ],
+    ]);
+}
+
+// ══════════════════════════════════════════════════════════════
 // STATS MONTH — agregados del mes para manager/owner
 // Devuelve métricas de todos los agentes de la cuenta para el mes dado.
 // Solo accesible para roles manager, admin, owner, god.
