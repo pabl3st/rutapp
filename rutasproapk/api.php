@@ -999,6 +999,54 @@ if ($action === 'users_list') {
     }, $users)]);
 }
 
+// ── invite_list — listar códigos de invitación activos ────────
+if ($action === 'invite_list') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+
+    $st = db()->prepare(
+        'SELECT id, code, role_to_assign, uses_left,
+                DATE_FORMAT(expires_at, '%Y-%m-%dT%H:%i:%sZ') AS expires_at,
+                DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS created_at
+         FROM invite_codes
+         WHERE account_id = ? AND expires_at > NOW() AND uses_left > 0
+         ORDER BY created_at DESC'
+    );
+    $st->execute([$aid]);
+    $invites = $st->fetchAll();
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'invites' => array_map(function($i) {
+        return [
+            'id'             => (int)$i['id'],
+            'code'           => $i['code'],
+            'role_to_assign' => $i['role_to_assign'],
+            'uses_left'      => (int)$i['uses_left'],
+            'expires_at'     => $i['expires_at'],
+            'created_at'     => $i['created_at'],
+        ];
+    }, $invites)]);
+}
+
+// ── invite_delete — eliminar invitación ───────────────────────
+if ($action === 'invite_delete') {
+    $sess     = requireAuth();
+    $uid      = (int)$sess['uid'];
+    $aid      = (int)$sess['account_id'];
+    $inviteId = (int)($body['invite_id'] ?? 0);
+    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+    if (!$inviteId) err('invite_id requerido', 400);
+
+    $deleted = db()->prepare(
+        'DELETE FROM invite_codes WHERE id=? AND account_id=?'
+    )->execute([$inviteId, $aid]);
+
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'message' => 'Invitación eliminada']);
+}
+
 // ── invite_user ───────────────────────────────────────────────
 if ($action === 'invite_user') {
     $sess = requireAuth();
