@@ -169,6 +169,8 @@ class AuthRepository @Inject constructor(
             )
             // Restaurar vacaciones y prefs desde el servidor (recuperación tras reinstalación)
             userPrefsRepo.restoreFromServer(body.prefs)
+            // Actualizar token FCM en el servidor (puede haber rotado desde el último login)
+            fcmTokenRepo.uploadCurrentToken()
             AuthResult.Success(success)
         }.getOrElse {
             // En modo offline usar datos cacheados
