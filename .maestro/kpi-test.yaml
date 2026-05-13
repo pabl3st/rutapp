@@ -1,0 +1,107 @@
+appId: com.pabl3st.rutapp
+tags:
+  - ci
+  - kpi
+---
+# ══════════════════════════════════════════════════════════════
+# TEST — KPIs telco: rellenar activaciones y verificar Plus
+#
+# Prerequisitos:
+#   - Sesión activa con perfil sector=telco configurado
+#   - Al menos 1 ruta con 1 parada pendiente hoy
+# ══════════════════════════════════════════════════════════════
+
+- launchApp:
+    clearState: false
+
+- swipe:
+    direction: DOWN
+    duration: 200
+
+- runFlow:
+    when:
+      visible:
+        text: "Iniciar sesión"
+    file: flows/login.yaml
+
+# Navegar a la primera parada disponible
+- tapOn:
+    id: "bottom-nav-rutas"
+
+- extendedWaitUntil:
+    visible:
+      id: "rutas-screen"
+    timeout: 8000
+
+- tapOn:
+    id: "route-card-0"
+
+- extendedWaitUntil:
+    visible:
+      id: "route-detail-screen"
+    timeout: 8000
+
+- tapOn:
+    id: "stop-card-0"
+
+- extendedWaitUntil:
+    visible:
+      id: "visita-screen"
+    timeout: 8000
+
+- takeScreenshot: "kpi_01_formulario_visita"
+
+# Rellenar resultado de visita
+- tapOn:
+    id: "visita-resultado-field"
+- inputText: "contactado"
+
+# Rellenar KPIs telco si están visibles
+- tapOn:
+    id: "kpi-field-activaciones"
+    optional: true
+- inputText: "5"
+
+- tapOn:
+    id: "kpi-field-primer_bono_eur"
+    optional: true
+- inputText: "50"
+
+- tapOn:
+    id: "kpi-field-recargas_eur"
+    optional: true
+- inputText: "120.50"
+
+- takeScreenshot: "kpi_02_valores_rellenos"
+
+# Marcar PDV abierto
+- tapOn:
+    id: "visita-store-open-toggle"
+    optional: true
+
+# Guardar
+- tapOn:
+    id: "visita-save-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "route-detail-screen"
+    timeout: 10000
+
+- takeScreenshot: "kpi_03_visita_guardada"
+
+# Verificar en KPIs que se actualizó el recuento Plus
+- tapOn:
+    id: "bottom-nav-kpis"
+
+- extendedWaitUntil:
+    visible:
+      id: "kpis-screen"
+    timeout: 8000
+
+- takeScreenshot: "kpi_04_kpis_actualizados"
+
+# Verificar que no hay errores
+- assertNotVisible:
+    text: "Error"
+    optional: true

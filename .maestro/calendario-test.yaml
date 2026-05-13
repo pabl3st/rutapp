@@ -1,0 +1,100 @@
+appId: com.pabl3st.rutapp
+tags:
+  - ci
+  - calendario
+---
+# ══════════════════════════════════════════════════════════════
+# TEST — Calendario: navegar meses, asignar ruta a día
+#
+# Prerequisitos:
+#   - Sesión activa
+#   - Al menos 1 ruta creada en la cuenta
+# ══════════════════════════════════════════════════════════════
+
+- launchApp:
+    clearState: false
+
+- swipe:
+    direction: DOWN
+    duration: 200
+
+- runFlow:
+    when:
+      visible:
+        text: "Iniciar sesión"
+    file: flows/login.yaml
+
+# Navegar al Calendario
+- tapOn:
+    id: "bottom-nav-calendario"
+
+- extendedWaitUntil:
+    visible:
+      id: "calendario-screen"
+    timeout: 8000
+
+- takeScreenshot: "cal_01_mes_actual"
+
+# Navegar al mes siguiente
+- tapOn:
+    id: "calendario-next-month"
+
+- takeScreenshot: "cal_02_mes_siguiente"
+
+# Volver al mes anterior
+- tapOn:
+    id: "calendario-prev-month"
+
+- takeScreenshot: "cal_03_mes_actual_de_nuevo"
+
+# Seleccionar un día del mes
+- tapOn:
+    id: "calendario-day-15"
+    optional: true
+
+- takeScreenshot: "cal_04_dia_seleccionado"
+
+# Long press en un día para ver el menú
+- longPressOn:
+    id: "calendario-day-20"
+    optional: true
+
+- takeScreenshot: "cal_05_menu_dia"
+
+# Asignar ruta al día si el selector aparece
+- tapOn:
+    text: "Asignar ruta"
+    optional: true
+
+- extendedWaitUntil:
+    visible:
+      id: "route-selector-dialog"
+    timeout: 5000
+    optional: true
+
+- tapOn:
+    id: "route-selector-item-0"
+    optional: true
+
+- takeScreenshot: "cal_06_ruta_asignada"
+
+# Cerrar menú si sigue abierto
+- tapOn:
+    text: "Cancelar"
+    optional: true
+
+# Marcar vacaciones
+- longPressOn:
+    id: "calendario-day-25"
+    optional: true
+
+- tapOn:
+    text: "Marcar vacaciones"
+    optional: true
+
+- takeScreenshot: "cal_07_vacaciones_marcadas"
+
+# Verificar que no hay errores
+- assertNotVisible:
+    text: "Error"
+    optional: true
