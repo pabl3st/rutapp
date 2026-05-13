@@ -1208,6 +1208,106 @@ if ($action === 'push_register') {
 }
 
 // ══════════════════════════════════════════════════════════════
+// STATS MONTH — agregados del mes para manager/owner
+// Devuelve métricas de todos los agentes de la cuenta para el mes dado.
+// Solo accesible para roles manager, admin, owner, god.
+// ══════════════════════════════════════════════════════════════
+
+if ($action === 'stats_month') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    $role = $sess['role'] ?? 'agent';
+
+    // Solo manager o superior puede ver datos de todo el equipo
+    $teamRoles = ['manager', 'admin', 'owner', 'god'];
+    if (!in_array($role, $teamRoles, true)) err('Sin permisos', 403, $action);
+
+    $month = san($_GET['month'] ?? date('Y-m'), 20); // formato YYYY-MM
+    if (!preg_match('/^\d{4}-\d{2}$/', $month)) err('Formato de mes inválido (YYYY-MM)', 400, $action);
+
+    $monthStart = $month . '-01';
+    $monthEnd   = date('Y-m-t', strtotime($monthStart)); // último día del mes
+
+    // ── Totales de visitas del mes ────────────────────────────
+    $stVisits = db()->prepare(
+        'SELECT
+            COUNT(*)                                        AS total_stops,
+            SUM(s.status = "done")                         AS done_stops,
+            SUM(s.status = "skipped")                      AS skipped_stops,
+            SUM(s.status = "pending")                      AS pending_stops,
+            SUM(s.visit_result = "contactado")             AS contacted,
+            SUM(s.visit_result = "no_estaba")              AS not_home,
+            SUM(s.visit_result = "volvemos")               AS return_visit,
+            SUM(s.visit_result = "rechazado")              AS rejected,
+            COUNT(DISTINCT r.user_id)                      AS active_agents,
+            COUNT(DISTINCT r.id)                           AS total_routes,
+            SUM(r.status = "done")                         AS done_routes
+         FROM stops s
+         JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
+         WHERE r.date_assigned BETWEEN ? AND ?
+           AND s.deleted_at IS NULL'
+    );
+    $stVisits->execute([$aid, $monthStart, $monthEnd]);
+    $visits = $stVisits->fetch();
+
+    // ── KPI values agregados del mes (número + boolean) ───────
+    $stKpis = db()->prepare(
+        'SELECT
+            kv.kpi_id,
+            kd.label,
+            kd.type,
+            kd.unit,
+            kd.section,
+            COUNT(kv.id)                                        AS count_entries,
+            SUM(CASE WHEN kd.type = "number"
+                     THEN CAST(kv.value_text AS DECIMAL(15,4))
+                     ELSE 0 END)                                AS total_value,
+            SUM(CASE WHEN kd.type = "boolean" AND kv.value_text = "true"
+                     THEN 1 ELSE 0 END)                        AS true_count
+         FROM kpi_values kv
+         JOIN kpi_definitions kd ON kd.id = kv.kpi_id
+         JOIN stops s            ON s.uid  = kv.stop_uid
+         JOIN routes r           ON r.uid  = s.route_uid AND r.account_id = ?
+         WHERE r.date_assigned BETWEEN ? AND ?
+           AND kd.type IN ("number", "boolean")
+           AND s.deleted_at IS NULL
+         GROUP BY kv.kpi_id, kd.label, kd.type, kd.unit, kd.section
+         ORDER BY kd.section ASC, kd.label ASC'
+    );
+    $stKpis->execute([$aid, $monthStart, $monthEnd]);
+    $kpiAggregates = $stKpis->fetchAll();
+
+    // ── Por agente (para desglose opcional) ──────────────────
+    $stAgents = db()->prepare(
+        'SELECT
+            u.id           AS user_id,
+            u.name,
+            u.username,
+            COUNT(s.id)                        AS total_stops,
+            SUM(s.status = "done")             AS done_stops,
+            SUM(s.visit_result = "contactado") AS contacted
+         FROM stops s
+         JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
+         JOIN users u  ON u.id = r.user_id
+         WHERE r.date_assigned BETWEEN ? AND ?
+           AND s.deleted_at IS NULL
+         GROUP BY u.id, u.name, u.username
+         ORDER BY done_stops DESC'
+    );
+    $stAgents->execute([$aid, $monthStart, $monthEnd]);
+    $agents = $stAgents->fetchAll();
+
+    apiLog($action, $uid, $aid);
+    ok([
+        'month'          => $month,
+        'visits'         => $visits,
+        'kpi_aggregates' => $kpiAggregates,
+        'agents'         => $agents,
+    ]);
+}
+
+// ══════════════════════════════════════════════════════════════
 // GOD DASHBOARD
 // ══════════════════════════════════════════════════════════════
 
