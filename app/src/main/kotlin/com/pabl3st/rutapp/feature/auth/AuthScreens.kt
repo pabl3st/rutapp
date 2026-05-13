@@ -117,6 +117,7 @@ fun AuthRoot(
                     onLogin      = viewModel::onGoToLogin,
                     onIndividual = viewModel::onChooseIndividual,
                     onCompany    = viewModel::onChooseCompany,
+                    onInvite     = viewModel::onChooseInvite,
                 )
                 AuthScreen.LOGIN               -> PhaseLogin(
                     ui               = ui,
@@ -149,6 +150,18 @@ fun AuthRoot(
                     onBack              = { viewModel.handleBack() },
                     onGoToLogin         = viewModel::onGoToLogin,
                 )
+                AuthScreen.REGISTER_WITH_INVITE -> PhaseRegisterWithInvite(
+                    ui               = ui,
+                    onInviteCodeChange = viewModel::onInviteCodeChange,
+                    onNameChange      = viewModel::onNameChange,
+                    onUsernameChange  = viewModel::onUsernameChange,
+                    onEmailChange     = viewModel::onEmailChange,
+                    onPasswordChange  = viewModel::onPasswordChange,
+                    onTogglePassword  = viewModel::onTogglePassword,
+                    onRegister        = viewModel::registerWithInvite,
+                    onBack            = { viewModel.handleBack() },
+                    onGoToLogin       = viewModel::onGoToLogin,
+                )
             }
         }
     }
@@ -180,6 +193,7 @@ private fun PhaseChoose(
     onLogin:      () -> Unit,
     onIndividual: () -> Unit,
     onCompany:    () -> Unit,
+    onInvite:     () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -220,6 +234,15 @@ private fun PhaseChoose(
             description = "Equipo de comerciales con roles",
             accent      = true,
             onClick     = onCompany,
+        )
+        Spacer(Modifier.height(10.dp))
+
+        // Invitación
+        ChooseTypeCard(
+            icon        = Icons.Outlined.CardMembership,
+            title       = "Tengo un código de invitación",
+            description = "Unirme al equipo de mi empresa",
+            onClick     = onInvite,
         )
 
         Spacer(Modifier.height(40.dp))
@@ -723,3 +746,105 @@ private fun DrawScope.drawDotGrid(color: Color) {
 
 // ── Constantes de animación ────────────────────────────────────
 private val EaseOutCubic = CubicBezierEasing(0.215f, 0.61f, 0.355f, 1f)
+
+// ══════════════════════════════════════════════════════════════
+// FASE 5 — REGISTRO CON INVITACIÓN
+// ══════════════════════════════════════════════════════════════
+@Composable
+private fun PhaseRegisterWithInvite(
+    ui:               AuthUiState,
+    onInviteCodeChange: (String) -> Unit,
+    onNameChange:     (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onEmailChange:    (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onTogglePassword: () -> Unit,
+    onRegister:       () -> Unit,
+    onBack:           () -> Unit,
+    onGoToLogin:      () -> Unit,
+) {
+    val focus = LocalFocusManager.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(24.dp))
+        PhaseHeader(
+            title    = "Unirse con invitación",
+            subtitle = "Introduce el código que te envió tu empresa",
+            onBack   = onBack,
+        )
+        Spacer(Modifier.height(28.dp))
+
+        // ── Código de invitación ──────────────────────────────
+        // Campo destacado — es el dato más importante de este flujo
+        DarkTextField(
+            value         = ui.inviteCode,
+            onValueChange = onInviteCodeChange,
+            label         = "Código de invitación",
+            cap           = KeyboardCapitalization.Characters,
+            imeAction     = ImeAction.Next,
+            onNext        = { focus.moveFocus(FocusDirection.Down) },
+        )
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "El código lo genera el administrador de tu empresa desde el panel Admin",
+            color    = TextMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        // ── Datos personales ──────────────────────────────────
+        DarkTextField(
+            value         = ui.name,
+            onValueChange = onNameChange,
+            label         = "Nombre completo",
+            cap           = KeyboardCapitalization.Words,
+            imeAction     = ImeAction.Next,
+            onNext        = { focus.moveFocus(FocusDirection.Down) },
+        )
+        Spacer(Modifier.height(10.dp))
+        DarkTextField(
+            value         = ui.username,
+            onValueChange = onUsernameChange,
+            label         = "Nombre de usuario",
+            imeAction     = ImeAction.Next,
+            onNext        = { focus.moveFocus(FocusDirection.Down) },
+        )
+        Spacer(Modifier.height(10.dp))
+        DarkTextField(
+            value         = ui.email,
+            onValueChange = onEmailChange,
+            label         = "Email",
+            keyboardType  = KeyboardType.Email,
+            imeAction     = ImeAction.Next,
+            onNext        = { focus.moveFocus(FocusDirection.Down) },
+        )
+        Spacer(Modifier.height(10.dp))
+        DarkPasswordField(
+            value         = ui.password,
+            onValueChange = onPasswordChange,
+            visible       = ui.passwordVisible,
+            onToggle      = onTogglePassword,
+            imeAction     = ImeAction.Done,
+            onDone        = onRegister,
+        )
+
+        AnimatedError(ui.error)
+        Spacer(Modifier.height(28.dp))
+
+        CyanButton("Unirse al equipo", ui.isLoading, onRegister)
+
+        Spacer(Modifier.height(16.dp))
+        TextButton(onClick = onGoToLogin) {
+            Text("Ya tengo cuenta — acceder", color = CyanGlow.copy(0.7f), fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(Spacing.xl))
+    }
+}

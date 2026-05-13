@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class AuthScreen { SPLASH, CHOOSE_TYPE, LOGIN, REGISTER_INDIVIDUAL, REGISTER_COMPANY }
+enum class AuthScreen { SPLASH, CHOOSE_TYPE, LOGIN, REGISTER_INDIVIDUAL, REGISTER_COMPANY, REGISTER_WITH_INVITE }
 
 data class AuthUiState(
     val screen: AuthScreen       = AuthScreen.SPLASH,
@@ -95,6 +95,14 @@ class AuthViewModel @Inject constructor(
                 true
             }
 
+            AuthScreen.REGISTER_WITH_INVITE -> {
+                val s = _ui.value
+                if (s.name.isNotBlank() || s.username.isNotBlank() || s.email.isNotBlank() || s.inviteCode.isNotBlank()) {
+                    _ui.update { it.copy(showDiscardDialog = true) }
+                } else {
+                    _ui.update { it.copy(screen = AuthScreen.CHOOSE_TYPE, error = null) }
+                }
+            }
             AuthScreen.REGISTER_INDIVIDUAL, AuthScreen.REGISTER_COMPANY -> {
                 val hasData = s.name.isNotBlank() || s.username.isNotBlank() ||
                               s.email.isNotBlank() || s.password.isNotBlank() ||
@@ -125,6 +133,7 @@ class AuthViewModel @Inject constructor(
     fun onDiscardDismissed()       = _ui.update { it.copy(showDiscardDialog = false) }
 
     // ── Navegación ─────────────────────────────────────────────
+    fun onChooseInvite()     = _ui.update { it.copy(screen = AuthScreen.REGISTER_WITH_INVITE, error = null) }
     fun onChooseIndividual() = _ui.update { it.copy(screen = AuthScreen.REGISTER_INDIVIDUAL, error = null) }
     fun onChooseCompany()    = _ui.update { it.copy(screen = AuthScreen.REGISTER_COMPANY,    error = null) }
     fun onGoToLogin()        = _ui.update { it.copy(screen = AuthScreen.LOGIN,               error = null) }
@@ -163,6 +172,32 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
+
+    fun registerWithInvite() {
+        val s = _ui.value
+        if (s.inviteCode.isBlank()) {
+            _ui.update { it.copy(error = "El código de invitación es obligatorio") }
+            return
+        }
+        if (s.inviteCode.length < 4) {
+            _ui.update { it.copy(error = "Código de invitación no válido") }
+            return
+        }
+        if (!validateRegister(s.name, s.username, s.email, s.password)) return
+        doLaunch {
+            when (val r = repo.registerWithInvite(
+                inviteCode = s.inviteCode.trim(),
+                name       = s.name.trim(),
+                username   = s.username.trim(),
+                email      = s.email.trim(),
+                password   = s.password,
+            )) {
+                is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true, isLoading = false) }
+                is AuthResult.Error   -> _ui.update { it.copy(error = r.message, isLoading = false) }
+            }
+        }
+    }
+
 
     fun login() {
         val s = _ui.value
