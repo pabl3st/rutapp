@@ -2,8 +2,9 @@ package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.network.DeactivateUserRequest
-import com.pabl3st.rutapp.data.network.ReactivateUserRequest
+import com.pabl3st.rutapp.data.network.InviteDto
 import com.pabl3st.rutapp.data.network.InviteUserRequest
+import com.pabl3st.rutapp.data.network.ReactivateUserRequest
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.network.UpdateRoleRequest
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -56,11 +57,29 @@ class AdminRepository @Inject constructor(
         )
         if (resp.isSuccessful) {
             val body = resp.body()
-            if (body?.success == true) AuthResult.Success(body.message)
+            if (body?.success == true)
+                AuthResult.Success(body.code ?: body.message)
             else AuthResult.Error(body?.message ?: "Error al invitar usuario")
         } else {
             AuthResult.Error("HTTP ${resp.code()}")
         }
+    }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
+
+    suspend fun listInvites(): AuthResult<List<InviteDto>> = runCatching {
+        val resp = api.inviteList(token = session.token ?: "")
+        if (resp.isSuccessful && resp.body()?.success == true)
+            AuthResult.Success(resp.body()!!.invites)
+        else AuthResult.Error("HTTP ${resp.code()}")
+    }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
+
+    suspend fun deleteInvite(inviteId: Int): AuthResult<String> = runCatching {
+        val resp = api.deleteInvite(
+            token = session.token ?: "",
+            body  = mapOf("invite_id" to inviteId),
+        )
+        if (resp.isSuccessful && resp.body()?.success == true)
+            AuthResult.Success("Invitación eliminada")
+        else AuthResult.Error("HTTP ${resp.code()}")
     }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
     suspend fun updateRole(targetUserId: Int, role: String): AuthResult<String> = runCatching {
@@ -91,9 +110,10 @@ class AdminRepository @Inject constructor(
         }
     }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
+    // Roles asignables vía update_role (god/owner no son asignables por diseño del servidor)
     val availableRoles: List<String>
         get() = when {
-            isGod          -> listOf("god", "owner", "admin", "manager", "agent", "viewer")
+            isGod          -> listOf("admin", "manager", "agent", "viewer")
             isOwner        -> listOf("admin", "manager", "agent", "viewer")
             isOwnerOrAdmin -> listOf("manager", "agent", "viewer")
             else           -> emptyList()

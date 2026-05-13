@@ -4,6 +4,7 @@ import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.network.AccountUserDto
+import com.pabl3st.rutapp.data.network.InviteDto
 import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.AuthResult
 import com.pabl3st.rutapp.data.repository.RouteRepository
@@ -28,14 +29,20 @@ data class AdminUiState(
     val users:           List<AccountUserDto> = emptyList(),
     val usersLoading:    Boolean = false,
     val canManageUsers:  Boolean = false,
-    val showInviteDialog: Boolean = false,
-    val inviteEmail:     String  = "",
-    val inviteRole:      String  = "agent",
-    val showRolePicker:  Boolean = false,
-    val rolePickerUser:  AccountUserDto? = null,
-    val isLoading:  Boolean = true,
-    val error:      String? = null,
-    val snackbar:   String? = null,
+    val showInviteDialog:  Boolean = false,
+    val inviteEmail:       String  = "",
+    val inviteRole:        String  = "agent",
+    val isSendingInvite:   Boolean = false,
+    // Código generado — se muestra en un diálogo al admin para que lo comparta
+    val generatedCode:     String? = null,
+    val invites:           List<InviteDto> = emptyList(),
+    val invitesLoading:    Boolean = false,
+    val showRolePicker:    Boolean = false,
+    val rolePickerUser:    AccountUserDto? = null,
+    val isChangingRole:    Boolean = false,
+    val isLoading:    Boolean = true,
+    val error:        String? = null,
+    val snackbar:     String? = null,
 )
 
 @HiltViewModel
@@ -62,7 +69,10 @@ class AdminViewModel @Inject constructor(
 
     init {
         loadStats()
-        if (adminRepo.canManageUsers && !adminRepo.isGod) loadUsers()
+        if (adminRepo.canManageUsers && !adminRepo.isGod) {
+            loadUsers()
+            loadInvites()
+        }
     }
 
     private fun loadStats() {
@@ -102,11 +112,47 @@ class AdminViewModel @Inject constructor(
 
     fun sendInvite() {
         val s = _ui.value
-        if (s.inviteEmail.isBlank()) { _ui.update { it.copy(error = "El email es obligatorio") }; return }
+        if (s.inviteEmail.isBlank()) {
+            _ui.update { it.copy(error = "El email es obligatorio") }
+            return
+        }
         viewModelScope.launch {
-            _ui.update { it.copy(showInviteDialog = false) }
+            _ui.update { it.copy(isSendingInvite = true) }
             when (val result = adminRepo.inviteUser(s.inviteEmail.trim(), s.inviteRole)) {
-                is AuthResult.Success -> { _ui.update { it.copy(snackbar = "Invitación enviada a ${s.inviteEmail.trim()}") }; loadUsers() }
+                is AuthResult.Success -> {
+                    // result.data es el código de invitación generado
+                    _ui.update { it.copy(
+                        showInviteDialog = false,
+                        isSendingInvite  = false,
+                        generatedCode    = result.data,
+                    ) }
+                    loadUsers()
+                    loadInvites()
+                }
+                is AuthResult.Error -> _ui.update { it.copy(
+                    isSendingInvite = false,
+                    error = result.message,
+                ) }
+            }
+        }
+    }
+
+    fun onDismissGeneratedCode() = _ui.update { it.copy(generatedCode = null) }
+
+    fun loadInvites() {
+        viewModelScope.launch {
+            _ui.update { it.copy(invitesLoading = true) }
+            when (val result = adminRepo.listInvites()) {
+                is AuthResult.Success -> _ui.update { it.copy(invites = result.data, invitesLoading = false) }
+                is AuthResult.Error   -> _ui.update { it.copy(invitesLoading = false) }
+            }
+        }
+    }
+
+    fun deleteInvite(inviteId: Int) {
+        viewModelScope.launch {
+            when (val result = adminRepo.deleteInvite(inviteId)) {
+                is AuthResult.Success -> { loadInvites(); _ui.update { it.copy(snackbar = "Invitación eliminada") } }
                 is AuthResult.Error   -> _ui.update { it.copy(error = result.message) }
             }
         }
@@ -118,10 +164,13 @@ class AdminViewModel @Inject constructor(
     fun onSelectRole(role: String) {
         val user = _ui.value.rolePickerUser ?: return
         viewModelScope.launch {
-            _ui.update { it.copy(showRolePicker = false, rolePickerUser = null) }
+            _ui.update { it.copy(showRolePicker = false, rolePickerUser = null, isChangingRole = true) }
             when (val result = adminRepo.updateRole(user.userId, role)) {
-                is AuthResult.Success -> { _ui.update { it.copy(snackbar = "Rol de ${user.displayName} actualizado") }; loadUsers() }
-                is AuthResult.Error   -> _ui.update { it.copy(error = result.message) }
+                is AuthResult.Success -> {
+                    _ui.update { it.copy(isChangingRole = false, snackbar = "Rol de ${user.displayName} actualizado") }
+                    loadUsers()
+                }
+                is AuthResult.Error -> _ui.update { it.copy(isChangingRole = false, error = result.message) }
             }
         }
     }

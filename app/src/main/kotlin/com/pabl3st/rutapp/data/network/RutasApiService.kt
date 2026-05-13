@@ -301,6 +301,23 @@ data class DeactivateUserRequest(
 data class AdminActionResponse(
     val success: Boolean,
     val message: String = "",
+    val code:    String? = null,   // código de invitación (solo en invite_user)
+)
+
+@JsonClass(generateAdapter = true)
+data class InviteListResponse(
+    val success: Boolean                    = false,
+    val invites: List<InviteDto>            = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class InviteDto(
+    val id:              Int    = 0,
+    val code:            String = "",
+    @Json(name = "role_to_assign") val roleToAssign: String = "",
+    @Json(name = "uses_left")      val usesLeft:     Int    = 0,
+    @Json(name = "expires_at")     val expiresAt:    String = "",
+    @Json(name = "created_at")     val createdAt:    String = "",
 )
 
 @JsonClass(generateAdapter = true)
@@ -562,6 +579,19 @@ interface RutasApiService {
         @Query("action") action: String = "reactivate_user",
         @Header("X-Auth-Token") token: String,
         @Body body: ReactivateUserRequest,
+    ): Response<AdminActionResponse>
+
+    @GET(API_PATH)
+    suspend fun inviteList(
+        @Query("action") action: String = "invite_list",
+        @Header("X-Auth-Token") token: String,
+    ): Response<InviteListResponse>
+
+    @POST(API_PATH)
+    suspend fun deleteInvite(
+        @Query("action")        action: String = "invite_delete",
+        @Header("X-Auth-Token") token:  String,
+        @Body                   body:   Map<String, Int>,
     ): Response<AdminActionResponse>
 
 

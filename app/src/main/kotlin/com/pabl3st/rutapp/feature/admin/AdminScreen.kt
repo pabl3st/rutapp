@@ -20,6 +20,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.BuildConfig
 import com.pabl3st.rutapp.data.network.AccountUserDto
+import com.pabl3st.rutapp.data.network.InviteDto
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 
 @Composable
 fun AdminScreen(
@@ -152,12 +155,34 @@ fun AdminScreen(
                     items(ui.users, key = { it.userId }) { user ->
                         UserCard(
                             user           = user,
-                            currentUserId  = 0,
                             roleLabel      = vm::roleLabel,
                             onChangeRole   = { vm.onShowRolePicker(user) },
                             onDeactivate   = { vm.deactivateUser(user) },
                             onReactivate   = { vm.reactivateUser(user) },
                             canEdit        = ui.userRole == "god" || (ui.userRole in setOf("owner", "admin") && user.role !in setOf("owner", "god")),
+                        )
+                    }
+                }
+            }
+
+            // ── Invitaciones activas ─────────────────────────
+            if (ui.canManageUsers && (ui.invites.isNotEmpty() || ui.invitesLoading)) {
+                item {
+                    SectionTitle("Invitaciones activas")
+                    Spacer(Modifier.height(Spacing.sm))
+                }
+                if (ui.invitesLoading) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                } else {
+                    items(ui.invites, key = { it.id }) { invite ->
+                        InviteCard(
+                            invite   = invite,
+                            roleLabel = vm::roleLabel,
+                            onDelete  = { vm.deleteInvite(invite.id) },
                         )
                     }
                 }
@@ -188,6 +213,9 @@ fun AdminScreen(
     if (ui.showRolePicker) {
         RolePickerDialog(ui = ui, vm = vm)
     }
+    ui.generatedCode?.let { code ->
+        InviteCodeDialog(code = code, roleLabel = vm.roleLabel(ui.inviteRole), onDismiss = vm::onDismissGeneratedCode)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -195,7 +223,6 @@ fun AdminScreen(
 @Composable
 private fun UserCard(
     user:          AccountUserDto,
-    currentUserId: Int,
     roleLabel:     (String) -> String,
     onChangeRole:  () -> Unit,
     onDeactivate:  () -> Unit,
@@ -319,7 +346,19 @@ private fun InviteDialog(ui: AdminUiState, vm: AdminViewModel) {
                 }
             }
         },
-        confirmButton = { Button(onClick = vm::sendInvite) { Text("Enviar invitación") } },
+        confirmButton = {
+            Button(
+                onClick  = vm::sendInvite,
+                enabled  = !ui.isSendingInvite,
+            ) {
+                if (ui.isSendingInvite) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("Generar código")
+            }
+        },
         dismissButton = { TextButton(onClick = vm::onDismissInviteDialog) { Text("Cancelar") } },
     )
 }
@@ -333,6 +372,13 @@ private fun RolePickerDialog(ui: AdminUiState, vm: AdminViewModel) {
         text  = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 vm.availableRoles.forEach { role ->
+                    val desc = when (role) {
+                        "admin"   -> "Administra usuarios y rutas"
+                        "manager" -> "Ve rutas de todo el account"
+                        "agent"   -> "Ejecuta sus propias rutas"
+                        "viewer"  -> "Solo lectura"
+                        else      -> ""
+                    }
                     Row(
                         modifier          = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -342,13 +388,115 @@ private fun RolePickerDialog(ui: AdminUiState, vm: AdminViewModel) {
                             onClick  = { vm.onSelectRole(role) },
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(vm.roleLabel(role), style = MaterialTheme.typography.bodyMedium)
+                        Column {
+                            Text(vm.roleLabel(role), style = MaterialTheme.typography.bodyMedium)
+                            if (desc.isNotEmpty()) Text(desc, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         },
         confirmButton  = {},
         dismissButton  = { TextButton(onClick = vm::onDismissRolePicker) { Text("Cancelar") } },
+    )
+}
+
+@Composable
+private fun InviteCard(
+    invite:    InviteDto,
+    roleLabel: (String) -> String,
+    onDelete:  () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    Text(
+                        invite.code,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    IconButton(
+                        onClick  = { clipboard.setText(AnnotatedString(invite.code)) },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(Icons.Default.ContentCopy, "Copiar código", Modifier.size(14.dp))
+                    }
+                }
+                Text(
+                    "Rol: ${roleLabel(invite.roleToAssign)} · ${invite.usesLeft} uso${if (invite.usesLeft != 1) "s" else ""} restante${if (invite.usesLeft != 1) "s" else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "Expira: ${invite.expiresAt.take(10)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.DeleteOutline, "Eliminar invitación",
+                    Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InviteCodeDialog(code: String, roleLabel: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon  = { Icon(Icons.Default.Key, null) },
+        title = { Text("Código de invitación") },
+        text  = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Text(
+                    "Comparte este código con la persona que quieres invitar como $roleLabel:",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Surface(
+                    color  = MaterialTheme.colorScheme.primaryContainer,
+                    shape  = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        Modifier.padding(Spacing.lg),
+                        verticalAlignment    = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            code,
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        Spacer(Modifier.width(Spacing.md))
+                        IconButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
+                            Icon(Icons.Default.ContentCopy, "Copiar",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    }
+                }
+                Text(
+                    "El código es válido por 7 días y para 1 uso.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton  = { Button(onClick = onDismiss) { Text("Entendido") } },
+        dismissButton  = null,
     )
 }
 
