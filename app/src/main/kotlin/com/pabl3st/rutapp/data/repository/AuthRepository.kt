@@ -10,6 +10,7 @@ import com.pabl3st.rutapp.data.network.RegisterWithInviteRequest
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
+import com.pabl3st.rutapp.fcm.FcmTokenRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,6 +38,7 @@ class AuthRepository @Inject constructor(
     private val api:           RutasApiService,
     private val session:       SessionManager,
     private val userPrefsRepo: UserPrefsRepository,
+    private val fcmTokenRepo:  FcmTokenRepository,
     @ApplicationContext private val context: Context,
 ) {
     private val deviceName: String
@@ -126,9 +128,10 @@ class AuthRepository @Inject constructor(
                 appVersion = appVersion,
             )
         )
-        parseAuthResponse(resp.code(), resp.body())
+        val result = parseAuthResponse(resp.code(), resp.body())
+        if (result is AuthResult.Success) fcmTokenRepo.uploadCurrentToken()
+        result
     }.getOrElse { AuthResult.Error("Error de conexión: ${it.message}") }
-
     // ── Logout ────────────────────────────────────────────────
     suspend fun logout() {
         val token = session.token ?: return

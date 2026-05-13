@@ -305,6 +305,15 @@ data class BaseResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class PushRegisterRequest(
+    @Json(name = "fcm_token")   val fcmToken:   String,
+    @Json(name = "device_id")   val deviceId:   String,
+    @Json(name = "device_name") val deviceName: String? = null,
+    @Json(name = "platform")    val platform:   String  = "android",
+    @Json(name = "app_version") val appVersion: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
 data class FileUploadResponse(
     val ok: Boolean,
     val url: String?   = null,   // URL pública de la foto subida
@@ -470,6 +479,14 @@ interface RutasApiService {
         @Body body: DeactivateUserRequest,
     ): Response<AdminActionResponse>
 
+
+    // ── push_register — registro token FCM por dispositivo ───
+    @POST(API_PATH)
+    suspend fun pushRegister(
+        @Query("action")        action: String = "push_register",
+        @Header("X-Auth-Token") token:  String,
+        @Body                   body:   PushRegisterRequest,
+    ): Response<BaseResponse>
 
     // ── file_upload — subida de fotos de visita ──────────────
     @Multipart
