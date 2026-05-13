@@ -87,8 +87,6 @@ fun VisitaScreen(
     }
 
     Scaffold(
-
-
         modifier = Modifier.semantics { testTag = "visita-screen" },
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
@@ -112,10 +110,10 @@ fun VisitaScreen(
             Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick  = vm::saveVisit,
-                    modifier = Modifier.semantics { testTag = "visita-save-button" },
                     // Guardar requiere resultado seleccionado — si está en blanco el botón está desactivado
                     enabled  = !ui.isSaving && ui.selectedResult.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+                        .semantics { testTag = "visita-save-button" },
                 ) {
                     if (ui.isSaving) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)

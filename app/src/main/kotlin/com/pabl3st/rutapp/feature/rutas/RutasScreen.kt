@@ -10,6 +10,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -50,7 +51,7 @@ fun RutasScreen(
                 actions = {
                     if (ui.isSyncing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.semantics { testTag = "rutas-screen" }.size(20.dp).padding(end = 4.dp),
+                            modifier = Modifier.size(20.dp).padding(end = 4.dp),
                             strokeWidth = 2.dp,
                         )
                         Spacer(Modifier.width(12.dp))
@@ -109,7 +110,11 @@ fun RutasScreen(
                 modifier = Modifier.padding(padding),
             ) {
                 itemsIndexed(ui.routes, key = { _, r -> r.uid }) { idx, route ->
-                    RouteListItem(route = route, onClick = { onRouteClick(route.uid) })
+                    RouteListItem(
+                        route     = route,
+                        onClick   = { onRouteClick(route.uid) },
+                        testTagId = "route-card-$idx",
+                    )
                 }
             }
         }
@@ -171,10 +176,9 @@ private fun StatusChip(status: String) {
     )
 }
 @Composable
-private fun RouteListItem(route: RouteEntity, onClick: () -> Unit) {
+private fun RouteListItem(route: RouteEntity, onClick: () -> Unit, testTagId: String = "") {
 
-    Card(
-                    modifier = Modifier.semantics { testTag = "route-card-$idx" },modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(modifier = Modifier.fillMaxWidth().semantics { testTag = testTagId }.clickable(onClick = onClick)) {
         Row(
             modifier          = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,

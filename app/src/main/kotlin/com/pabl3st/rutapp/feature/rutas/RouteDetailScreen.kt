@@ -7,6 +7,7 @@ import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -42,8 +43,6 @@ fun RouteDetailScreen(
     }
 
     Scaffold(
-
-
         modifier = Modifier.semantics { testTag = "route-detail-screen" },
         topBar = {
             TopAppBar(
@@ -111,7 +110,7 @@ fun RouteDetailScreen(
                 ) {
                     itemsIndexed(ui.stops, key = { _, s -> s.uid }) { idx, stop ->
                         StopCard(
-                    modifier = Modifier.semantics { testTag = "stop-card-$idx" },
+                            modifier     = Modifier.semantics { testTag = "stop-card-$idx" },
                             stop         = stop,
                             onOpenVisita = { onStopClick(stop.uid) },
                         )
@@ -208,9 +207,9 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}) {
+private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}, modifier: Modifier = Modifier) {
     val isDone = stop.status == "done"
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier          = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
