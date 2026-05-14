@@ -275,6 +275,11 @@ fun RutasNavGraph(
                 )
             }
             composable(route = Screen.Importar.route) {
+                // Guardia: solo manager+ puede acceder al wizard de importación
+                if (userRole !in listOf("manager", "admin", "owner", "god")) {
+                    navController.popBackStack()
+                    return@composable
+                }
                 ImportarScreen(
                     onBack = { navController.popBackStack() },
                     onDone = {

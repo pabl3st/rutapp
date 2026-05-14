@@ -56,8 +56,8 @@ fun RutasScreen(
                         )
                         Spacer(Modifier.width(12.dp))
                     }
-                    // Importar: cualquier usuario excepto viewer
-                    if (ui.userRole != "viewer") {
+                    // Importar: solo manager, admin, owner y god
+                    if (ui.userRole in listOf("manager", "admin", "owner", "god")) {
                         IconButton(onClick = onImport) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
                         }
