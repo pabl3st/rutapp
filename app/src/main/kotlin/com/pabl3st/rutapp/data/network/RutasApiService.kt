@@ -259,13 +259,21 @@ data class KpiValueDto(
 
 @JsonClass(generateAdapter = true)
 data class AccountUserDto(
-    @Json(name = "user_id")      val userId: Int,
-    @Json(name = "username")     val username: String,
+    @Json(name = "user_id")      val userId:      Int,
+    @Json(name = "username")     val username:    String,
     @Json(name = "display_name") val displayName: String,
-    @Json(name = "email")        val email: String,
-    @Json(name = "role")         val role: String,
-    @Json(name = "is_active")    val isActive: Boolean = true,
-    @Json(name = "created_at")   val createdAt: String = "",
+    @Json(name = "email")        val email:       String,
+    @Json(name = "role")         val role:        String,
+    @Json(name = "is_active")    val isActive:    Boolean = true,
+    @Json(name = "manager_id")   val managerId:   Int?    = null,
+    @Json(name = "manager_name") val managerName: String? = null,
+    @Json(name = "created_at")   val createdAt:   String  = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class AssignManagerRequest(
+    @Json(name = "target_user_id") val targetUserId: Int,
+    @Json(name = "manager_id")     val managerId:    Int?,   // null = quitar supervisor
 )
 
 @JsonClass(generateAdapter = true)
@@ -610,6 +618,14 @@ interface RutasApiService {
         @Header("X-Auth-Token") token:  String,
         @Body                   body:   AccountConfigSaveRequest,
     ): Response<AccountConfigSaveResponse>
+
+    // ── assign_manager — asigna/quita supervisor a un usuario ──
+    @POST(API_PATH)
+    suspend fun assignManager(
+        @Query("action")        action: String = "assign_manager",
+        @Header("X-Auth-Token") token:  String,
+        @Body                   body:   AssignManagerRequest,
+    ): Response<AdminActionResponse>
 
     // ── push_register — registro token FCM por dispositivo ───
     @POST(API_PATH)

@@ -154,12 +154,13 @@ fun AdminScreen(
                 } else {
                     items(ui.users, key = { it.userId }) { user ->
                         UserCard(
-                            user           = user,
-                            roleLabel      = vm::roleLabel,
-                            onChangeRole   = { vm.onShowRolePicker(user) },
-                            onDeactivate   = { vm.deactivateUser(user) },
-                            onReactivate   = { vm.reactivateUser(user) },
-                            canEdit        = ui.userRole == "god" || (ui.userRole in setOf("owner", "admin") && user.role !in setOf("owner", "god")),
+                            user            = user,
+                            roleLabel       = vm::roleLabel,
+                            onChangeRole    = { vm.onShowRolePicker(user) },
+                            onDeactivate    = { vm.deactivateUser(user) },
+                            onReactivate    = { vm.reactivateUser(user) },
+                            onAssignManager = { vm.onShowManagerPicker(user) },
+                            canEdit         = ui.userRole == "god" || (ui.userRole in setOf("owner", "admin") && user.role !in setOf("owner", "god")),
                         )
                     }
                 }
@@ -216,6 +217,17 @@ fun AdminScreen(
     ui.generatedCode?.let { code ->
         InviteCodeDialog(code = code, roleLabel = vm.roleLabel(ui.inviteRole), onDismiss = vm::onDismissGeneratedCode)
     }
+    if (ui.showManagerPicker) {
+        ui.managerPickerUser?.let { target ->
+            ManagerPickerDialog(
+                user       = target,
+                candidates = vm.validManagersFor(target.role),
+                roleLabel  = vm::roleLabel,
+                onSelect   = vm::onAssignManager,
+                onDismiss  = vm::onDismissManagerPicker,
+            )
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -226,8 +238,9 @@ private fun UserCard(
     roleLabel:     (String) -> String,
     onChangeRole:  () -> Unit,
     onDeactivate:  () -> Unit,
-    onReactivate:  () -> Unit,
-    canEdit:       Boolean,
+    onReactivate:    () -> Unit,
+    onAssignManager: () -> Unit,
+    canEdit:         Boolean,
 ) {
     var showConfirmDeactivate by remember { mutableStateOf(false) }
 
@@ -270,6 +283,13 @@ private fun UserCard(
                     }
                 }
                 Text(user.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                user.managerName?.let { mName ->
+                    Text(
+                        text  = "↳ $mName",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
+                    )
+                }
                 AssistChip(
                     onClick    = { if (canEdit) onChangeRole() },
                     label      = { Text(roleLabel(user.role), style = MaterialTheme.typography.labelSmall) },
@@ -278,6 +298,13 @@ private fun UserCard(
                 )
             }
             if (canEdit) {
+                IconButton(onClick = onAssignManager) {
+                    Icon(Icons.Default.SupervisedUserCircle, "Asignar supervisor",
+                        modifier = Modifier.size(18.dp),
+                        tint     = if (user.managerId != null)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (user.isActive) {
                     IconButton(onClick = { showConfirmDeactivate = true }) {
                         Icon(Icons.Default.PersonOff, "Desactivar",
@@ -496,6 +523,64 @@ private fun InviteCodeDialog(code: String, roleLabel: String, onDismiss: () -> U
             }
         },
         confirmButton  = { Button(onClick = onDismiss) { Text("Entendido") } },
+        dismissButton  = null,
+    )
+}
+
+@Composable
+private fun ManagerPickerDialog(
+    user:       AccountUserDto,
+    candidates: List<AccountUserDto>,
+    roleLabel:  (String) -> String,
+    onSelect:   (Int?) -> Unit,
+    onDismiss:  () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon  = { Icon(Icons.Default.SupervisedUserCircle, null) },
+        title = { Text("Supervisor de ${user.displayName}") },
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Text(
+                    "El supervisor podrá ver las rutas y KPIs de este usuario.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Spacing.sm))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = user.managerId == null, onClick = { onSelect(null) })
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text("Sin supervisor", style = MaterialTheme.typography.bodyMedium)
+                        Text("No reporta a nadie", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (candidates.isNotEmpty()) {
+                    HorizontalDivider(Modifier.padding(vertical = Spacing.xs))
+                    candidates.forEach { candidate ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = user.managerId == candidate.userId,
+                                onClick  = { onSelect(candidate.userId) },
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(candidate.displayName, style = MaterialTheme.typography.bodyMedium)
+                                Text("@${candidate.username} · ${roleLabel(candidate.role)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                } else {
+                    Text("No hay usuarios con rol superior disponibles.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton  = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
         dismissButton  = null,
     )
 }

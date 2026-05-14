@@ -1,6 +1,7 @@
 package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.network.AccountUserDto
+import com.pabl3st.rutapp.data.network.AssignManagerRequest
 import com.pabl3st.rutapp.data.network.DeactivateUserRequest
 import com.pabl3st.rutapp.data.network.InviteDto
 import com.pabl3st.rutapp.data.network.InviteUserRequest
@@ -111,6 +112,28 @@ class AdminRepository @Inject constructor(
     }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
     // Roles asignables vía update_role (god/owner no son asignables por diseño del servidor)
+    // Roles a los que este usuario puede asignar un supervisor
+    // (solo puede gestionar usuarios de nivel inferior al propio)
+    fun canManageSupervisorOf(targetRole: String): Boolean {
+        val myLevel     = roleLevel(session.userRole)
+        val targetLevel = roleLevel(targetRole)
+        return myLevel > targetLevel
+    }
+
+    // Usuarios que pueden ser supervisores del target dado
+    // El supervisor debe tener nivel > target y <= caller (salvo owner/god que ve todos)
+    fun validManagersFor(users: List<AccountUserDto>, targetRole: String): List<AccountUserDto> {
+        val targetLevel = roleLevel(targetRole)
+        val myLevel     = roleLevel(session.userRole)
+        return users.filter { u ->
+            val uLevel = roleLevel(u.role)
+            uLevel > targetLevel && (isOwner || isGod || uLevel <= myLevel)
+        }
+    }
+
+    private fun roleLevel(role: String) =
+        mapOf("viewer" to 1, "agent" to 2, "manager" to 3, "admin" to 4, "owner" to 5, "god" to 6)[role] ?: 0
+
     val availableRoles: List<String>
         get() = when {
             isGod          -> listOf("admin", "manager", "agent", "viewer")
@@ -118,6 +141,16 @@ class AdminRepository @Inject constructor(
             isOwnerOrAdmin -> listOf("manager", "agent", "viewer")
             else           -> emptyList()
         }
+
+    suspend fun assignManager(targetUserId: Int, managerId: Int?): AuthResult<String> = runCatching {
+        val resp = api.assignManager(
+            token = session.token ?: "",
+            body  = AssignManagerRequest(targetUserId = targetUserId, managerId = managerId),
+        )
+        if (resp.isSuccessful && resp.body()?.success == true)
+            AuthResult.Success(resp.body()!!.message)
+        else AuthResult.Error(resp.body()?.message ?: "HTTP ${resp.code()}")
+    }.getOrElse { AuthResult.Error(it.message ?: "Error de red") }
 
     suspend fun reactivateUser(targetUserId: Int): AuthResult<String> = runCatching {
         val resp = api.reactivateUser(

@@ -40,6 +40,9 @@ data class AdminUiState(
     val showRolePicker:    Boolean = false,
     val rolePickerUser:    AccountUserDto? = null,
     val isChangingRole:    Boolean = false,
+    val showManagerPicker:  Boolean          = false,
+    val managerPickerUser:  AccountUserDto?  = null,
+    val isAssigningManager: Boolean          = false,
     val isLoading:    Boolean = true,
     val error:        String? = null,
     val snackbar:     String? = null,
@@ -195,6 +198,38 @@ class AdminViewModel @Inject constructor(
 
     fun roleLabel(role: String) = adminRepo.roleLabel(role)
     val availableRoles get()    = adminRepo.availableRoles
+
+    // ── Asignación de supervisor ──────────────────────────────
+    fun onShowManagerPicker(user: AccountUserDto) =
+        _ui.update { it.copy(showManagerPicker = true, managerPickerUser = user) }
+
+    fun onDismissManagerPicker() =
+        _ui.update { it.copy(showManagerPicker = false, managerPickerUser = null) }
+
+    fun onAssignManager(managerId: Int?) {
+        val target = _ui.value.managerPickerUser ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(
+                showManagerPicker  = false,
+                managerPickerUser  = null,
+                isAssigningManager = true,
+            ) }
+            when (val result = adminRepo.assignManager(target.userId, managerId)) {
+                is AuthResult.Success -> {
+                    val msg = if (managerId != null) "Supervisor asignado a ${target.displayName}"
+                              else "Supervisor eliminado de ${target.displayName}"
+                    _ui.update { it.copy(isAssigningManager = false, snackbar = msg) }
+                    loadUsers()
+                }
+                is AuthResult.Error -> _ui.update { it.copy(
+                    isAssigningManager = false, error = result.message,
+                ) }
+            }
+        }
+    }
+
+    fun validManagersFor(targetRole: String): List<AccountUserDto> =
+        adminRepo.validManagersFor(_ui.value.users, targetRole)
 
     fun clearError()    = _ui.update { it.copy(error = null) }
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
