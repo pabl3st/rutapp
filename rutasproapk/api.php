@@ -975,12 +975,16 @@ if ($action === 'users_list') {
     if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
 
     $st = db()->prepare(
-        'SELECT id AS user_id, username, COALESCE(name, username) AS display_name,
-                email, role, active AS is_active,
-                DATE_FORMAT(created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
-         FROM users
-         WHERE account_id = ? AND id != ?
-         ORDER BY role DESC, username ASC'
+        'SELECT u.id AS user_id, u.username,
+                COALESCE(u.name, u.username) AS display_name,
+                u.email, u.role, u.active AS is_active,
+                u.manager_id,
+                COALESCE(m.name, m.username) AS manager_name,
+                DATE_FORMAT(u.created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
+         FROM users u
+         LEFT JOIN users m ON m.id = u.manager_id AND m.account_id = u.account_id
+         WHERE u.account_id = ? AND u.id != ?
+         ORDER BY u.role DESC, u.username ASC'
     );
     $st->execute([$aid, $uid]);
     $users = $st->fetchAll();
@@ -994,6 +998,8 @@ if ($action === 'users_list') {
             'email'        => $u['email'],
             'role'         => $u['role'],
             'is_active'    => (bool)$u['is_active'],
+            'manager_id'   => $u['manager_id'] ? (int)$u['manager_id'] : null,
+            'manager_name' => $u['manager_name'] ?? null,
             'created_at'   => $u['created_at'] ?? '',
         ];
     }, $users)]);
@@ -1079,6 +1085,71 @@ if ($action === 'invite_user') {
 
     apiLog($action, $uid, $aid);
     ok(['success' => true, 'message' => "Invitación enviada a {$email}", 'code' => $code]);
+}
+
+// ── assign_manager — asignar/quitar supervisor a un usuario ─
+if ($action === 'assign_manager') {
+    $sess      = requireAuth();
+    $uid       = (int)$sess['uid'];
+    $aid       = (int)$sess['account_id'];
+    $myRole    = $sess['role'];
+    $myLevel   = roleLevel($myRole);
+
+    if ($myLevel < 3) err('Permisos insuficientes — requiere manager o superior', 403);
+
+    $targetId  = (int)($body['target_user_id'] ?? 0);
+    $managerId = isset($body['manager_id']) ? (int)$body['manager_id'] : null;
+
+    if (!$targetId) err('target_user_id requerido', 400);
+    if ($targetId === $uid) err('No puedes asignarte a ti mismo como subordinado', 400);
+
+    // Verificar target en misma cuenta
+    $stT = db()->prepare('SELECT id, role FROM users WHERE id=? AND account_id=? LIMIT 1');
+    $stT->execute([$targetId, $aid]);
+    $target = $stT->fetch();
+    if (!$target) err('Usuario destino no encontrado en tu cuenta', 404);
+
+    // El invocante solo puede asignar como supervisor a alguien de nivel INFERIOR
+    if (roleLevel($target['role']) >= $myLevel && $myRole !== 'owner' && $myRole !== 'god') {
+        err('Solo puedes asignar supervisores a usuarios de menor rango que tú', 403);
+    }
+
+    // Verificar que el nuevo manager (si se asigna) existe, es de nivel >= target y está en la cuenta
+    if ($managerId !== null) {
+        if ($managerId === $targetId) err('Un usuario no puede ser su propio supervisor', 400);
+        $stM = db()->prepare('SELECT id, role FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
+        $stM->execute([$managerId, $aid]);
+        $manager = $stM->fetch();
+        if (!$manager) err('Supervisor no encontrado en tu cuenta', 404);
+        if (roleLevel($manager['role']) <= roleLevel($target['role'])) {
+            err('El supervisor debe tener un rol de mayor autoridad que el subordinado', 400);
+        }
+        // owner puede asignar a cualquiera; otros solo si el manager tiene nivel <= caller
+        if ($myRole !== 'owner' && $myRole !== 'god' && roleLevel($manager['role']) > $myLevel) {
+            err('No puedes asignar como supervisor a alguien con más autoridad que tú', 403);
+        }
+    }
+
+    // Detectar ciclos: el nuevo manager no puede ser subordinado (directo o transitivo) del target
+    if ($managerId !== null) {
+        $check = $managerId;
+        $hops  = 0;
+        while ($check !== null && $hops < 10) {
+            if ($check === $targetId) err('Asignación circular detectada — el supervisor es subordinado del usuario', 400);
+            $stC = db()->prepare('SELECT manager_id FROM users WHERE id=? AND account_id=? LIMIT 1');
+            $stC->execute([$check, $aid]);
+            $row   = $stC->fetch();
+            $check = $row ? ($row['manager_id'] ? (int)$row['manager_id'] : null) : null;
+            $hops++;
+        }
+    }
+
+    db()->prepare('UPDATE users SET manager_id=? WHERE id=? AND account_id=?')
+       ->execute([$managerId ?: null, $targetId, $aid]);
+
+    $msg = $managerId ? 'Supervisor asignado correctamente' : 'Supervisor eliminado correctamente';
+    apiLog($action, $uid, $aid);
+    ok(['success' => true, 'message' => $msg]);
 }
 
 // ── update_role ───────────────────────────────────────────────
@@ -1428,23 +1499,45 @@ if ($action === 'stats_month') {
     $kpiAggregates = $stKpis->fetchAll();
 
     // ── Por agente (para desglose opcional) ──────────────────
-    $stAgents = db()->prepare(
-        'SELECT
-            u.id           AS user_id,
-            u.name,
-            u.username,
-            COUNT(s.id)                        AS total_stops,
-            SUM(s.status = "done")             AS done_stops,
-            SUM(s.visit_result = "contactado") AS contacted
-         FROM stops s
-         JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
-         JOIN users u  ON u.id = r.user_id
-         WHERE r.date_assigned BETWEEN ? AND ?
-           AND s.deleted_at IS NULL
-         GROUP BY u.id, u.name, u.username
-         ORDER BY done_stops DESC'
-    );
-    $stAgents->execute([$aid, $monthStart, $monthEnd]);
+    // Manager solo ve los agentes que tiene asignados directamente
+    $isManager = $role === 'manager';
+    if ($isManager) {
+        $stAgents = db()->prepare(
+            'SELECT
+                u.id           AS user_id,
+                u.name,
+                u.username,
+                COUNT(s.id)                        AS total_stops,
+                SUM(s.status = "done")             AS done_stops,
+                SUM(s.visit_result = "contactado") AS contacted
+             FROM stops s
+             JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
+             JOIN users u  ON u.id = r.user_id AND u.manager_id = ?
+             WHERE r.date_assigned BETWEEN ? AND ?
+               AND s.deleted_at IS NULL
+             GROUP BY u.id, u.name, u.username
+             ORDER BY done_stops DESC'
+        );
+        $stAgents->execute([$aid, $uid, $monthStart, $monthEnd]);
+    } else {
+        $stAgents = db()->prepare(
+            'SELECT
+                u.id           AS user_id,
+                u.name,
+                u.username,
+                COUNT(s.id)                        AS total_stops,
+                SUM(s.status = "done")             AS done_stops,
+                SUM(s.visit_result = "contactado") AS contacted
+             FROM stops s
+             JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
+             JOIN users u  ON u.id = r.user_id
+             WHERE r.date_assigned BETWEEN ? AND ?
+               AND s.deleted_at IS NULL
+             GROUP BY u.id, u.name, u.username
+             ORDER BY done_stops DESC'
+        );
+        $stAgents->execute([$aid, $monthStart, $monthEnd]);
+    }
     $agents = $stAgents->fetchAll();
 
     apiLog($action, $uid, $aid);
