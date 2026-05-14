@@ -183,7 +183,11 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                             }
                         }
                         map.setOnMarkerClickListener { marker ->
-                            marker.snippet?.let { onStopClick(it) }; true
+                            // Ignorar click en marcador de usuario
+                            if (marker.snippet != "__user_location__") {
+                                marker.snippet?.let { onStopClick(it) }
+                            }
+                            true
                         }
                     }
                 }
@@ -192,6 +196,17 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                 mlMap?.let { map ->
                     map.clear()
                     addStopMarkers(map, stops, config.markers)
+                    // Marcador de posición del usuario — círculo azul distinto de los stops
+                    userLocation?.let { loc ->
+                        if (loc.lat != 0.0 && loc.lng != 0.0) {
+                            map.addMarker(
+                                MLMarkerOptions()
+                                    .position(MLLatLng(loc.lat, loc.lng))
+                                    .title("📍 Tu posición")
+                                    .snippet("__user_location__")   // snippet especial — click listener lo ignora
+                            )
+                        }
+                    }
                     if (polyline.size >= 2) {
                         map.addPolyline(
                             MLPolylineOptions()
