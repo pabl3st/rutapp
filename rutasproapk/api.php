@@ -1014,8 +1014,8 @@ if ($action === 'invite_list') {
 
     $st = db()->prepare(
         'SELECT id, code, role_to_assign, uses_left,
-                DATE_FORMAT(expires_at, '%Y-%m-%dT%H:%i:%sZ') AS expires_at,
-                DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS created_at
+                DATE_FORMAT(expires_at, \'%Y-%m-%dT%H:%i:%sZ\') AS expires_at,
+                DATE_FORMAT(created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
          FROM invite_codes
          WHERE account_id = ? AND expires_at > NOW() AND uses_left > 0
          ORDER BY created_at DESC'
