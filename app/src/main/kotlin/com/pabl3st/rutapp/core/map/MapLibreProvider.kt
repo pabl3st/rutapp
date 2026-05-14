@@ -19,7 +19,10 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 // Alias explícito para evitar conflicto con nuestra MarkerOptions
-import org.maplibre.android.annotations.CircleOptions as MLCircleOptions
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.MarkerOptions as MLMarkerOptions
 import org.maplibre.android.annotations.PolylineOptions as MLPolylineOptions
 
@@ -216,7 +219,9 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                             }
                         }
                         map.setOnMarkerClickListener { marker ->
-                            marker.snippet?.let { onStopClick(it) }
+                            if (marker.snippet != "__user__") {
+                                marker.snippet?.let { onStopClick(it) }
+                            }
                             true
                         }
                     }
@@ -226,26 +231,15 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                 mlMap?.let { map ->
                     map.clear()
                     addStopMarkers(map, stops, config.markers)
-                    // Posición del usuario: círculo azul (distinto visualmente del pin rojo de stops)
+                    // Posición del usuario: icono circular azul (bitmap generado en código)
                     userLocation?.let { loc ->
                         if (loc.lat != 0.0 && loc.lng != 0.0) {
-                            map.addCircle(
-                                MLCircleOptions()
-                                    .withLatLng(MLLatLng(loc.lat, loc.lng))
-                                    .withCircleRadius(10f)
-                                    .withCircleColor("#1D6FD8")       // azul primario
-                                    .withCircleStrokeWidth(2.5f)
-                                    .withCircleStrokeColor("#FFFFFF") // borde blanco
-                                    .withCircleOpacity(0.95f)
-                            )
-                            // Punto de pulso exterior semitransparente
-                            map.addCircle(
-                                MLCircleOptions()
-                                    .withLatLng(MLLatLng(loc.lat, loc.lng))
-                                    .withCircleRadius(20f)
-                                    .withCircleColor("#1D6FD8")
-                                    .withCircleOpacity(0.25f)
-                                    .withCircleStrokeWidth(0f)
+                            map.addMarker(
+                                MLMarkerOptions()
+                                    .position(MLLatLng(loc.lat, loc.lng))
+                                    .title("Tu posición")
+                                    .snippet("__user__")
+                                    .icon(buildUserLocationIcon())
                             )
                         }
                     }
@@ -279,6 +273,37 @@ class MapLibreProvider(private val context: Context) : MapProvider {
             }
         )
     }
+
+        /** Genera un bitmap de círculo azul con borde blanco para el marcador del usuario. */
+        private fun buildUserLocationIcon(): org.maplibre.android.annotations.Icon {
+            val size   = 48
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            // Halo exterior semitransparente
+            val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#401D6FD8")
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, haloPaint)
+
+            // Círculo azul sólido
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#1D6FD8")
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(size / 2f, size / 2f, size / 3.5f, fillPaint)
+
+            // Borde blanco
+            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = size / 10f
+            }
+            canvas.drawCircle(size / 2f, size / 2f, size / 3.5f, strokePaint)
+
+            return IconFactory.getInstance(context).fromBitmap(bitmap)
+        }
 
         private fun addStopMarkers(
         map: MapLibreMap,
