@@ -187,15 +187,19 @@ private fun RouteListItem(route: RouteEntity, onClick: () -> Unit, testTagId: St
                 Text(route.name, style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(2.dp))
                 val today = LocalDate.now().toString()
-                val dateLabel = runCatching {
-                    val d = LocalDate.parse(route.dateAssigned)
-                    when (route.dateAssigned) {
-                        today -> "Hoy"
-                        LocalDate.now().minusDays(1).toString() -> "Ayer"
-                        LocalDate.now().plusDays(1).toString()  -> "Mañana"
-                        else  -> d.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es")))
-                    }
-                }.getOrDefault(route.dateAssigned)
+                val dateLabel = if (route.dateAssigned == "1970-01-01" || route.dateAssigned.isBlank()) {
+                    "Sin fecha"
+                } else {
+                    runCatching {
+                        val d = LocalDate.parse(route.dateAssigned)
+                        when (route.dateAssigned) {
+                            today -> "Hoy"
+                            LocalDate.now().minusDays(1).toString() -> "Ayer"
+                            LocalDate.now().plusDays(1).toString()  -> "Mañana"
+                            else  -> d.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es")))
+                        }
+                    }.getOrDefault(route.dateAssigned)
+                }
                 Text(dateLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

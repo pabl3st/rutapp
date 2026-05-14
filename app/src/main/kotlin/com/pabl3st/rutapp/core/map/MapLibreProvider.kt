@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
@@ -18,6 +19,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 // Alias explícito para evitar conflicto con nuestra MarkerOptions
+import org.maplibre.android.annotations.CircleOptions as MLCircleOptions
 import org.maplibre.android.annotations.MarkerOptions as MLMarkerOptions
 import org.maplibre.android.annotations.PolylineOptions as MLPolylineOptions
 
@@ -112,6 +114,37 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         // Rastrear si ya hemos hecho el fit inicial (una sola vez por composición)
         var didInitialFit by remember { mutableStateOf(false) }
 
+        // Fit bounds a los stops cuando lleguen (corrección: el update{} puede
+        // ejecutarse antes de que el style esté cargado)
+        LaunchedEffect(stops) {
+            val map = _mapReadyRef ?: return@LaunchedEffect
+            if (!didInitialFit && stops.any { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }) {
+                // Pequeño delay para asegurar que el style está completamente listo
+                kotlinx.coroutines.delay(300)
+                val mapNow = _mapReadyRef ?: return@LaunchedEffect
+                if (mapNow.style?.isFullyLoaded == true) {
+                    val pts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
+                    if (pts.size >= 2) {
+                        val latMin = pts.minOf { it.latLng.lat }
+                        val latMax = pts.maxOf { it.latLng.lat }
+                        val lngMin = pts.minOf { it.latLng.lng }
+                        val lngMax = pts.maxOf { it.latLng.lng }
+                        mapNow.animateCamera(
+                            CameraUpdateFactory.newLatLngBounds(
+                                org.maplibre.android.geometry.LatLngBounds.from(latMax, lngMax, latMin, lngMin), 80
+                            ), 800
+                        )
+                        didInitialFit = true
+                    } else if (pts.size == 1) {
+                        mapNow.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(MLLatLng(pts[0].latLng.lat, pts[0].latLng.lng), 14.0), 600
+                        )
+                        didInitialFit = true
+                    }
+                }
+            }
+        }
+
         // Cuando llega una nueva localización del usuario → centrar automáticamente
         // Solo la primera vez que llega, o cuando cambia radicalmente (> 50 km)
         LaunchedEffect(userLocation) {
@@ -183,10 +216,7 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                             }
                         }
                         map.setOnMarkerClickListener { marker ->
-                            // Ignorar click en marcador de usuario
-                            if (marker.snippet != "__user_location__") {
-                                marker.snippet?.let { onStopClick(it) }
-                            }
+                            marker.snippet?.let { onStopClick(it) }
                             true
                         }
                     }
@@ -196,14 +226,26 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                 mlMap?.let { map ->
                     map.clear()
                     addStopMarkers(map, stops, config.markers)
-                    // Marcador de posición del usuario — círculo azul distinto de los stops
+                    // Posición del usuario: círculo azul (distinto visualmente del pin rojo de stops)
                     userLocation?.let { loc ->
                         if (loc.lat != 0.0 && loc.lng != 0.0) {
-                            map.addMarker(
-                                MLMarkerOptions()
-                                    .position(MLLatLng(loc.lat, loc.lng))
-                                    .title("📍 Tu posición")
-                                    .snippet("__user_location__")   // snippet especial — click listener lo ignora
+                            map.addCircle(
+                                MLCircleOptions()
+                                    .withLatLng(MLLatLng(loc.lat, loc.lng))
+                                    .withCircleRadius(10f)
+                                    .withCircleColor("#1D6FD8")       // azul primario
+                                    .withCircleStrokeWidth(2.5f)
+                                    .withCircleStrokeColor("#FFFFFF") // borde blanco
+                                    .withCircleOpacity(0.95f)
+                            )
+                            // Punto de pulso exterior semitransparente
+                            map.addCircle(
+                                MLCircleOptions()
+                                    .withLatLng(MLLatLng(loc.lat, loc.lng))
+                                    .withCircleRadius(20f)
+                                    .withCircleColor("#1D6FD8")
+                                    .withCircleOpacity(0.25f)
+                                    .withCircleStrokeWidth(0f)
                             )
                         }
                     }
