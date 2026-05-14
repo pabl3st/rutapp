@@ -1,4 +1,9 @@
 package com.pabl3st.rutapp.data.repository
+import android.content.Context
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkManager
+import com.pabl3st.rutapp.sync.SyncWorker
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
@@ -24,6 +29,7 @@ import javax.inject.Singleton
 
 @Singleton
 class RouteRepository @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val routeDao:      RouteDao,
     private val stopDao:       StopDao,
     private val daySessionDao: DaySessionDao,
@@ -121,6 +127,29 @@ class RouteRepository @Inject constructor(
     }
 
     // ── Crear ruta localmente + encolar sync ──────────────────
+    private fun triggerSync() {
+        runCatching {
+            WorkManager.getInstance(appContext)
+                .enqueueUniqueWork(
+                    SyncWorker.WORK_NAME_ONDEMAND,
+                    ExistingWorkPolicy.REPLACE,
+                    SyncWorker.onDemandRequest(),
+                )
+        }
+    }
+
+    /** Devuelve SyncQueueEntity para cada ruta local pendiente de subir al servidor.
+     *  Usado por SyncRepository para re-encolar huérfanas sin duplicar lógica. */
+    suspend fun getPendingOperations(): List<SyncQueueEntity> =
+        routeDao.getPendingSync().map { route ->
+            SyncQueueEntity(
+                entity    = "route",
+                entityUid = route.uid,
+                operation = "create",
+                payload   = routeToMap(route),
+            )
+        }
+
     suspend fun createRoute(
         name: String,
         dateAssigned: String,
@@ -144,6 +173,7 @@ class RouteRepository @Inject constructor(
         )
         routeDao.upsert(route)
         enqueue("route", route.uid, "create", routeToMap(route))
+        triggerSync()
         return route
     }
 

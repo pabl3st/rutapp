@@ -28,6 +28,9 @@ interface SyncQueueDao {
     @Query("DELETE FROM sync_queue WHERE createdAt < :cutoff")
     suspend fun purgeOlderThan(cutoff: String)
 
+    @Query("SELECT entityUid FROM sync_queue")
+    suspend fun getAllUids(): List<String>
+
     @Query("SELECT COUNT(*) FROM sync_queue")
     suspend fun count(): Int
 }

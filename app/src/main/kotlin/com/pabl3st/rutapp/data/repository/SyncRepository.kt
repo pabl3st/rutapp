@@ -2,6 +2,8 @@ package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
 import com.pabl3st.rutapp.data.repository.PhotoRepository
+import com.pabl3st.rutapp.data.repository.RouteRepository
+import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
@@ -35,6 +37,8 @@ class SyncRepository @Inject constructor(
     private val syncQueueDao:    SyncQueueDao,
     private val routeDao:        RouteDao,
     private val stopDao:         StopDao,
+    private val routeRepo:       RouteRepository,
+    private val stopRepo:        StopRepository,
     private val daySessionDao:   DaySessionDao,
     private val kpiValueDao:     KpiValueDao,
     private val businessProfileDao: BusinessProfileDao,
@@ -51,12 +55,18 @@ class SyncRepository @Inject constructor(
     // ── Ejecutar sync completo: subir + descargar ──────────────
     suspend fun runSync(): SyncResult {
         val token = session.token ?: return SyncResult.NoAuth
-        // Purgar items exhaustos y viejos antes de sync — evita acumulación infinita
+
+        // Re-encolar datos huérfanos: en Room con syncStatus=pending
+        // pero sin entrada en la SyncQueue (ocurre cuando la queue fue purgada
+        // por exceso de intentos o por antigüedad, dejando los datos sin subir)
+        reEnqueueOrphans()
+
+        // Purgar items exhaustos — aumentamos el umbral para ser más tolerantes
         val cutoff = java.time.Instant.now()
-            .minusSeconds(7 * 24 * 3600)  // 7 días
+            .minusSeconds(30L * 24 * 3600)  // 30 días (antes eran 7)
             .atOffset(java.time.ZoneOffset.UTC)
             .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        syncQueueDao.purgeExhausted(maxAttempts = 5)
+        syncQueueDao.purgeExhausted(maxAttempts = 20)  // antes era 5
         syncQueueDao.purgeOlderThan(cutoff)
 
         val uploaded = uploadPending(token)
@@ -75,6 +85,19 @@ class SyncRepository @Inject constructor(
             !uploaded              -> SyncResult.UploadError
             else                   -> SyncResult.DownloadError
         }
+    }
+
+    // ── Re-encolar datos huérfanos ───────────────────────────
+    private suspend fun reEnqueueOrphans() {
+        val queuedUids = syncQueueDao.getAllUids()
+
+        routeRepo.getPendingOperations()
+            .filter { it.entityUid !in queuedUids }
+            .forEach { syncQueueDao.enqueue(it) }
+
+        stopRepo.getPendingOperations()
+            .filter { it.entityUid !in queuedUids }
+            .forEach { syncQueueDao.enqueue(it) }
     }
 
     // ── Subir operaciones pendientes de la cola ────────────────

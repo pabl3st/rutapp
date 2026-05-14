@@ -1,4 +1,9 @@
 package com.pabl3st.rutapp.data.repository
+import android.content.Context
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkManager
+import com.pabl3st.rutapp.sync.SyncWorker
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
@@ -18,6 +23,7 @@ import javax.inject.Singleton
 
 @Singleton
 class StopRepository @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val stopDao:      StopDao,
     private val syncQueueDao: SyncQueueDao,
     private val session:      SessionManager,
@@ -28,6 +34,28 @@ class StopRepository @Inject constructor(
 
     fun observeByRoute(routeUid: String): Flow<List<StopEntity>> =
         stopDao.observeByRoute(routeUid)
+
+    private fun triggerSync() {
+        runCatching {
+            WorkManager.getInstance(appContext)
+                .enqueueUniqueWork(
+                    SyncWorker.WORK_NAME_ONDEMAND,
+                    ExistingWorkPolicy.REPLACE,
+                    SyncWorker.onDemandRequest(),
+                )
+        }
+    }
+
+    /** Devuelve SyncQueueEntity para cada stop local pendiente de subir al servidor. */
+    suspend fun getPendingOperations(): List<SyncQueueEntity> =
+        stopDao.getPendingSync().map { stop ->
+            SyncQueueEntity(
+                entity    = "stop",
+                entityUid = stop.uid,
+                operation = "create",
+                payload   = stopToMap(stop),
+            )
+        }
 
     suspend fun createStop(
         routeUid:       String,
@@ -70,6 +98,7 @@ class StopRepository @Inject constructor(
         )
         stopDao.upsert(stop)
         enqueue("stop", stop.uid, "create", stopToMap(stop))
+        triggerSync()
         return stop
     }
 
