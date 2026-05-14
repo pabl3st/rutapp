@@ -146,7 +146,7 @@ class RouteRepository @Inject constructor(
                 entity    = "route",
                 entityUid = route.uid,
                 operation = "create",
-                payload   = routeToMap(route),
+                payload   = mapAdapter.toJson(routeToMap(route)),
             )
         }
 

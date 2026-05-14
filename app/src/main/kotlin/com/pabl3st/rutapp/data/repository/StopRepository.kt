@@ -53,7 +53,7 @@ class StopRepository @Inject constructor(
                 entity    = "stop",
                 entityUid = stop.uid,
                 operation = "create",
-                payload   = stopToMap(stop),
+                payload   = mapAdapter.toJson(stopToMap(stop)),
             )
         }
 
