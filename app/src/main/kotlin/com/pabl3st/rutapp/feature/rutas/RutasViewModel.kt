@@ -21,6 +21,8 @@ data class RutasUiState(
     val newRouteName: String      = "",
     val newRouteDate: String      = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
     val userRole: String          = "agent",
+    val canCreate: Boolean        = false,
+    val canDelete: Boolean        = false,
     val error: String?            = null,
 )
 
@@ -30,7 +32,11 @@ class RutasViewModel @Inject constructor(
     private val session:   SessionManager,
 ) : BaseViewModel() {
 
-    private val _ui = MutableStateFlow(RutasUiState(userRole = session.userRole))
+    private val _ui = MutableStateFlow(RutasUiState(
+        userRole  = session.userRole,
+        canCreate = session.userRole in listOf("owner", "admin", "god"),
+        canDelete = session.userRole in listOf("owner", "admin", "god"),
+    ))
     val ui: StateFlow<RutasUiState> = _ui.asStateFlow()
 
     init {

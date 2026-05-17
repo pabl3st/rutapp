@@ -66,8 +66,10 @@ fun RouteDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { onAddStop(routeUid) }) {
-                Icon(Icons.Default.AddLocation, contentDescription = "Añadir parada")
+            if (ui.canEditStops) {
+                FloatingActionButton(onClick = { onAddStop(routeUid) }) {
+                    Icon(Icons.Default.AddLocation, contentDescription = "Añadir parada")
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

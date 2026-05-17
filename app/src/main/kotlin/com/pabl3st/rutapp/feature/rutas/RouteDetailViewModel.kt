@@ -13,6 +13,7 @@ import com.pabl3st.rutapp.data.local.entity.evaluateTag
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,6 +35,8 @@ data class RouteDetailUiState(
     val stopTags: List<StopTagConfig>             = emptyList(),
     // kpiId→value por stopUid — para evaluar condiciones KPI en tags
     val kpiByStop: Map<String, Map<String,String>> = emptyMap(),
+    // Permisos — solo owner/admin pueden añadir/eliminar paradas
+    val canEditStops: Boolean                     = false,
 )
 
 @HiltViewModel
@@ -45,11 +48,14 @@ class RouteDetailViewModel @Inject constructor(
     private val locationMgr:  LocationManager,
     private val kpiValueDao:  KpiValueDao,
     private val prefsRepo:    UserPrefsRepository,
+    private val session:      SessionManager,
 ) : BaseViewModel() {
 
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 
-    private val _ui = MutableStateFlow(RouteDetailUiState())
+    private val _ui = MutableStateFlow(RouteDetailUiState(
+        canEditStops = session.userRole in listOf("owner", "admin", "god"),
+    ))
     val ui: StateFlow<RouteDetailUiState> = _ui.asStateFlow()
 
     // Lista base de Room (siempre por orderIndex)

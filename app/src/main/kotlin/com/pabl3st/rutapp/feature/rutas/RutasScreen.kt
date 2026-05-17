@@ -56,8 +56,8 @@ fun RutasScreen(
                         )
                         Spacer(Modifier.width(12.dp))
                     }
-                    // Importar: solo manager, admin, owner y god
-                    if (ui.userRole in listOf("manager", "admin", "owner", "god")) {
+                    // Importar: solo owner y admin (ellos crean rutas y las asignan)
+                    if (ui.canCreate) {
                         IconButton(onClick = onImport) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
                         }
@@ -66,9 +66,10 @@ fun RutasScreen(
             )
         },
         floatingActionButton = {
-            // Cualquier usuario puede crear sus propias rutas
-            FloatingActionButton(onClick = vm::onShowCreateDialog) {
-                Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+            if (ui.canCreate) {
+                FloatingActionButton(onClick = vm::onShowCreateDialog) {
+                    Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
