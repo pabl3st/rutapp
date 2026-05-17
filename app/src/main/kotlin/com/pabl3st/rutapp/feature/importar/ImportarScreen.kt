@@ -145,6 +145,52 @@ private fun StepDot(label: String, state: StepState, modifier: Modifier = Modifi
 private fun StepPickFile(ui: ImportarUiState, vm: ImportarViewModel) {
     var pendingUri: Pair<Uri, String>? by remember { mutableStateOf(null) }
 
+    // Si hay agentes disponibles, mostrar selector de agente antes del fichero
+    if (ui.availableAgents.isNotEmpty()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+            Text(
+                "Asignar rutas a:",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Spacing.xs))
+            // Opción: para mí mismo
+            FilterChip(
+                selected = ui.targetUser == null,
+                onClick  = { vm.onSelectTargetUser(null) },
+                label    = { Text("Para mí mismo") },
+                leadingIcon = if (ui.targetUser == null) {
+                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                } else null,
+            )
+            Spacer(Modifier.height(Spacing.xs))
+            // Agentes disponibles
+            ui.availableAgents.forEach { agent ->
+                val selected = ui.targetUser?.userId == agent.userId
+                FilterChip(
+                    selected = selected,
+                    onClick  = { vm.onSelectTargetUser(agent) },
+                    label    = {
+                        Text("${agent.displayName} (@${agent.username})")
+                    },
+                    leadingIcon = if (selected) {
+                        { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                    } else null,
+                )
+                Spacer(Modifier.height(2.dp))
+            }
+            ui.targetUser?.let { agent ->
+                Spacer(Modifier.height(Spacing.xs))
+                Text(
+                    "Las rutas se crearán para ${agent.displayName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.md))
+        }
+    }
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->

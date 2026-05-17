@@ -155,6 +155,7 @@ class RouteRepository @Inject constructor(
         dateAssigned: String,
         notes: String? = null,
         scheduledDates: List<String>? = null,
+        forUserId: Int? = null,     // si lo pasa el manager, la ruta se crea para ese agente
     ): RouteEntity {
         require(name.isNotBlank()) { "Nombre de ruta vacío" }
         val now   = Instant.now().atOffset(ZoneOffset.UTC)
@@ -162,7 +163,7 @@ class RouteRepository @Inject constructor(
         val route = RouteEntity(
             uid             = UUID.randomUUID().toString(),
             accountId       = session.accountId,
-            userId          = session.userId,
+            userId          = forUserId ?: session.userId,
             name            = name,
             dateAssigned    = dateAssigned,
             scheduledDates  = scheduledDates,

@@ -10,6 +10,8 @@ import com.pabl3st.rutapp.core.importer.GeoCluster
 import com.pabl3st.rutapp.core.importer.XlsxParser
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
+import com.pabl3st.rutapp.data.network.AccountUserDto
+import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -151,6 +153,10 @@ data class ImportarUiState(
     val saveProgress:   Int                          = 0,
     val saveTotal:      Int                          = 0,
     val saveError:      String?                      = null,
+    // Agente destino (solo cuando el caller es manager/admin/owner/god)
+    val availableAgents: List<AccountUserDto>        = emptyList(),
+    val targetUser:      AccountUserDto?             = null,    // null = para sí mismo
+    val isLoadingAgents: Boolean                     = false,
 )
 
 @HiltViewModel
@@ -158,6 +164,7 @@ class ImportarViewModel @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val stopRepo:   StopRepository,
     private val routeRepo:  RouteRepository,
+    private val adminRepo:  AdminRepository,
     private val kpiValueDao: KpiValueDao,
     private val session:    SessionManager,
 ) : BaseViewModel() {
@@ -166,6 +173,31 @@ class ImportarViewModel @Inject constructor(
     val ui: StateFlow<ImportarUiState> = _ui.asStateFlow()
     private var _rawRows:    List<Map<String, String>> = emptyList()
     private var _kpiRawRows: List<Map<String, String>> = emptyList()
+
+    init {
+        val callerRole = session.userRole
+        if (callerRole in listOf("manager", "admin", "owner", "god")) {
+            loadAvailableAgents()
+        }
+    }
+
+    private fun loadAvailableAgents() {
+        viewModelScope.launch {
+            _ui.update { it.copy(isLoadingAgents = true) }
+            when (val result = adminRepo.listUsers()) {
+                is com.pabl3st.rutapp.data.repository.AuthResult.Success -> {
+                    val agents = result.data.filter { u ->
+                        u.role in listOf("agent", "viewer") && u.isActive
+                    }
+                    _ui.update { it.copy(availableAgents = agents, isLoadingAgents = false) }
+                }
+                is com.pabl3st.rutapp.data.repository.AuthResult.Error -> _ui.update { it.copy(isLoadingAgents = false) }
+            }
+        }
+    }
+
+    fun onSelectTargetUser(user: AccountUserDto?) =
+        _ui.update { it.copy(targetUser = user) }
 
     // ── PASO 1 — parsear fichero ──────────────────────────────
 
@@ -395,17 +427,18 @@ class ImportarViewModel @Inject constructor(
             val datesForRoute = calSheetByRoute[routeKey]  // TODAS las fechas, sin filtrar por mes
 
             // Fecha principal = primera fecha cronológica de todas las programadas
-            val primaryDate = datesForRoute?.firstOrNull()
-                ?: preloadedDates[idx]
-                ?: firstWorkday
+            // Si vienen fechas del XLS → usarlas todas, respetándolas tal cual
+            // Si NO vienen fechas del XLS → scheduledDates vacío; el manager las asigna luego
+            // La fecha de importación NO influye en las fechas de la ruta
             val allDates = datesForRoute ?: listOfNotNull(preloadedDates[idx])
+            val primaryDate = allDates.firstOrNull()  // null si no hay fechas del XLS
 
             entries.add(RouteCalendarEntry(
                 clusterIndex     = idx,
                 routeName        = baseName,
-                date             = primaryDate,
+                date             = primaryDate,       // null → sin fecha hasta que el manager asigne
                 stopCount        = stops.size,
-                scheduledDates   = allDates,       // TODAS las fechas (abril + mayo + ...)
+                scheduledDates   = allDates,          // TODAS las fechas del XLS (o vacío)
                 datesFromImport  = datesForRoute != null,
             ))
         }
@@ -516,17 +549,18 @@ class ImportarViewModel @Inject constructor(
 
                     entriesToProcess.forEach { entry ->
                         val stops = clusters.getOrNull(entry.clusterIndex) ?: return@forEach
-                        val date  = entry.date?.toString() ?: LocalDate.now().toString()
-
-                        // scheduledDates JSON — todas las fechas de visita programadas
-                        // dateAssigned = primera fecha; scheduledDates = resto del array
+                        // scheduledDates = TODAS las fechas del XLS, ordenadas
+                        // dateAssigned = primera fecha cronológica del XLS
+                        // Si no hay fechas del XLS → dateAssigned queda sin fecha real
                         val allDates = entry.scheduledDates.map { it.toString() }.sorted()
-                        val scheduledList: List<String>? = if (allDates.size > 1) allDates.drop(1) else null
+                        val dateAssigned   = allDates.firstOrNull() ?: (entry.date?.toString() ?: "")
+                        val scheduledList  = if (allDates.size > 1) allDates.drop(1) else null
 
                         val route = routeRepo.createRoute(
                             name           = entry.routeName,
-                            dateAssigned   = allDates.firstOrNull() ?: date,
+                            dateAssigned   = dateAssigned,
                             scheduledDates = scheduledList,
+                            forUserId      = _ui.value.targetUser?.userId,
                         )
 
                         stops.forEachIndexed { stopIdx, preview ->
