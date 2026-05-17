@@ -295,7 +295,7 @@ class ImportarViewModel @Inject constructor(
         val addressCol = best("full_address","direccion","address","calle","domicilio","addr")
         return mapOf(
             StopField.NAME          to (best("name","nombre","pdv","cliente","razon") ?: headers.firstOrNull()),
-            StopField.EXTERNAL_ID   to best("external_id","codigo","code","ref","external"),
+            StopField.EXTERNAL_ID   to best("external_id","id externo","id_externo","codigo","code","ref","external"),
             StopField.ADDRESS       to addressCol,
             StopField.LAT           to best("lat","latitud","latitude"),
             StopField.LNG           to best("lng","lon","longitud","longitude"),
@@ -314,7 +314,7 @@ class ImportarViewModel @Inject constructor(
         fun best(vararg kw: String): String? =
             headers.getOrNull(kw.firstNotNullOfOrNull { k -> h.indexOfFirst { it.contains(k) }.takeIf { it >= 0 } } ?: -1)
         return mapOf(
-            KpiField.STOP_ID      to best("stop_uid","external_id","id","stop_id","uid"),
+            KpiField.STOP_ID      to best("stop_uid","external_id","id externo","id_externo","id","stop_id","uid"),
             KpiField.DATE         to best("fecha","date","last_visit","visited_at"),
             KpiField.ACTIVACIONES to best("activaciones","kpi_activaciones","acts"),
             KpiField.PRIMER_BONO  to best("primer_bono","kpi_primer_bono","primerbono"),
@@ -398,7 +398,7 @@ class ImportarViewModel @Inject constructor(
 
         // Detectar el mes de las fechas importadas para pre-seleccionar el selector de mes
         val importedMonthFromSheet = _calRows
-            .mapNotNull { it["date"]?.trim() }
+            .mapNotNull { calRowGet(it, "date", "Fecha", "fecha", "DATE") }
             .mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
             .minOrNull()
             ?.let { java.time.YearMonth.from(it) }
@@ -406,11 +406,13 @@ class ImportarViewModel @Inject constructor(
         // 1 ruta por nombre (cluster) — sus múltiples fechas son scheduledDates, no rutas separadas
         // Ej: PS06 con visitas el 12 y 21 → 1 RouteCalendarEntry con scheduledDates=[12,21]
         val calSheetByRoute: Map<String, List<LocalDate>> = _calRows
-            .groupBy { it["route_name"]?.trim() ?: "" }
+            .groupBy { calRowGet(it, "route_name", "Ruta", "ruta", "RUTA", "Route") ?: "" }
             .filterKeys { it.isNotBlank() }
             .mapValues { (_, rows) ->
                 rows.mapNotNull { r ->
-                    runCatching { LocalDate.parse(r["date"]?.trim() ?: "") }.getOrNull()
+                    val raw = calRowGet(r, "date", "Fecha", "fecha", "DATE") ?: ""
+                    // Soportar tanto LocalDate (2026-05-01) como datetime excel serial
+                    runCatching { java.time.LocalDate.parse(raw) }.getOrNull()
                 }.distinct().sorted()
             }
 
@@ -703,6 +705,18 @@ class ImportarViewModel @Inject constructor(
     private var _calRows: List<Map<String, String>> = emptyList()
 
     /** Lee fechas del XLSX sheet CALENDARIO si existe */
+
+    /** Lee un valor de una fila del CALENDARIO probando múltiples nombres de columna posibles.
+     *  El fichero puede tener "Ruta", "route_name", "RUTA" etc. — aceptamos todos. */
+    private fun calRowGet(row: Map<String, String>, vararg keys: String): String? {
+        // Exact match first
+        for (k in keys) if (row.containsKey(k)) return row[k]?.trim()
+        // Case-insensitive match
+        val lc = row.map { (k, v) -> k.lowercase() to v }
+        for (k in keys) lc.firstOrNull { it.first == k.lowercase() }?.second?.let { return it.trim() }
+        return null
+    }
+
     private fun buildCalendarFromSheet(): Map<Int, LocalDate?> {
         if (_calRows.isEmpty()) return emptyMap()
         val result = mutableMapOf<Int, LocalDate?>()
@@ -711,8 +725,8 @@ class ImportarViewModel @Inject constructor(
         // NO contra clusterNames que contiene "Ruta N — dd/MM/yyyy".
         val clusters = _ui.value.clusters
         _calRows.forEach { row ->
-            val rName   = row["route_name"]?.trim() ?: return@forEach
-            val dateStr = row["date"]?.trim()        ?: return@forEach
+            val rName   = calRowGet(row, "route_name", "Ruta", "ruta", "RUTA", "Route") ?: return@forEach
+            val dateStr = calRowGet(row, "date", "Fecha", "fecha", "DATE") ?: return@forEach
             // Buscar el cluster cuyas paradas tengan ese routeName
             val idx = clusters.indexOfFirst { stops ->
                 stops.any { it.routeName?.trim() == rName }
