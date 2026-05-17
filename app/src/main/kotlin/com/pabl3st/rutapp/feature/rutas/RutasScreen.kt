@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -128,6 +130,7 @@ fun RutasScreen(
             onDismissRequest = vm::onDismissCreateDialog,
             title = { Text("Nueva ruta") },
             text = {
+                var expanded by remember { mutableStateOf(false) }
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value         = ui.newRouteName,
@@ -149,6 +152,61 @@ fun RutasScreen(
                         modifier      = Modifier.fillMaxWidth(),
                         leadingIcon   = { Icon(Icons.Default.CalendarToday, null, Modifier.size(18.dp)) },
                     )
+                    // Selector de asignado — solo visible si hay usuarios disponibles
+                    if (ui.assignableUsers.isNotEmpty()) {
+                        val selectedName = ui.assignableUsers
+                            .firstOrNull { it.userId == ui.selectedAssigneeId }
+                            ?.let { "${it.displayName} (${it.role})" }
+                            ?: "Para mí mismo"
+                        ExposedDropdownMenuBox(
+                            expanded         = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                        ) {
+                            OutlinedTextField(
+                                value         = selectedName,
+                                onValueChange = {},
+                                readOnly      = true,
+                                label         = { Text("Asignar a") },
+                                trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                                modifier      = Modifier.fillMaxWidth().menuAnchor(),
+                            )
+                            ExposedDropdownMenu(
+                                expanded         = expanded,
+                                onDismissRequest = { expanded = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text    = { Text("Para mí mismo") },
+                                    onClick = { vm.onSelectAssignee(null); expanded = false },
+                                )
+                                ui.assignableUsers.forEach { user ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(user.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium)
+                                                Text(
+                                                    "${user.role} · @${user.username}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        },
+                                        onClick = { vm.onSelectAssignee(user.userId); expanded = false },
+                                    )
+                                }
+                            }
+                        }
+                    } else if (ui.loadingUsers) {
+                        Row(
+                            verticalAlignment    = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Text("Cargando equipo…",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             },
             confirmButton = {
