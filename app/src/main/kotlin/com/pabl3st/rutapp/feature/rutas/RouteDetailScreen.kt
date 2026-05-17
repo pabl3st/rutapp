@@ -12,6 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +44,12 @@ fun RouteDetailScreen(
             vm.clearError()
         }
     }
+    LaunchedEffect(ui.snackbar) {
+        ui.snackbar?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+            vm.clearSnackbar()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.semantics { testTag = "route-detail-screen" },
@@ -53,6 +62,12 @@ fun RouteDetailScreen(
                     }
                 },
                 actions = {
+                    // Reasignar ruta — solo roles con permiso
+                    if (ui.canReassign) {
+                        IconButton(onClick = vm::onShowReassignDialog) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = "Reasignar ruta")
+                        }
+                    }
                     IconButton(onClick = { onNavigateToMap(routeUid) }) {
                         Icon(Icons.Default.Map, contentDescription = "Ver en mapa")
                     }
@@ -120,6 +135,90 @@ fun RouteDetailScreen(
                 }
             }
         }
+    }
+
+    // ── Diálogo reasignar ruta ────────────────────────────────
+    if (ui.showReassignDialog) {
+        var expanded by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = vm::onDismissReassignDialog,
+            title = { Text("Reasignar ruta") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Selecciona el nuevo responsable de esta ruta.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (ui.loadingUsers) {
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Text("Cargando equipo…",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (ui.assignableUsers.isNotEmpty()) {
+                        val selectedName = ui.assignableUsers
+                            .firstOrNull { it.userId == ui.selectedAssigneeId }
+                            ?.let { "${it.displayName} (${it.role})" }
+                            ?: "Seleccionar…"
+                        ExposedDropdownMenuBox(
+                            expanded         = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                        ) {
+                            OutlinedTextField(
+                                value         = selectedName,
+                                onValueChange = {},
+                                readOnly      = true,
+                                label         = { Text("Asignar a") },
+                                trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                                modifier      = Modifier.fillMaxWidth().menuAnchor(),
+                            )
+                            ExposedDropdownMenu(
+                                expanded         = expanded,
+                                onDismissRequest = { expanded = false },
+                            ) {
+                                ui.assignableUsers.forEach { user ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(user.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium)
+                                                Text("${user.role} · @${user.username}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        },
+                                        onClick = { vm.onSelectAssignee(user.userId); expanded = false },
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            "No hay usuarios disponibles para reasignar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = vm::confirmReassign,
+                    enabled = ui.selectedAssigneeId != null && !ui.isReassigning,
+                ) {
+                    if (ui.isReassigning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text("Reasignar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::onDismissReassignDialog) { Text("Cancelar") }
+            },
+        )
     }
 }
 

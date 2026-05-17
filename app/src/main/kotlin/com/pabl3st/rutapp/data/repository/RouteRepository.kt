@@ -194,6 +194,24 @@ class RouteRepository @Inject constructor(
         return route
     }
 
+
+    /** Reasigna una ruta a un usuario diferente.
+     *  Solo permitido para owner/admin/manager (verificado en la capa ViewModel).
+     *  El cambio se sincroniza con el servidor vía delta sync. */
+    suspend fun reassignRoute(routeUid: String, newUserId: Int): Result<Unit> = runCatching {
+        val route = routeDao.getByUid(routeUid) ?: error("Ruta no encontrada: $routeUid")
+        val now   = Instant.now().atOffset(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val updated = route.copy(
+            userId     = newUserId,
+            updatedAt  = now,
+            syncStatus = "pending",
+        )
+        routeDao.upsert(updated)
+        enqueue("route", routeUid, "update", routeToMap(updated))
+        triggerSync()
+    }
+
     // ── Delta sync desde servidor ──────────────────────────────
     private val lastFetchMs = AtomicLong(0L)
 

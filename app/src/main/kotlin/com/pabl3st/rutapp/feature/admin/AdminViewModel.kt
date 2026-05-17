@@ -7,6 +7,8 @@ import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.network.InviteDto
 import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.AuthResult
+import com.pabl3st.rutapp.data.network.StatsMonthAgent
+import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.SyncRepository
@@ -54,12 +56,16 @@ data class AdminUiState(
     val reporterRouteCounts:  Map<Int, Int>        = emptyMap(),
     val reporterDoneStops:    Map<Int, Int>        = emptyMap(),
     val reporterPendingStops: Map<Int, Int>        = emptyMap(),
+    // KPIs del equipo desde servidor (stats_month)
+    val reporterServerStats:  List<StatsMonthAgent> = emptyList(),
+    val isLoadingKpis:        Boolean               = false,
 )
 
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class AdminViewModel @Inject constructor(
     private val session:   SessionManager,
+    private val api:       RutasApiService,
     private val syncRepo:  SyncRepository,
     private val routeRepo: RouteRepository,
     private val stopRepo:  StopRepository,
@@ -89,6 +95,7 @@ class AdminViewModel @Inject constructor(
         if (role in setOf("manager", "admin", "owner")) {
             _ui.update { it.copy(showDirectReports = true) }
             loadDirectReports()
+            loadReporterKpis()
         }
     }
 
@@ -187,6 +194,27 @@ class AdminViewModel @Inject constructor(
                         reporterPendingStops = pend,
                     )}
                 }
+        }
+    }
+
+    fun loadReporterKpis() {
+        val token = session.token ?: return
+        val myRole = session.userRole
+        if (myRole !in setOf("manager", "admin", "owner", "god")) return
+        viewModelScope.launch {
+            _ui.update { it.copy(isLoadingKpis = true) }
+            runCatching {
+                val month = java.time.YearMonth.now().toString()
+                val resp  = api.statsMonth(token = token, month = month)
+                if (resp.isSuccessful && resp.body()?.ok == true) {
+                    val agents = resp.body()!!.agents
+                    _ui.update { it.copy(reporterServerStats = agents, isLoadingKpis = false) }
+                } else {
+                    _ui.update { it.copy(isLoadingKpis = false) }
+                }
+            }.onFailure {
+                _ui.update { it.copy(isLoadingKpis = false) }
+            }
         }
     }
 

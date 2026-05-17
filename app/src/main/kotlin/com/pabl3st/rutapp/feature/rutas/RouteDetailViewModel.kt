@@ -11,6 +11,9 @@ import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.StopTagConfig
 import com.pabl3st.rutapp.data.local.entity.evaluateTag
 import com.pabl3st.rutapp.data.repository.RouteRepository
+import com.pabl3st.rutapp.data.repository.AdminRepository
+import com.pabl3st.rutapp.data.repository.AuthResult
+import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -37,6 +40,14 @@ data class RouteDetailUiState(
     val kpiByStop: Map<String, Map<String,String>> = emptyMap(),
     // Permisos — solo owner/admin pueden añadir/eliminar paradas
     val canEditStops: Boolean                     = false,
+    // Reasignación de ruta
+    val canReassign:        Boolean              = false,
+    val showReassignDialog: Boolean              = false,
+    val assignableUsers:    List<AccountUserDto> = emptyList(),
+    val selectedAssigneeId: Int?                 = null,
+    val loadingUsers:       Boolean              = false,
+    val isReassigning:      Boolean              = false,
+    val snackbar:           String?              = null,
 )
 
 @HiltViewModel
@@ -44,6 +55,7 @@ data class RouteDetailUiState(
 class RouteDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val routeRepo:    RouteRepository,
+    private val adminRepo:    AdminRepository,
     private val stopRepo:     StopRepository,
     private val locationMgr:  LocationManager,
     private val kpiValueDao:  KpiValueDao,
@@ -55,6 +67,7 @@ class RouteDetailViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(RouteDetailUiState(
         canEditStops = session.userRole in listOf("owner", "admin", "god"),
+        canReassign  = session.userRole in listOf("owner", "admin", "manager", "god"),
     ))
     val ui: StateFlow<RouteDetailUiState> = _ui.asStateFlow()
 
@@ -161,6 +174,67 @@ class RouteDetailViewModel @Inject constructor(
             prefsRepo.prefs.collect { prefs ->
                 _ui.update { it.copy(stopTags = prefs.stopTags) }
             }
+        }
+    }
+
+    // ── Reasignación ─────────────────────────────────────────
+    fun onShowReassignDialog() {
+        _ui.update { it.copy(showReassignDialog = true, selectedAssigneeId = null, assignableUsers = emptyList()) }
+        loadAssignableUsers()
+    }
+
+    fun onDismissReassignDialog() =
+        _ui.update { it.copy(showReassignDialog = false, selectedAssigneeId = null, assignableUsers = emptyList()) }
+
+    fun onSelectAssignee(userId: Int?) = _ui.update { it.copy(selectedAssigneeId = userId) }
+
+    fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
+
+    private fun loadAssignableUsers() {
+        viewModelScope.launch {
+            _ui.update { it.copy(loadingUsers = true) }
+            when (val r = adminRepo.listUsers()) {
+                is AuthResult.Success -> {
+                    val myId   = session.userId
+                    val myRole = session.userRole
+                    // Excluir al propietario actual de la ruta (no tiene sentido reasignar al mismo)
+                    val currentOwnerId = _ui.value.route?.userId
+                    val assignable = r.data.filter { u ->
+                        u.isActive && u.userId != currentOwnerId && when (myRole) {
+                            "god"     -> u.role in listOf("owner", "admin", "manager", "agent")
+                            "owner"   -> u.role in listOf("admin", "manager", "agent")
+                            "admin"   -> u.role in listOf("manager", "agent")
+                            "manager" -> u.role == "agent" &&
+                                         (u.managerId == myId || session.managedAgentIds.contains(u.userId))
+                            else      -> false
+                        }
+                    }
+                    _ui.update { it.copy(assignableUsers = assignable, loadingUsers = false) }
+                }
+                is AuthResult.Error -> _ui.update { it.copy(loadingUsers = false) }
+            }
+        }
+    }
+
+    fun confirmReassign() {
+        val targetId = _ui.value.selectedAssigneeId ?: return
+        val routeUid = routeUid
+        viewModelScope.launch {
+            _ui.update { it.copy(isReassigning = true) }
+            routeRepo.reassignRoute(routeUid, targetId)
+                .onSuccess {
+                    val name = _ui.value.assignableUsers
+                        .firstOrNull { it.userId == targetId }?.displayName ?: "usuario"
+                    _ui.update { it.copy(
+                        isReassigning      = false,
+                        showReassignDialog = false,
+                        selectedAssigneeId = null,
+                        snackbar           = "Ruta reasignada a $name",
+                    ) }
+                }
+                .onFailure { e ->
+                    _ui.update { it.copy(isReassigning = false, error = e.message ?: "Error al reasignar") }
+                }
         }
     }
 

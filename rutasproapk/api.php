@@ -1703,6 +1703,48 @@ if ($action === 'god_users_all') {
     ok(['users' => $rows]);
 }
 
+// ── Helper: push FCM a un usuario específico (por userId) ─────────────────
+function pushToUser(int $targetUserId, array $data): void {
+    $serverKey = defined('FCM_SERVER_KEY') ? FCM_SERVER_KEY : ($_ENV['FCM_SERVER_KEY'] ?? null);
+    if (!$serverKey) return;
+
+    // Obtener tokens activos del usuario destino
+    $st = db()->prepare(
+        "SELECT DISTINCT fcm_token FROM sessions
+         WHERE user_id = ? AND fcm_token IS NOT NULL AND fcm_token != ''
+           AND expires_at > NOW()
+         LIMIT 10"
+    );
+    $st->execute([$targetUserId]);
+    $tokens = $st->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($tokens)) return;
+
+    $payload = [
+        'registration_ids' => $tokens,
+        'data'             => $data,
+        'notification'     => [
+            'title' => $data['title'] ?? 'RutasApp',
+            'body'  => $data['body']  ?? '',
+        ],
+        'priority' => 'high',
+        'android'  => ['priority' => 'high'],
+    ];
+
+    $ch = curl_init('https://fcm.googleapis.com/fcm/send');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: key=' . $serverKey,
+        ],
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 5,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 // ── Helper: push FCM sync a todos los tokens del account ─────────────────
 function pushSyncToAccount(int $accountId): void {
     $serverKey = defined('FCM_SERVER_KEY') ? FCM_SERVER_KEY : ($_ENV['FCM_SERVER_KEY'] ?? null);

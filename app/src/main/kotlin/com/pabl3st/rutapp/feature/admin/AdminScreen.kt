@@ -153,11 +153,14 @@ fun AdminScreen(
                     }
                 } else {
                     items(ui.directReports, key = { "dr_${it.userId}" }) { reporter ->
+                        val kpiStats = ui.reporterServerStats.firstOrNull { it.userId == reporter.userId }
                         DirectReporterCard(
                             reporter     = reporter,
                             routeCount   = ui.reporterRouteCounts[reporter.userId]  ?: 0,
                             doneStops    = ui.reporterDoneStops[reporter.userId]    ?: 0,
                             pendingStops = ui.reporterPendingStops[reporter.userId] ?: 0,
+                            contacted    = kpiStats?.contacted  ?: 0,
+                            totalStops   = kpiStats?.totalStops ?: 0,
                         )
                     }
                 }
@@ -665,6 +668,8 @@ private fun DirectReporterCard(
     routeCount:   Int,
     doneStops:    Int,
     pendingStops: Int,
+    contacted:    Int = 0,
+    totalStops:   Int = 0,   // total del mes (servidor)
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Spacing.lg)) {
@@ -731,6 +736,41 @@ private fun DirectReporterCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            // KPIs del mes desde servidor (si disponibles)
+            if (totalStops > 0 || contacted > 0) {
+                Spacer(Modifier.height(4.dp))
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$totalStops", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("Paradas mes", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$contacted", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary)
+                        Text("Contactadas", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (totalStops > 0) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            val pct = (contacted * 100f / totalStops).toInt()
+                            Text("$pct%", style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (pct >= 80) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Eficiencia", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
     }
