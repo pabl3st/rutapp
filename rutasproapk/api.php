@@ -1433,8 +1433,8 @@ if ($action === 'account_config_save') {
     $aid  = (int)$sess['account_id'];
     $role = $sess['role'] ?? 'agent';
 
-    if (!in_array($role, ['owner', 'admin', 'god'], true)) {
-        err('Sin permisos — requiere owner o admin', 403, $action);
+    if (!in_array($role, ['owner', 'god'], true)) {
+        err('Sin permisos — solo el propietario puede cambiar la configuración de la empresa', 403, $action);
     }
 
     $allowed = ['name', 'plus_config', 'form_config', 'ai_settings'];
