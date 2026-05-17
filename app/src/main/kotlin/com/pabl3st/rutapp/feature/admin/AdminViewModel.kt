@@ -140,10 +140,20 @@ class AdminViewModel @Inject constructor(
                     // manager → sus agentes directos (managerId == myId)
                     // admin   → managers + agents de su account
                     // owner   → todos (admin/manager/agent)
+                    // Managers directos de este admin (managerId == myId)
+                    val myDirectManagerIds = result.data
+                        .filter { it.managerId == myId && it.role == "manager" && it.isActive }
+                        .map { it.userId }
+                        .toSet()
+
                     val reports = result.data.filter { u ->
                         u.isActive && when (myRole) {
-                            "manager" -> u.managerId == myId || session.managedAgentIds.contains(u.userId)
-                            "admin"   -> u.role in setOf("manager", "agent")
+                            // manager: ya recibe solo sus reportadores del servidor (users_list filtrado)
+                            "manager" -> true
+                            // admin: sus managers directos + agentes de esos managers
+                            "admin"   -> u.managerId == myId ||
+                                         (u.role == "agent" && u.managerId != null && u.managerId in myDirectManagerIds)
+                            // owner: todos (admin/manager/agent)
                             "owner"   -> u.role in setOf("admin", "manager", "agent")
                             else      -> false
                         }

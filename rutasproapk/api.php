@@ -1075,21 +1075,41 @@ if ($action === 'users_list') {
     $sess = requireAuth();
     $uid  = (int)$sess['uid'];
     $aid  = (int)$sess['account_id'];
-    if (roleLevel($sess['role']) < 4) err('Permisos insuficientes', 403);
+    $role = $sess['role'];
+    // manager (level 3) puede ver sus agentes directos; admin+ ve todos
+    if (roleLevel($role) < 3) err('Permisos insuficientes', 403);
 
-    $st = db()->prepare(
-        'SELECT u.id AS user_id, u.username,
-                COALESCE(u.name, u.username) AS display_name,
-                u.email, u.role, u.active AS is_active,
-                u.manager_id,
-                COALESCE(m.name, m.username) AS manager_name,
-                DATE_FORMAT(u.created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
-         FROM users u
-         LEFT JOIN users m ON m.id = u.manager_id AND m.account_id = u.account_id
-         WHERE u.account_id = ? AND u.id != ?
-         ORDER BY u.role DESC, u.username ASC'
-    );
-    $st->execute([$aid, $uid]);
+    // Manager solo ve usuarios que reportan a él
+    // Admin/owner/god ven todos del account
+    if ($role === 'manager') {
+        $st = db()->prepare(
+            'SELECT u.id AS user_id, u.username,
+                    COALESCE(u.name, u.username) AS display_name,
+                    u.email, u.role, u.active AS is_active,
+                    u.manager_id,
+                    COALESCE(m.name, m.username) AS manager_name,
+                    DATE_FORMAT(u.created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
+             FROM users u
+             LEFT JOIN users m ON m.id = u.manager_id AND m.account_id = u.account_id
+             WHERE u.account_id = ? AND u.manager_id = ? AND u.id != ?
+             ORDER BY u.role DESC, u.username ASC'
+        );
+        $st->execute([$aid, $uid, $uid]);
+    } else {
+        $st = db()->prepare(
+            'SELECT u.id AS user_id, u.username,
+                    COALESCE(u.name, u.username) AS display_name,
+                    u.email, u.role, u.active AS is_active,
+                    u.manager_id,
+                    COALESCE(m.name, m.username) AS manager_name,
+                    DATE_FORMAT(u.created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
+             FROM users u
+             LEFT JOIN users m ON m.id = u.manager_id AND m.account_id = u.account_id
+             WHERE u.account_id = ? AND u.id != ?
+             ORDER BY u.role DESC, u.username ASC'
+        );
+        $st->execute([$aid, $uid]);
+    }
     $users = $st->fetchAll();
 
     apiLog($action, $uid, $aid);

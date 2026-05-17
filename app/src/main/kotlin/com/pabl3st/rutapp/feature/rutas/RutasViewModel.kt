@@ -85,8 +85,7 @@ class RutasViewModel @Inject constructor(
                             "god"   -> u.role in listOf("owner", "admin", "manager", "agent")
                             "owner" -> u.role in listOf("admin", "manager", "agent")
                             "admin" -> u.role in listOf("manager", "agent")
-                            "manager" -> u.role == "agent" &&
-                                         (u.managerId == myId || session.managedAgentIds.contains(u.userId))
+                            "manager" -> true  // servidor ya filtró solo los reportadores directos
                             else   -> false
                         }
                     }
