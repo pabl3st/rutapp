@@ -824,6 +824,17 @@ if ($action === 'batch_sync') {
                              VALUES (?,?,?,?,?)'
                         )->execute([$aid, $uid, 'route', $clientUid, $operation]);
                         $synced[] = ['uid' => $clientUid, 'server_id' => $serverId, 'entity' => 'route'];
+                        // Notificar al agente si la ruta la creó otro usuario (manager asignando)
+                        if ($targetUserId !== $uid) {
+                            $routeName    = san($data['name'] ?? '', 200);
+                            $dateAssigned = san($data['date_assigned'] ?? '', 20);
+                            pushToUser($targetUserId, [
+                                'type'      => 'route_assigned',
+                                'route_uid' => $clientUid,
+                                'title'     => 'Nueva ruta asignada',
+                                'body'      => $routeName . ($dateAssigned ? ' — ' . $dateAssigned : ''),
+                            ]);
+                        }
 
                     } elseif ($operation === 'delete') {
                         // Borrar solo si pertenece al account (manager puede borrar rutas de miembros)
