@@ -224,6 +224,11 @@ fun RutasNavGraph(
                 popEnterTransition = { enterPop },
                 popExitTransition  = { exitPop },
             ) {
+                // Guardia: solo owner/admin/manager pueden acceder al panel de administración
+                if (userRole !in listOf("owner", "admin", "manager", "god")) {
+                    navController.popBackStack()
+                    return@composable
+                }
                 AdminScreen(onBack = { navController.popBackStack() })
             }
 
@@ -263,6 +268,11 @@ fun RutasNavGraph(
                 popEnterTransition = { enterPop },
                 popExitTransition  = { exitPop },
             ) {
+                // Guardia: solo owner/admin pueden configurar el perfil de negocio
+                if (userRole !in listOf("owner", "admin", "god")) {
+                    navController.popBackStack()
+                    return@composable
+                }
                 BusinessProfileScreen(onBack = { navController.popBackStack() })
             }
 

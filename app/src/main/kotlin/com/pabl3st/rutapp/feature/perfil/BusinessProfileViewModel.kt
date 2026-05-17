@@ -6,14 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class BusinessProfileUiState(
-    val profile: BusinessProfileEntity?         = null,
-    val kpis: List<KpiDefinitionEntity>         = emptyList(),
+    val profile:      BusinessProfileEntity?    = null,
+    val kpis:         List<KpiDefinitionEntity> = emptyList(),
+    val canEditSector: Boolean                  = false,
     val isLoading: Boolean                      = true,
     val showSectorPicker: Boolean               = false,
     val showAddKpiDialog: Boolean               = false,
@@ -28,10 +30,13 @@ data class BusinessProfileUiState(
 
 @HiltViewModel
 class BusinessProfileViewModel @Inject constructor(
-    private val repo: BusinessProfileRepository,
+    private val repo:    BusinessProfileRepository,
+    private val session: SessionManager,
 ) : BaseViewModel() {
 
-    private val _ui = MutableStateFlow(BusinessProfileUiState())
+    private val _ui = MutableStateFlow(BusinessProfileUiState(
+        canEditSector = session.userRole in listOf("owner", "admin", "god"),
+    ))
     val ui: StateFlow<BusinessProfileUiState> = _ui.asStateFlow()
 
     init { load() }

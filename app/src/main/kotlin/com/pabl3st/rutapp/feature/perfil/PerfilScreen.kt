@@ -117,7 +117,7 @@ fun PerfilScreen(
                 InfoRow(Icons.Default.Email,            "Email",   ui.email)
                 Div()
                 if (ui.isOwnerOrAdmin) {
-                    // Empresa editable para owner/admin
+                    // Empresa editable solo para owner
                     Row(
                         modifier          = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -290,7 +290,7 @@ fun PerfilScreen(
                     detail = "Planificación mensual de rutas",
                     onClick = onNavigateToCalendario,
                 )
-                if (ui.role in listOf("owner", "admin", "god")) {
+                if (ui.canAccessAdmin) {
                     Div()
                     InfoRowNav(
                         icon   = Icons.Default.AdminPanelSettings,

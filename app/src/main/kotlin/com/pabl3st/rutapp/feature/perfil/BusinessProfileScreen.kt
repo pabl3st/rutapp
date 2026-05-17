@@ -34,8 +34,10 @@ fun BusinessProfileScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = vm::onShowAddKpiDialog) {
-                        Icon(Icons.Default.Add, contentDescription = "Añadir KPI")
+                    if (ui.canEditSector) {
+                        IconButton(onClick = vm::onShowAddKpiDialog) {
+                            Icon(Icons.Default.Add, contentDescription = "Añadir KPI")
+                        }
                     }
                 }
             )
@@ -57,9 +59,9 @@ fun BusinessProfileScreen(
             // ── Sector ────────────────────────────────────────
             item {
                 SectorCard(
-                    sector      = ui.profile?.sector ?: "custom",
-                    sectorLabel = vm.sectorLabel(ui.profile?.sector ?: "custom"),
-                    onChangeSector = vm::onShowSectorPicker,
+                    sector         = ui.profile?.sector ?: "custom",
+                    sectorLabel    = vm.sectorLabel(ui.profile?.sector ?: "custom"),
+                    onChangeSector = if (ui.canEditSector) vm::onShowSectorPicker else null,
                 )
             }
 
@@ -75,7 +77,9 @@ fun BusinessProfileScreen(
                     )
                 }
                 items(commonKpis, key = { it.id }) { kpi ->
-                    KpiRow(kpi = kpi, onToggle = { vm.onToggleKpiVisible(kpi.id, it) }, onDelete = null)
+                    KpiRow(kpi = kpi,
+                        onToggle = if (ui.canEditSector) { { vm.onToggleKpiVisible(kpi.id, it) } } else null,
+                        onDelete = null)
                 }
             }
 
@@ -91,7 +95,9 @@ fun BusinessProfileScreen(
                     )
                 }
                 items(sectorKpis, key = { it.id }) { kpi ->
-                    KpiRow(kpi = kpi, onToggle = { vm.onToggleKpiVisible(kpi.id, it) }, onDelete = null)
+                    KpiRow(kpi = kpi,
+                        onToggle = if (ui.canEditSector) { { vm.onToggleKpiVisible(kpi.id, it) } } else null,
+                        onDelete = null)
                 }
             }
 

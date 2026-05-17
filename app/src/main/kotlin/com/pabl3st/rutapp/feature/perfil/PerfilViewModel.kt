@@ -33,8 +33,10 @@ data class PerfilUiState(
     val sectorLabel:      String  = "",
     val showLogoutDialog:    Boolean = false,
     val isLoggingOut:        Boolean = false,
-    // Edición nombre de empresa (owner/admin)
+    // Edición nombre de empresa — solo owner
     val isOwnerOrAdmin:      Boolean = false,
+    // Acceso al panel de administración — owner/admin/manager
+    val canAccessAdmin:      Boolean = false,
     val editingAccountName:  Boolean = false,
     val accountNameDraft:    String  = "",
     val isSavingAccount:     Boolean = false,
@@ -60,7 +62,8 @@ class PerfilViewModel @Inject constructor(
             accountType      = session.accountType,
             plan             = "free",
             appVersion       = BuildConfig.VERSION_NAME,
-            isOwnerOrAdmin   = session.userRole in listOf("owner", "admin", "god"),
+            isOwnerOrAdmin   = session.userRole in listOf("owner", "god"),  // solo owner edita empresa
+            canAccessAdmin   = session.userRole in listOf("owner", "admin", "manager", "god"),
             accountNameDraft = session.accountName,
         )
     )
