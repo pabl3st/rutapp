@@ -108,6 +108,14 @@ fun RutasNavGraph(
             }
 
             composable(Screen.Home.route) {
+                // Guardia: viewer sin acceso a Home
+                if (userRole == "viewer") {
+                    navController.navigate(Screen.Perfil.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    return@composable
+                }
+
                 var showExitDialog by remember { mutableStateOf(false) }
                 BackHandler { showExitDialog = true }
                 if (showExitDialog) {
@@ -121,6 +129,14 @@ fun RutasNavGraph(
             }
 
             composable(Screen.Rutas.route) {
+                // Guardia: viewer sin acceso a Rutas
+                if (userRole == "viewer") {
+                    navController.navigate(Screen.Perfil.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    return@composable
+                }
+
                 RutasScreen(
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                     onBack       = { navController.popBackStack() },
@@ -136,6 +152,8 @@ fun RutasNavGraph(
                 popEnterTransition  = { enterPop },
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
+                // Guardia: viewer sin acceso a RouteDetail
+                if (userRole == "viewer") { navController.popBackStack(); return@composable }
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteDetailScreen(
                     routeUid        = routeUid,
@@ -154,6 +172,8 @@ fun RutasNavGraph(
                 popEnterTransition  = { enterPop },
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
+                // Guardia: viewer sin acceso a RouteMap
+                if (userRole == "viewer") { navController.popBackStack(); return@composable }
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteMapScreen(
                     routeUid    = routeUid,
@@ -164,7 +184,13 @@ fun RutasNavGraph(
 
             composable(
                 route               = Screen.CrearParada.route,
-                arguments           = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                arguments           = listOf(navArgument("routeUid") {
+                // Guardia: viewer no puede CrearParada
+                if (userRole == "viewer") {
+                    navController.popBackStack()
+                    return@composable
+                }
+ type = NavType.StringType }),
                 enterTransition     = { enterPush },
                 exitTransition      = { exitPush },
                 popEnterTransition  = { enterPop },
@@ -178,7 +204,13 @@ fun RutasNavGraph(
 
             composable(
                 route               = Screen.Visita.route,
-                arguments           = listOf(navArgument("stopUid") { type = NavType.StringType }),
+                arguments           = listOf(navArgument("stopUid") {
+                // Guardia: viewer no puede Visita
+                if (userRole == "viewer") {
+                    navController.popBackStack()
+                    return@composable
+                }
+ type = NavType.StringType }),
                 enterTransition     = { enterPush },
                 exitTransition      = { exitPush },
                 popEnterTransition  = { enterPop },
@@ -192,12 +224,28 @@ fun RutasNavGraph(
             }
 
             composable(Screen.Mapa.route) {
+                // Guardia: viewer sin acceso a Mapa
+                if (userRole == "viewer") {
+                    navController.navigate(Screen.Perfil.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    return@composable
+                }
+
                 GlobalMapScreen(
                     onNavigateToStop  = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                     onNavigateToRoute = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
             composable(Screen.Kpis.route) {
+                // Guardia: viewer sin acceso a KPIs
+                if (userRole == "viewer") {
+                    navController.navigate(Screen.Perfil.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    return@composable
+                }
+
                 KpisScreen(
                     onNavigateToBiblioteca = { navController.navigate(Screen.Biblioteca.route) },
                 )
@@ -206,6 +254,13 @@ fun RutasNavGraph(
                 route = Screen.Calendario.route,
                 // Tab del BottomNav → fade como el resto de tabs
             ) {
+                // Guardia: viewer sin acceso a Calendario
+                if (userRole == "viewer") {
+                    navController.navigate(Screen.Perfil.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    return@composable
+                }
                 val calBackEntry by navController.currentBackStackEntryAsState()
                 val calShowBack = calBackEntry?.let {
                     navController.previousBackStackEntry?.destination?.route
@@ -277,6 +332,14 @@ fun RutasNavGraph(
             }
 
             composable(route = Screen.Biblioteca.route) {
+                // Guardia: viewer sin acceso a Biblioteca
+                if (userRole == "viewer") {
+                    navController.navigate(Screen.Perfil.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                    return@composable
+                }
+
                 BibliotecaScreen(
                     onBack      = { navController.popBackStack() },
                     onStopClick = { stopUid ->
