@@ -1161,19 +1161,40 @@ if ($action === 'assign_manager') {
         err('Solo puedes asignar supervisores a usuarios de menor rango que tú', 403);
     }
 
-    // Verificar que el nuevo manager (si se asigna) existe, es de nivel >= target y está en la cuenta
+    // ── Validar que el supervisor es el rol inmediatamente superior ──
+    // Jerarquía fija: owner > admin > manager > agent/viewer
+    // owner puede supervisar a todos
+    // admin puede supervisar a: manager, agent, viewer
+    // manager puede supervisar a: agent, viewer
+    // agent/viewer no pueden supervisar a nadie
+    $validSupervisorRoles = [
+        'admin'   => ['owner'],                           // admin solo reporta a owner
+        'manager' => ['admin', 'owner'],                  // manager reporta a admin (u owner directo)
+        'agent'   => ['manager', 'admin', 'owner'],       // agent reporta a manager (o superior)
+        'viewer'  => ['manager', 'admin', 'owner'],       // viewer igual que agent
+    ];
+    $targetRoleKey = $target['role'];
+
     if ($managerId !== null) {
         if ($managerId === $targetId) err('Un usuario no puede ser su propio supervisor', 400);
         $stM = db()->prepare('SELECT id, role FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
         $stM->execute([$managerId, $aid]);
         $manager = $stM->fetch();
         if (!$manager) err('Supervisor no encontrado en tu cuenta', 404);
-        if (roleLevel($manager['role']) <= roleLevel($target['role'])) {
-            err('El supervisor debe tener un rol de mayor autoridad que el subordinado', 400);
+
+        // Verificar que el supervisor es un rol válido para este subordinado
+        $allowedSupervisors = $validSupervisorRoles[$targetRoleKey] ?? [];
+        if (!in_array($manager['role'], $allowedSupervisors, true)) {
+            $allowed = implode(' o ', $allowedSupervisors);
+            err("Un {$targetRoleKey} solo puede reportar a: {$allowed}", 400);
         }
-        // owner puede asignar a cualquiera; otros solo si el manager tiene nivel <= caller
-        if ($myRole !== 'owner' && $myRole !== 'god' && roleLevel($manager['role']) > $myLevel) {
-            err('No puedes asignar como supervisor a alguien con más autoridad que tú', 403);
+
+        // El caller debe poder gestionar al target (nivel inferior al propio)
+        // EXCEPCIÓN: owner puede asignar a cualquiera
+        if ($myRole !== 'owner' && $myRole !== 'god') {
+            if (roleLevel($manager['role']) >= $myLevel) {
+                err('No puedes asignar como supervisor a alguien con igual o mayor autoridad que tú', 403);
+            }
         }
     }
 
