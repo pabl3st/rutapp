@@ -89,6 +89,16 @@ class SessionManager @Inject constructor(
         get()      = prefs.getString(KEY_LAST_SYNC, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LAST_SYNC, value).apply()
 
+    /** IDs de agentes que reportan directamente a este manager.
+     *  Vacío para roles distintos de manager. */
+    var managedAgentIds: List<Int>
+        get() {
+            val raw = prefs.getString(KEY_MANAGED_AGENTS, "") ?: ""
+            return if (raw.isBlank()) emptyList()
+                   else raw.split(",").mapNotNull { it.trim().toIntOrNull() }
+        }
+        set(value) { prefs.edit().putString(KEY_MANAGED_AGENTS, value.joinToString(",")).apply() }
+
     val deviceId: String
         get() = Settings.Secure.getString(
             context.contentResolver, Settings.Secure.ANDROID_ID
@@ -132,5 +142,6 @@ class SessionManager @Inject constructor(
         private const val KEY_ACCOUNT_TYPE      = "account_type"
         private const val KEY_ACCOUNT_NAME      = "account_name"
         private const val KEY_LAST_SYNC         = "last_sync"
+        private const val KEY_MANAGED_AGENTS    = "managed_agent_ids"
     }
 }

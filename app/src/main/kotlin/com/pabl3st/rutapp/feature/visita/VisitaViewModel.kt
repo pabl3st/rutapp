@@ -12,6 +12,8 @@ import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
+import com.pabl3st.rutapp.data.repository.RouteRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import com.pabl3st.rutapp.data.repository.PhotoRepository
 import com.pabl3st.rutapp.data.repository.UserPrefs
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
@@ -46,6 +48,8 @@ data class VisitaUiState(
 class VisitaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val stopRepo:     StopRepository,
+    private val routeRepo:    RouteRepository,
+    private val session:      SessionManager,
     private val profileRepo:  BusinessProfileRepository,
     private val photoRepo:    PhotoRepository,
     private val kpiValueDao:  KpiValueDao,
@@ -72,8 +76,23 @@ class VisitaViewModel @Inject constructor(
 
     private fun loadStop() {
         viewModelScope.launch {
-            // NO llamar markVisiting aquí — solo saveVisit() marca el stop como done
             val stop = stopRepo.getByUid(stopUid)
+            if (stop != null) {
+                // Verificar acceso según rol
+                val route    = routeRepo.getByUid(stop.routeUid)
+                val myRole   = session.userRole
+                val myId     = session.userId
+                val hasAccess = when (myRole) {
+                    "owner", "admin", "god" -> true
+                    "manager" -> route?.userId == myId ||
+                        (route != null && route.userId in session.managedAgentIds)
+                    else -> route?.userId == myId
+                }
+                if (!hasAccess) {
+                    _ui.update { it.copy(isLoading = false, error = "Sin acceso a esta parada") }
+                    return@launch
+                }
+            }
             _ui.update {
                 it.copy(
                     stop           = stop,

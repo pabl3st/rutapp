@@ -194,6 +194,9 @@ class SyncRepository @Inject constructor(
             }
         }
 
+        // Actualizar lista de agentes supervisados (manager)
+        body.managedAgentIds?.let { session.managedAgentIds = it }
+
         body.serverTime?.let { session.lastSyncTimestamp = it }
         return true
     }

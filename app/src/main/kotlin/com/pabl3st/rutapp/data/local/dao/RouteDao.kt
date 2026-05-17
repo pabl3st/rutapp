@@ -13,6 +13,24 @@ interface RouteDao {
     @Query("SELECT * FROM routes WHERE deletedAt IS NULL AND accountId = :accountId ORDER BY dateAssigned DESC, userId ASC")
     fun observeByAccount(accountId: Int): Flow<List<RouteEntity>>
 
+    /** Rutas de un conjunto de usuarios (agentes bajo un manager) */
+    @Query("SELECT * FROM routes WHERE deletedAt IS NULL AND userId IN (:userIds) ORDER BY dateAssigned DESC")
+    fun observeByUserIds(userIds: List<Int>): Flow<List<RouteEntity>>
+
+    /** Rutas del día de un conjunto de usuarios */
+    @Query("""
+        SELECT * FROM routes
+        WHERE deletedAt IS NULL
+          AND userId IN (:userIds)
+          AND (dateAssigned = :date
+               OR scheduledDates = :date
+               OR scheduledDates LIKE :date || ',%'
+               OR scheduledDates LIKE '%,' || :date || ',%'
+               OR scheduledDates LIKE '%,' || :date)
+        ORDER BY name ASC
+    """)
+    fun observeByDateForUserIds(userIds: List<Int>, date: String): Flow<List<RouteEntity>>
+
     @Query("""
         SELECT * FROM routes
         WHERE deletedAt IS NULL

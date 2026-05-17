@@ -43,20 +43,36 @@ class RouteRepository @Inject constructor(
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
     // ── Roles con visibilidad ampliada ────────────────────────
-    private val isManager: Boolean
-        get() = session.userRole in listOf("owner", "admin", "manager", "god")
+    /** True solo para roles con visión completa de la cuenta */
+    private val isFullAccountView: Boolean
+        get() = session.userRole in listOf("owner", "admin", "god")
+
+    /** Manager ve solo sus agentes directos */
+    private val isManagedView: Boolean
+        get() = session.userRole == "manager"
 
     fun observeToday(): Flow<List<RouteEntity>> {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return if (isManager)
-            routeDao.observeByDateForAccount(session.accountId, today)
-        else
-            routeDao.observeByDate(session.userId, today)
+        return when {
+            isFullAccountView -> routeDao.observeByDateForAccount(session.accountId, today)
+            isManagedView     -> {
+                val agentIds = session.managedAgentIds
+                if (agentIds.isEmpty()) routeDao.observeByDate(session.userId, today)
+                else routeDao.observeByDateForUserIds(agentIds + session.userId, today)
+            }
+            else -> routeDao.observeByDate(session.userId, today)
+        }
     }
 
-    fun observeAll(): Flow<List<RouteEntity>> =
-        if (isManager) routeDao.observeByAccount(session.accountId)
-        else           routeDao.observeByUser(session.userId)
+    fun observeAll(): Flow<List<RouteEntity>> = when {
+        isFullAccountView -> routeDao.observeByAccount(session.accountId)
+        isManagedView     -> {
+            val agentIds = session.managedAgentIds
+            if (agentIds.isEmpty()) routeDao.observeByUser(session.userId)
+            else routeDao.observeByUserIds(agentIds + session.userId)
+        }
+        else -> routeDao.observeByUser(session.userId)
+    }
 
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)

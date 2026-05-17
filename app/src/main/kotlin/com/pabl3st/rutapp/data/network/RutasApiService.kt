@@ -220,8 +220,9 @@ data class DeltaSyncResponse(
     @Json(name = "day_sessions")     val daySessions:     List<DaySessionDto>?      = null,
     @Json(name = "kpi_values")       val kpiValues:       List<KpiValueDto>?         = null,
     @Json(name = "business_profile") val businessProfile: BusinessProfileSyncDto?    = null,
-    @Json(name = "kpi_definitions")  val kpiDefinitions:  List<KpiDefinitionSyncDto>? = null,
-    @Json(name = "server_time")      val serverTime:      String?,
+    @Json(name = "kpi_definitions")  val kpiDefinitions:   List<KpiDefinitionSyncDto>? = null,
+    @Json(name = "managed_agent_ids") val managedAgentIds: List<Int>?                  = null,
+    @Json(name = "server_time")       val serverTime:      String?,
     val error: String?,
 )
 
