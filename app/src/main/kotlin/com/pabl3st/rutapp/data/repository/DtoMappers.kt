@@ -64,7 +64,6 @@ fun com.pabl3st.rutapp.data.network.BusinessProfileSyncDto.toEntity(accountId: I
         sector      = sector,
         name        = name,
         updatedAt   = System.currentTimeMillis(),
-        syncStatus  = "synced",
     )
 
 fun com.pabl3st.rutapp.data.network.KpiDefinitionSyncDto.toEntity() =
@@ -81,6 +80,5 @@ fun com.pabl3st.rutapp.data.network.KpiDefinitionSyncDto.toEntity() =
         required    = required == 1,
         orderIndex  = orderIndex,
         section     = section,
-        syncStatus  = "synced",
     )
 
