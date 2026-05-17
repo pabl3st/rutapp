@@ -122,12 +122,27 @@ class AdminRepository @Inject constructor(
 
     // Usuarios que pueden ser supervisores del target dado
     // El supervisor debe tener nivel > target y <= caller (salvo owner/god que ve todos)
+    /** Usuarios que pueden ser supervisor directo del target según la jerarquía fija:
+     *  admin    → solo owner puede ser su supervisor
+     *  manager  → admin u owner
+     *  agent    → manager, admin u owner
+     *  viewer   → manager, admin u owner
+     *
+     *  Además el caller solo puede ver/asignar supervisores de su nivel o inferior
+     *  (salvo owner/god que ven todos). */
     fun validManagersFor(users: List<AccountUserDto>, targetRole: String): List<AccountUserDto> {
-        val targetLevel = roleLevel(targetRole)
-        val myLevel     = roleLevel(session.userRole)
+        val allowedSupervisorRoles: Set<String> = when (targetRole) {
+            "admin"   -> setOf("owner")
+            "manager" -> setOf("admin", "owner")
+            "agent",
+            "viewer"  -> setOf("manager", "admin", "owner")
+            else      -> emptySet()
+        }
+        val myLevel = roleLevel(session.userRole)
         return users.filter { u ->
-            val uLevel = roleLevel(u.role)
-            uLevel > targetLevel && (isOwner || isGod || uLevel <= myLevel)
+            u.role in allowedSupervisorRoles &&
+            u.isActive &&
+            (isOwner || isGod || roleLevel(u.role) <= myLevel)
         }
     }
 
