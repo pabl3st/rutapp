@@ -777,13 +777,28 @@ if ($action === 'batch_sync') {
                         $existingId = $existing->fetchColumn();
 
                         if ($existingId) {
-                            // UPDATE seguro: solo si account_id coincide
+                            // Leer user_id actual para detectar reasignación
+                            $stOld = $db->prepare('SELECT user_id FROM routes WHERE uid=? LIMIT 1');
+                            $stOld->execute([$clientUid]);
+                            $oldUserId = (int)($stOld->fetchColumn() ?: $uid);
+
+                            // Nuevo user_id — respetar el del payload si viene de un manager/admin
+                            $newUserId = isset($data['user_id']) ? (int)$data['user_id'] : $oldUserId;
+                            // Verificar que newUserId pertenece a la misma cuenta
+                            if ($newUserId !== $oldUserId) {
+                                $stCheck = $db->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+                                $stCheck->execute([$newUserId, $aid]);
+                                if (!$stCheck->fetchColumn()) $newUserId = $oldUserId; // fallback seguro
+                            }
+
+                            // UPDATE seguro: incluye user_id para soportar reasignación
                             $db->prepare(
                                 'UPDATE routes SET
-                                    name=?, date_assigned=?, scheduled_dates=?,
+                                    user_id=?, name=?, date_assigned=?, scheduled_dates=?,
                                     status=?, notes=?, updated_at=?
                                  WHERE uid=? AND account_id=?'
                             )->execute([
+                                $newUserId,
                                 san($data['name'] ?? '', 255),
                                 san($data['date_assigned'] ?? date('Y-m-d'), 10),
                                 isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
@@ -793,6 +808,25 @@ if ($action === 'batch_sync') {
                                 $clientUid, $aid,
                             ]);
                             $serverId = (int)$existingId;
+
+                            // Push al nuevo asignado si cambió el propietario
+                            if ($newUserId !== $oldUserId) {
+                                $routeName    = san($data['name'] ?? '', 200);
+                                $dateAssigned = san($data['date_assigned'] ?? '', 20);
+                                pushToUser($newUserId, [
+                                    'type'      => 'route_reassigned',
+                                    'route_uid' => $clientUid,
+                                    'title'     => 'Ruta reasignada a ti',
+                                    'body'      => $routeName . ($dateAssigned ? ' — ' . $dateAssigned : ''),
+                                ]);
+                                // También sync al antiguo propietario para que desaparezca de su lista
+                                pushToUser($oldUserId, [
+                                    'type'      => 'sync',
+                                    'route_uid' => $clientUid,
+                                    'title'     => '',
+                                    'body'      => '',
+                                ]);
+                            }
                         } else {
                             // INSERT solo si no existe — account_id y user_id del token
                             // user_id: respetar el del payload si lo envió un manager para un agente

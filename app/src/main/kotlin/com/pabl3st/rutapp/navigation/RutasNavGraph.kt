@@ -51,6 +51,7 @@ private val exitFade    = fadeOut(tween(180))
 fun RutasNavGraph(
     navController: NavHostController = rememberNavController(),
     onExitApp: () -> Unit,
+    initialRouteUid: String? = null,   // deep link desde notificación FCM
 ) {
     val backStack    by navController.currentBackStackEntryAsState()
     val currentRoute  = backStack?.destination?.route
@@ -86,6 +87,10 @@ fun RutasNavGraph(
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
                             }
+                            // Deep link desde notificación cuando la app ya tenía sesión
+                            if (!initialRouteUid.isNullOrBlank()) {
+                                navController.navigate(Screen.RouteDetail.createRoute(initialRouteUid))
+                            }
                         } else {
                             // Sin sesión — ir a login
                             navController.navigate(Screen.Auth.route) {
@@ -99,8 +104,16 @@ fun RutasNavGraph(
             composable(Screen.Auth.route) {
                 AuthRoot(
                     onAuthenticated = {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
+                        // Si venimos de una notificación FCM con ruta concreta → ir directo
+                        if (!initialRouteUid.isNullOrBlank()) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Auth.route) { inclusive = true }
+                            }
+                            navController.navigate(Screen.RouteDetail.createRoute(initialRouteUid))
+                        } else {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Auth.route) { inclusive = true }
+                            }
                         }
                     },
                     onExitApp = onExitApp,

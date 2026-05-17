@@ -16,6 +16,7 @@ import com.pabl3st.rutapp.core.ui.theme.ThemeMode
 import com.pabl3st.rutapp.core.ui.theme.ThemeViewModel
 import com.pabl3st.rutapp.navigation.RutasNavGraph
 import dagger.hilt.android.AndroidEntryPoint
+import com.pabl3st.rutapp.fcm.RutasMessagingService
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -25,6 +26,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Extraer deep link del Intent (viene de notificación FCM)
+        val initialRouteUid = intent
+            ?.takeIf { it.getStringExtra(RutasMessagingService.EXTRA_DEEP_LINK_TYPE)
+                       in listOf("route_assigned", "route_reassigned") }
+            ?.getStringExtra(RutasMessagingService.EXTRA_DEEP_LINK_ROUTE_UID)
+
         setContent {
             val themeMode by themeVm.themeMode.collectAsStateWithLifecycle()
             val systemDark = isSystemInDarkTheme()
@@ -37,7 +44,8 @@ class MainActivity : ComponentActivity() {
             RutasAppTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     RutasNavGraph(
-                        onExitApp = { finish() }
+                        onExitApp        = { finish() },
+                        initialRouteUid  = initialRouteUid,
                     )
                 }
             }

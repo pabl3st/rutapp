@@ -29,17 +29,15 @@ class RutasMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // Guardar y enviar al servidor cuando hay sesión activa
-        serviceScope.launch {
-            fcmTokenRepository.onTokenRefresh(token)
-        }
+        serviceScope.launch { fcmTokenRepository.onTokenRefresh(token) }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        val data = message.data
 
-        // Si el push trae type=sync → disparar sync inmediato sin esperar el periódico (15min)
-        if (message.data["type"] == "sync") {
+        // type=sync → sync inmediato sin esperar el periódico (15min)
+        if (data["type"] == "sync") {
             workManager.enqueueUniqueWork(
                 SyncWorker.WORK_NAME_ONDEMAND,
                 androidx.work.ExistingWorkPolicy.REPLACE,
@@ -47,16 +45,46 @@ class RutasMessagingService : FirebaseMessagingService() {
             )
         }
 
-        // Mostrar notificación si tiene título/cuerpo
-        val title = message.notification?.title ?: message.data["title"] ?: return
-        val body  = message.notification?.body  ?: message.data["body"]  ?: return
-        showNotification(title, body)
+        // Notificaciones con navegación a pantalla concreta
+        val title = message.notification?.title ?: data["title"] ?: return
+        val body  = message.notification?.body  ?: data["body"]  ?: return
+        val type  = data["type"] ?: ""
+
+        val deepLinkIntent = buildDeepLinkIntent(type, data)
+        showNotification(title, body, deepLinkIntent)
     }
 
-    private fun showNotification(title: String, body: String) {
+    /**
+     * Construye un Intent que lleva al usuario a la pantalla correcta
+     * según el tipo de notificación y los datos del payload.
+     *
+     * Tipos soportados:
+     *  - route_assigned  → RouteDetail/{routeUid}
+     *  - route_reassigned → RouteDetail/{routeUid}
+     *  - sync            → Home (sin navegación específica)
+     *  - (otros)         → Home
+     */
+    private fun buildDeepLinkIntent(type: String, data: Map<String, String>): Intent {
+        val base = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        return when (type) {
+            "route_assigned", "route_reassigned" -> {
+                val routeUid = data["route_uid"]
+                if (!routeUid.isNullOrBlank()) {
+                    base.apply {
+                        putExtra(EXTRA_DEEP_LINK_TYPE, type)
+                        putExtra(EXTRA_DEEP_LINK_ROUTE_UID, routeUid)
+                    }
+                } else base
+            }
+            else -> base
+        }
+    }
+
+    private fun showNotification(title: String, body: String, intent: Intent) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Canal (Android 8+)
         val channel = NotificationChannel(
             CHANNEL_ID,
             "RutasApp",
@@ -64,12 +92,11 @@ class RutasMessagingService : FirebaseMessagingService() {
         ).apply { description = "Notificaciones de RutasApp" }
         manager.createNotificationChannel(channel)
 
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE,
+            this,
+            System.currentTimeMillis().toInt(),  // requestCode único para no sobrescribir
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -78,12 +105,15 @@ class RutasMessagingService : FirebaseMessagingService() {
             .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
         manager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
     companion object {
-        const val CHANNEL_ID = "rutasapp_default"
+        const val CHANNEL_ID                = "rutasapp_default"
+        const val EXTRA_DEEP_LINK_TYPE      = "deep_link_type"
+        const val EXTRA_DEEP_LINK_ROUTE_UID = "deep_link_route_uid"
     }
 }
