@@ -359,8 +359,8 @@ fun RutasNavGraph(
                 )
             }
             composable(route = Screen.Importar.route) {
-                // Guardia: solo owner/admin puede acceder al wizard de importación
-                if (userRole !in listOf("admin", "owner", "god")) {
+                // Guardia: owner/admin/manager/god pueden acceder al wizard de importación
+                if (userRole !in listOf("manager", "admin", "owner", "god")) {
                     navController.popBackStack()
                     return@composable
                 }
