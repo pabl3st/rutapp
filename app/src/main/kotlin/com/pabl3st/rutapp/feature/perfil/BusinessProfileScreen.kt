@@ -61,7 +61,7 @@ fun BusinessProfileScreen(
                 SectorCard(
                     sector         = ui.profile?.sector ?: "custom",
                     sectorLabel    = vm.sectorLabel(ui.profile?.sector ?: "custom"),
-                    onChangeSector = if (ui.canEditSector) vm::onShowSectorPicker else null,
+                    onChangeSector = if (ui.canEditSector) ({ vm.onShowSectorPicker() }) else null,
                 )
             }
 
@@ -77,8 +77,9 @@ fun BusinessProfileScreen(
                     )
                 }
                 items(commonKpis, key = { it.id }) { kpi ->
+                    val id1 = kpi.id
                     KpiRow(kpi = kpi,
-                        onToggle = if (ui.canEditSector) { { vm.onToggleKpiVisible(kpi.id, it) } } else null,
+                        onToggle = if (ui.canEditSector) ({ v: Boolean -> vm.onToggleKpiVisible(id1, v) }) else null,
                         onDelete = null)
                 }
             }
@@ -95,8 +96,9 @@ fun BusinessProfileScreen(
                     )
                 }
                 items(sectorKpis, key = { it.id }) { kpi ->
+                    val id2 = kpi.id
                     KpiRow(kpi = kpi,
-                        onToggle = if (ui.canEditSector) { { vm.onToggleKpiVisible(kpi.id, it) } } else null,
+                        onToggle = if (ui.canEditSector) ({ v: Boolean -> vm.onToggleKpiVisible(id2, v) }) else null,
                         onDelete = null)
                 }
             }
@@ -143,7 +145,7 @@ fun BusinessProfileScreen(
 }
 
 @Composable
-private fun SectorCard(sector: String, sectorLabel: String, onChangeSector: () -> Unit) {
+private fun SectorCard(sector: String, sectorLabel: String, onChangeSector: (() -> Unit)?) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier          = Modifier.padding(16.dp),
@@ -161,7 +163,7 @@ private fun SectorCard(sector: String, sectorLabel: String, onChangeSector: () -
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(sectorLabel, style = MaterialTheme.typography.titleMedium)
             }
-            FilledTonalButton(onClick = onChangeSector) {
+            if (onChangeSector != null) FilledTonalButton(onClick = onChangeSector) {
                 Text("Cambiar")
             }
         }
@@ -171,7 +173,7 @@ private fun SectorCard(sector: String, sectorLabel: String, onChangeSector: () -
 @Composable
 private fun KpiRow(
     kpi: KpiDefinitionEntity,
-    onToggle: (Boolean) -> Unit,
+    onToggle: ((Boolean) -> Unit)?,
     onDelete: (() -> Unit)?,
 ) {
     val typeIcon = when (kpi.type) {
@@ -210,7 +212,7 @@ private fun KpiRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Switch(checked = kpi.visible, onCheckedChange = onToggle)
+            Switch(checked = kpi.visible, onCheckedChange = onToggle, enabled = onToggle != null)
             if (onDelete != null) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar KPI",
