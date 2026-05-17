@@ -27,10 +27,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Extraer deep link del Intent (viene de notificación FCM)
-        val initialRouteUid = intent
-            ?.takeIf { it.getStringExtra(RutasMessagingService.EXTRA_DEEP_LINK_TYPE)
-                       in listOf("route_assigned", "route_reassigned") }
-            ?.getStringExtra(RutasMessagingService.EXTRA_DEEP_LINK_ROUTE_UID)
+        val deepLinkType     = intent?.getStringExtra(RutasMessagingService.EXTRA_DEEP_LINK_TYPE)
+        val deepLinkRouteUid = intent?.getStringExtra(RutasMessagingService.EXTRA_DEEP_LINK_ROUTE_UID)
+        val initialRouteUid  = deepLinkRouteUid?.takeIf {
+            deepLinkType == "route_assigned" || deepLinkType == "route_reassigned"
+        }
 
         setContent {
             val themeMode by themeVm.themeMode.collectAsStateWithLifecycle()
