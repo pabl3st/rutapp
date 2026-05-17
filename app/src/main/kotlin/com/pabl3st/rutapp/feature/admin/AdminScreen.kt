@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -124,6 +125,43 @@ fun AdminScreen(
                         )
                     }
                 }
+            }
+
+            // ── Mis reportadores directos (manager/admin/owner) ───
+            if (ui.showDirectReports) {
+                item {
+                    SectionTitle("Mis reportadores hoy")
+                    Spacer(Modifier.height(Spacing.sm))
+                }
+                if (ui.directReportsLoading) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(Spacing.lg), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(24.dp))
+                        }
+                    }
+                } else if (ui.directReports.isEmpty()) {
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Box(Modifier.padding(Spacing.lg)) {
+                                Text(
+                                    "No tienes reportadores directos asignados todavía.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(ui.directReports, key = { "dr_${it.userId}" }) { reporter ->
+                        DirectReporterCard(
+                            reporter     = reporter,
+                            routeCount   = ui.reporterRouteCounts[reporter.userId]  ?: 0,
+                            doneStops    = ui.reporterDoneStops[reporter.userId]    ?: 0,
+                            pendingStops = ui.reporterPendingStops[reporter.userId] ?: 0,
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(Spacing.sm)) }
             }
 
             // ── Usuarios del account ──────────────────────────
@@ -619,3 +657,81 @@ private fun AdminStatCard(modifier: Modifier = Modifier, icon: ImageVector, valu
     }
 }
 
+
+// ── Panel de reportador directo ────────────────────────────
+@Composable
+private fun DirectReporterCard(
+    reporter:     AccountUserDto,
+    routeCount:   Int,
+    doneStops:    Int,
+    pendingStops: Int,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
+            // Cabecera: nombre + rol
+            Row(
+                modifier          = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier           = Modifier.size(20.dp),
+                    tint               = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(Spacing.sm))
+                Column(Modifier.weight(1f)) {
+                    Text(reporter.displayName, style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "@${reporter.username} · ${reporter.role}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Rutas del día
+                if (routeCount > 0) {
+                    Surface(
+                        shape  = MaterialTheme.shapes.small,
+                        color  = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            "$routeCount ${if (routeCount == 1) "ruta" else "rutas"}",
+                            style    = MaterialTheme.typography.labelSmall,
+                            color    = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+            // Stats de paradas si tiene rutas hoy
+            if (doneStops + pendingStops > 0) {
+                Spacer(Modifier.height(Spacing.sm))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    // Progreso visual
+                    val total    = doneStops + pendingStops
+                    val progress = if (total > 0) doneStops.toFloat() / total else 0f
+                    LinearProgressIndicator(
+                        progress          = { progress },
+                        modifier          = Modifier.weight(1f).align(Alignment.CenterVertically),
+                        trackColor        = MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                    Text(
+                        "$doneStops/$total paradas",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (doneStops == total)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(Spacing.sm))
+                Text(
+                    "Sin rutas asignadas hoy",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}

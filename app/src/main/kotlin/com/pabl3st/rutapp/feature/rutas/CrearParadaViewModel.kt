@@ -39,6 +39,7 @@ class CrearParadaViewModel @Inject constructor(
     private val _ui = MutableStateFlow(CrearParadaUiState())
     val ui: StateFlow<CrearParadaUiState> = _ui.asStateFlow()
 
+
     // ── Campos ────────────────────────────────────────────────
     fun onNameChange(v: String)         = _ui.update { it.copy(name = v, error = null) }
     fun onExternalIdChange(v: String)   = _ui.update { it.copy(externalId = v) }

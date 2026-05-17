@@ -46,6 +46,14 @@ data class AdminUiState(
     val isLoading:    Boolean = true,
     val error:        String? = null,
     val snackbar:     String? = null,
+    // Panel "Mis reportadores" — para manager y admin
+    val directReports:        List<AccountUserDto> = emptyList(),
+    val directReportsLoading: Boolean              = false,
+    val showDirectReports:    Boolean              = false,  // visible para manager/admin
+    // Rutas activas hoy por reportador (userId -> count)
+    val reporterRouteCounts:  Map<Int, Int>        = emptyMap(),
+    val reporterDoneStops:    Map<Int, Int>        = emptyMap(),
+    val reporterPendingStops: Map<Int, Int>        = emptyMap(),
 )
 
 @HiltViewModel
@@ -76,6 +84,12 @@ class AdminViewModel @Inject constructor(
             loadUsers()
             loadInvites()
         }
+        // Manager y admin ven su panel de reportadores
+        val role = session.userRole
+        if (role in setOf("manager", "admin", "owner")) {
+            _ui.update { it.copy(showDirectReports = true) }
+            loadDirectReports()
+        }
     }
 
     private fun loadStats() {
@@ -105,6 +119,74 @@ class AdminViewModel @Inject constructor(
                 is AuthResult.Success -> _ui.update { it.copy(users = result.data, usersLoading = false) }
                 is AuthResult.Error   -> _ui.update { it.copy(error = result.message, usersLoading = false) }
             }
+        }
+    }
+
+    fun loadDirectReports() {
+        viewModelScope.launch {
+            _ui.update { it.copy(directReportsLoading = true) }
+            when (val result = adminRepo.listUsers()) {
+                is AuthResult.Success -> {
+                    val myId   = session.userId
+                    val myRole = session.userRole
+                    // Filtrar según rol:
+                    // manager → sus agentes directos (managerId == myId)
+                    // admin   → managers + agents de su account
+                    // owner   → todos (admin/manager/agent)
+                    val reports = result.data.filter { u ->
+                        u.isActive && when (myRole) {
+                            "manager" -> u.managerId == myId || session.managedAgentIds.contains(u.userId)
+                            "admin"   -> u.role in setOf("manager", "agent")
+                            "owner"   -> u.role in setOf("admin", "manager", "agent")
+                            else      -> false
+                        }
+                    }
+                    _ui.update { it.copy(directReports = reports, directReportsLoading = false) }
+                    // Cargar stats de rutas de hoy para cada reportador
+                    loadReporterStats(reports.map { it.userId })
+                }
+                is AuthResult.Error -> _ui.update { it.copy(directReportsLoading = false) }
+            }
+        }
+    }
+
+    private fun loadReporterStats(userIds: List<Int>) {
+        if (userIds.isEmpty()) return
+        viewModelScope.launch {
+            val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            routeRepo.observeAll()
+                .flatMapLatest { routes ->
+                    // Filtrar rutas de hoy de los reportadores
+                    val todayRoutes = routes.filter { r ->
+                        r.userId in userIds &&
+                        (r.dateAssigned == today || r.scheduledDates?.contains(today) == true)
+                    }
+                    val routeUids = todayRoutes.map { it.uid }
+                    stopRepo.observeByRouteUids(routeUids).map { stops ->
+                        // routeCounts: cuántas rutas tiene cada userId hoy
+                        val routeCounts = todayRoutes.groupBy { it.userId }.mapValues { it.value.size }
+                        // done / pending stops por userId
+                        val stopsByRoute = stops.groupBy { it.routeUid }
+                        val doneByUser   = mutableMapOf<Int, Int>()
+                        val pendByUser   = mutableMapOf<Int, Int>()
+                        todayRoutes.forEach { route ->
+                            val routeStops = stopsByRoute[route.uid] ?: emptyList()
+                            val done = routeStops.count { it.status == "done" }
+                            val pend = routeStops.count { it.status != "done" }
+                            doneByUser[route.userId]  = (doneByUser[route.userId]  ?: 0) + done
+                            pendByUser[route.userId]  = (pendByUser[route.userId]  ?: 0) + pend
+                        }
+                        Triple(routeCounts, doneByUser.toMap(), pendByUser.toMap())
+                    }
+                }
+                .catch { /* silencioso — stats no críticos */ }
+                .collect { (counts, done, pend) ->
+                    _ui.update { it.copy(
+                        reporterRouteCounts  = counts,
+                        reporterDoneStops    = done,
+                        reporterPendingStops = pend,
+                    )}
+                }
         }
     }
 

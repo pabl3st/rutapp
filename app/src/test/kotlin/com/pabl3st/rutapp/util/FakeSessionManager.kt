@@ -49,6 +49,11 @@ class FakeSessionManager : SessionManager(
         get()      = _userRole
         set(value) { _userRole = value }
 
+    private var _managedAgentIds: List<Int> = emptyList()
+    override var managedAgentIds: List<Int>
+        get()      = _managedAgentIds
+        set(value) { _managedAgentIds = value }
+
     override var userDisplayName: String
         get()      = _userDisplayName
         set(value) { _userDisplayName = value }

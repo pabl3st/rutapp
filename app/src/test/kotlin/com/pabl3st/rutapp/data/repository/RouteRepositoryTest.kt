@@ -199,3 +199,84 @@ class RouteRepositoryTest {
         coVerify { api.deltaSync(any(), any(), since = "2026-04-30T10:00:00Z") }
     }
 }
+
+// ── Tests de cascada de visibilidad por rol ────────────────
+
+    @Test
+    fun `observeAll como owner usa observeByAccount (ve todo el account)`() = runTest {
+        session.userRole = "owner"
+        val routes = listOf(TestFixtures.routeEntity())
+        every { routeDao.observeByAccount(any()) } returns flowOf(routes)
+
+        repo.observeAll().test {
+            assertThat(awaitItem()).isEqualTo(routes)
+            cancelAndIgnoreRemainingEvents()
+        }
+        verify { routeDao.observeByAccount(session.accountId) }
+    }
+
+    @Test
+    fun `observeAll como manager con agentes usa observeByUserIds`() = runTest {
+        session.userRole       = "manager"
+        session.managedAgentIds = listOf(10, 11)
+        val agentRoute = TestFixtures.routeEntity(userId = 10)
+        every { routeDao.observeByUserIds(any()) } returns flowOf(listOf(agentRoute))
+
+        repo.observeAll().test {
+            assertThat(awaitItem()).contains(agentRoute)
+            cancelAndIgnoreRemainingEvents()
+        }
+        // Debe incluir los agentIds + el propio userId del manager
+        verify { routeDao.observeByUserIds(match { it.containsAll(listOf(10, 11)) }) }
+    }
+
+    @Test
+    fun `observeAll como manager sin agentes solo ve sus propias rutas`() = runTest {
+        session.userRole        = "manager"
+        session.managedAgentIds = emptyList()
+        val ownRoute = TestFixtures.routeEntity(userId = session.userId)
+        every { routeDao.observeByUser(session.userId) } returns flowOf(listOf(ownRoute))
+
+        repo.observeAll().test {
+            assertThat(awaitItem()).contains(ownRoute)
+            cancelAndIgnoreRemainingEvents()
+        }
+        verify { routeDao.observeByUser(session.userId) }
+    }
+
+    @Test
+    fun `observeAll como agent solo ve sus propias rutas`() = runTest {
+        session.userRole = "agent"
+        val ownRoute = TestFixtures.routeEntity(userId = session.userId)
+        every { routeDao.observeByUser(session.userId) } returns flowOf(listOf(ownRoute))
+
+        repo.observeAll().test {
+            assertThat(awaitItem()).isEqualTo(listOf(ownRoute))
+            cancelAndIgnoreRemainingEvents()
+        }
+        verify { routeDao.observeByUser(session.userId) }
+        verify(exactly = 0) { routeDao.observeByAccount(any()) }
+    }
+
+    @Test
+    fun `createRoute con forUserId asigna la ruta al usuario indicado`() = runTest {
+        session.userRole = "manager"
+        val targetUserId = 42
+
+        repo.createRoute(name = "Ruta agente", dateAssigned = "2026-05-20", forUserId = targetUserId)
+
+        coVerify {
+            routeDao.upsert(match { it.userId == targetUserId })
+        }
+    }
+
+    @Test
+    fun `createRoute sin forUserId asigna la ruta al caller`() = runTest {
+        session.userRole = "agent"
+
+        repo.createRoute(name = "Mi ruta", dateAssigned = "2026-05-20", forUserId = null)
+
+        coVerify {
+            routeDao.upsert(match { it.userId == session.userId })
+        }
+    }
