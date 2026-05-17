@@ -195,11 +195,9 @@ fun RutasNavGraph(
                     navController.popBackStack()
                     return@composable
                 }
-                val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 CrearParadaScreen(
-                    routeUid = routeUid,
-                    onBack   = { navController.popBackStack() },
-                    onSaved  = { navController.popBackStack() },
+                    onBack  = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
                 )
             }
 
