@@ -464,11 +464,46 @@ class ImportarViewModel @Inject constructor(
         _ui.update { it.copy(calendarEntries = entries) }
     }
 
+
+    /** Añade una fecha al array scheduledDates de la entrada (sin duplicados). */
+    fun onCalendarAddDate(clusterIndex: Int, date: LocalDate) {
+        val entries = _ui.value.calendarEntries.map { entry ->
+            if (entry.clusterIndex != clusterIndex) return@map entry
+            val existing = entry.scheduledDates.toMutableList()
+            if (!existing.contains(date)) {
+                existing.add(date)
+                existing.sort()
+            }
+            entry.copy(
+                date           = existing.firstOrNull() ?: date,
+                scheduledDates = existing,
+            )
+        }
+        _ui.update { it.copy(calendarEntries = entries) }
+    }
+
+    /** Elimina una fecha concreta del array scheduledDates de la entrada. */
+    fun onCalendarRemoveDate(clusterIndex: Int, date: LocalDate) {
+        val entries = _ui.value.calendarEntries.map { entry ->
+            if (entry.clusterIndex != clusterIndex) return@map entry
+            val remaining = entry.scheduledDates.filter { it != date }
+            entry.copy(
+                date           = remaining.firstOrNull(),
+                scheduledDates = remaining,
+            )
+        }
+        _ui.update { it.copy(calendarEntries = entries) }
+    }
+
     fun onCalendarConfirm() {
+        // Advertir si alguna ruta sin fechas de fichero no tiene fecha asignada
+        val missingDates = _ui.value.calendarEntries.count { e ->
+            !e.datesFromImport && e.scheduledDates.isEmpty() && e.date == null
+        }
+        // No bloqueamos — el usuario puede importar sin fechas y asignarlas luego desde Calendario
         if (_ui.value.hasKpiSheet || _kpiRawRows.isNotEmpty()) {
             _ui.update { it.copy(step = ImportStep.KPI_REPORTS) }
         } else {
-            // Sin KPIs → saltar directo a guardar
             onSaveConfirm()
         }
     }

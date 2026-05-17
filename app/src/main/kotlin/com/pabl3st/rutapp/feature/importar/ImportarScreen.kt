@@ -18,6 +18,10 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -749,77 +753,16 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
             Spacer(Modifier.height(Spacing.sm))
         }
 
-        // ── Una card por ruta (no por fecha) ─────────────────
+        // ── Una card por ruta ────────────────────────────────
         itemsIndexed(ui.calendarEntries) { idx, entry ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(Spacing.md)) {
-                    Row(
-                        modifier              = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment     = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(entry.routeName, style = MaterialTheme.typography.titleSmall,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                "${entry.stopCount} paradas",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // Fecha principal (primer día de visita)
-                        val currentDate = entry.date ?: LocalDate.now()
-                        Row(
-                            verticalAlignment     = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            IconButton(onClick = {
-                                vm.onCalendarDateChange(idx, currentDate.minusDays(1))
-                            }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.ChevronLeft, null, Modifier.size(18.dp))
-                            }
-                            Text(currentDate.format(fmtDay), style = MaterialTheme.typography.labelMedium)
-                            IconButton(onClick = {
-                                vm.onCalendarDateChange(idx, currentDate.plusDays(1))
-                            }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                    // Mostrar las fechas de visita programadas si hay más de una
-                    if (entry.scheduledDates.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            if (entry.datesFromImport) {
-                                Surface(
-                                    shape = MaterialTheme.shapes.extraSmall,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                ) {
-                                    Text(
-                                        "Del fichero",
-                                        style    = MaterialTheme.typography.labelSmall,
-                                        color    = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    )
-                                }
-                            }
-                            Text(
-                                // Solo mostrar fechas del mes seleccionado
-                                entry.scheduledDates
-                                    .filter { java.time.YearMonth.from(it) == ui.selectedMonth }
-                                    .ifEmpty { entry.scheduledDates }
-                                    .joinToString(" · ") { it.format(fmtDay) },
-                                style  = MaterialTheme.typography.labelSmall,
-                                color  = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-            }
+            RouteCalendarCard(
+                entry          = entry,
+                selectedMonth  = ui.selectedMonth,
+                fmtDay         = fmtDay,
+                onDateChange   = { date -> vm.onCalendarDateChange(idx, date) },
+                onAddDate      = { vm.onCalendarAddDate(idx, it) },
+                onRemoveDate   = { vm.onCalendarRemoveDate(idx, it) },
+            )
         }
 
         item {
@@ -850,6 +793,182 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
                 onClick  = vm::skipCalendarStep,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Saltar — usar fechas por defecto") }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Card de ruta en el paso Calendario
+// ─────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RouteCalendarCard(
+    entry:         com.pabl3st.rutapp.feature.importar.RouteCalendarEntry,
+    selectedMonth: java.time.YearMonth,
+    fmtDay:        java.time.format.DateTimeFormatter,
+    onDateChange:  (LocalDate) -> Unit,
+    onAddDate:     (LocalDate) -> Unit,
+    onRemoveDate:  (LocalDate) -> Unit,
+) {
+    // Fechas del mes seleccionado
+    val datesThisMonth = entry.scheduledDates
+        .filter { java.time.YearMonth.from(it) == selectedMonth }
+
+    // Sin fecha asignada → mostrar estado de advertencia
+    val sinFecha = entry.date == null && !entry.datesFromImport && datesThisMonth.isEmpty()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = if (sinFecha)
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
+        else
+            CardDefaults.cardColors(),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+
+            // ── Cabecera: nombre + nº paradas ────────────────
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        entry.routeName,
+                        style    = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${entry.stopCount} paradas",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (entry.datesFromImport) {
+                    Surface(
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            "Del fichero",
+                            style    = MaterialTheme.typography.labelSmall,
+                            color    = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Sin fecha: advertencia + selector de día ──────
+            if (sinFecha) {
+                Text(
+                    "⚠ Sin fecha — selecciona al menos una fecha de visita",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+
+            // ── Chips de fechas ya asignadas ──────────────────
+            if (datesThisMonth.isNotEmpty()) {
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement   = Arrangement.spacedBy(4.dp),
+                ) {
+                    datesThisMonth.forEach { d ->
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Row(
+                                verticalAlignment     = Alignment.CenterVertically,
+                                modifier              = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+                            ) {
+                                Text(
+                                    d.format(fmtDay),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                                // No borrar si vienen del fichero
+                                if (!entry.datesFromImport) {
+                                    Spacer(Modifier.width(2.dp))
+                                    IconButton(
+                                        onClick  = { onRemoveDate(d) },
+                                        modifier = Modifier.size(16.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close, null,
+                                            Modifier.size(10.dp),
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            } else if (entry.datesFromImport) {
+                // Tiene fechas del fichero pero no del mes seleccionado
+                Text(
+                    "No hay visitas en el mes seleccionado para esta ruta",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // ── Selector de fecha: ±día + botón "Añadir fecha" ─
+            if (!entry.datesFromImport) {
+                val pivot = entry.date ?: LocalDate.now()
+                Row(
+                    modifier              = Modifier.fillMaxWidth(),
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    // Navegar al día anterior
+                    OutlinedIconButton(
+                        onClick  = { onDateChange(pivot.minusDays(1)) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(Icons.Default.ChevronLeft, null, Modifier.size(16.dp))
+                    }
+                    // Fecha pivot actual
+                    Surface(
+                        shape    = MaterialTheme.shapes.small,
+                        color    = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            pivot.format(fmtDay),
+                            style     = MaterialTheme.typography.labelMedium,
+                            modifier  = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                    // Navegar al día siguiente
+                    OutlinedIconButton(
+                        onClick  = { onDateChange(pivot.plusDays(1)) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(Icons.Default.ChevronRight, null, Modifier.size(16.dp))
+                    }
+                    // Añadir esta fecha al array de scheduledDates
+                    FilledTonalButton(
+                        onClick  = { onAddDate(pivot) },
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                    ) {
+                        Icon(Icons.Default.Add, null, Modifier.size(14.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("Añadir", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
         }
     }
 }
