@@ -725,10 +725,14 @@ if ($action === 'delta_sync') {
 
 // ── batch_sync ───────────────────────────────────────────────
 if ($action === 'batch_sync') {
-    $sess = requireAuth();
-    $uid  = (int)$sess['uid'];
-    $aid  = (int)$sess['account_id'];
-    $ops  = $body['operations'] ?? [];
+    $sess      = requireAuth();
+    $uid       = (int)$sess['uid'];
+    $aid       = (int)$sess['account_id'];
+    $ops       = $body['operations'] ?? [];
+    $callerRole  = $sess['role'];
+    $callerLevel = roleLevel($callerRole);
+    // Solo owner/admin/god pueden crear o eliminar rutas y paradas
+    $canCreateDelete = $callerLevel >= 4; // admin=4, owner=5, god=6
 
     $synced = [];
     $errors = [];
@@ -740,6 +744,15 @@ if ($action === 'batch_sync') {
             $operation = san($op['operation'] ?? '', 10);
             $data      = $op['data'] ?? [];
             $clientUid = san($op['uid'] ?? '', 36);
+
+            // Bloquear create/delete de rutas y paradas para manager/agent/viewer
+            if (in_array($entity, ['route', 'stop']) &&
+                in_array($operation, ['create', 'delete']) &&
+                !$canCreateDelete) {
+                $errors[] = ['uid' => $clientUid, 'entity' => $entity,
+                             'error' => 'Sin permisos para crear o eliminar ' . $entity];
+                continue;
+            }
 
             try {
                 if ($entity === 'route') {
