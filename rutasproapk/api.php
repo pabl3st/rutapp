@@ -711,15 +711,26 @@ if ($action === 'delta_sync') {
     $stKD->execute([$aid]);
     $kpiDefs = $stKD->fetchAll();
 
+    // IDs de agentes bajo supervisión directa del caller (solo si es manager)
+    $managedAgentIds = [];
+    if ($role === 'manager') {
+        $stMA = db()->prepare(
+            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1'
+        );
+        $stMA->execute([$aid, $uid]);
+        $managedAgentIds = array_column($stMA->fetchAll(), 'id');
+    }
+
     apiLog($action, $uid, $aid);
     ok([
-        'routes'           => $stR->fetchAll(),
-        'stops'            => $stS->fetchAll(),
-        'day_sessions'     => $stD->fetchAll(),
-        'kpi_values'       => $stK->fetchAll(),
-        'business_profile' => $bp,
-        'kpi_definitions'  => $kpiDefs,
-        'server_time'      => date('c'),
+        'routes'             => $stR->fetchAll(),
+        'stops'              => $stS->fetchAll(),
+        'day_sessions'       => $stD->fetchAll(),
+        'kpi_values'         => $stK->fetchAll(),
+        'business_profile'   => $bp,
+        'kpi_definitions'    => $kpiDefs,
+        'managed_agent_ids'  => $managedAgentIds,  // [] para no-manager
+        'server_time'        => date('c'),
     ]);
 }
 
