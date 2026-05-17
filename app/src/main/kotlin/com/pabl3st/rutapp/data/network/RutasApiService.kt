@@ -140,6 +140,7 @@ data class HealthResponse(
 data class RouteDto(
     val id: Int?,
     val uid: String,
+    @Json(name = "user_id")         val userId: Int = 0,
     val name: String,
     @Json(name = "date_assigned")    val dateAssigned: String,
     @Json(name = "scheduled_dates")  val scheduledDates: String? = null,
@@ -150,6 +151,28 @@ data class RouteDto(
     @Json(name = "created_at")  val createdAt: String,
     @Json(name = "updated_at")  val updatedAt: String,
     @Json(name = "deleted_at")  val deletedAt: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class BusinessProfileSyncDto(
+    val sector: String = "custom",
+    val name:   String = "Mi negocio",
+)
+
+@JsonClass(generateAdapter = true)
+data class KpiDefinitionSyncDto(
+    val id:          String,
+    @Json(name = "account_id") val accountId: Int = 0,
+    val sector:      String = "common",
+    val label:       String,
+    val type:        String = "text",
+    val unit:        String? = null,
+    val options:     String? = null,
+    @Json(name = "is_system")   val isSystem:   Int = 0,
+    val visible:     Int = 1,
+    val required:    Int = 0,
+    @Json(name = "order_index") val orderIndex: Int = 0,
+    val section:     String = "general",
 )
 
 @JsonClass(generateAdapter = true)
@@ -194,9 +217,11 @@ data class DeltaSyncResponse(
     val ok: Boolean,
     val routes: List<RouteDto>?,
     val stops: List<StopDto>?,
-    @Json(name = "day_sessions") val daySessions: List<DaySessionDto>? = null,
-    @Json(name = "kpi_values")   val kpiValues:   List<KpiValueDto>?  = null,
-    @Json(name = "server_time")  val serverTime:  String?,
+    @Json(name = "day_sessions")     val daySessions:     List<DaySessionDto>?      = null,
+    @Json(name = "kpi_values")       val kpiValues:       List<KpiValueDto>?         = null,
+    @Json(name = "business_profile") val businessProfile: BusinessProfileSyncDto?    = null,
+    @Json(name = "kpi_definitions")  val kpiDefinitions:  List<KpiDefinitionSyncDto>? = null,
+    @Json(name = "server_time")      val serverTime:      String?,
     val error: String?,
 )
 

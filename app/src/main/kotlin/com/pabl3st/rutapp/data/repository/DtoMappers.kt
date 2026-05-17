@@ -10,7 +10,7 @@ fun RouteDto.toEntity(userId: Int, accountId: Int) = RouteEntity(
     uid             = uid,
     serverId        = id,
     accountId       = accountId,
-    userId          = userId,
+    userId          = if (this.userId != 0) this.userId else userId,  // preservar userId del servidor
     name            = name,
     dateAssigned    = dateAssigned,
     scheduledDates  = scheduledDates?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
@@ -57,3 +57,30 @@ fun StopDto.toEntity(accountId: Int): StopEntity? {
         syncedAt     = updatedAt,
     )
 }
+
+fun com.pabl3st.rutapp.data.network.BusinessProfileSyncDto.toEntity(accountId: Int) =
+    com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity(
+        accountId   = accountId,
+        sector      = sector,
+        name        = name,
+        updatedAt   = System.currentTimeMillis(),
+        syncStatus  = "synced",
+    )
+
+fun com.pabl3st.rutapp.data.network.KpiDefinitionSyncDto.toEntity() =
+    com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity(
+        id          = id,
+        accountId   = accountId,
+        sector      = sector,
+        label       = label,
+        type        = type,
+        unit        = unit,
+        options     = options,
+        isSystem    = isSystem == 1,
+        visible     = visible == 1,
+        required    = required == 1,
+        orderIndex  = orderIndex,
+        section     = section,
+        syncStatus  = "synced",
+    )
+

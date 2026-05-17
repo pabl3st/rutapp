@@ -1,6 +1,7 @@
 package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
+import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
 import com.pabl3st.rutapp.data.repository.PhotoRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
@@ -41,7 +42,8 @@ class SyncRepository @Inject constructor(
     private val stopRepo:        StopRepository,
     private val daySessionDao:   DaySessionDao,
     private val kpiValueDao:     KpiValueDao,
-    private val businessProfileDao: BusinessProfileDao,
+    private val businessProfileDao:  BusinessProfileDao,
+    private val kpiDefinitionDao:    KpiDefinitionDao,
     private val photoRepo:       PhotoRepository,
     private val api:             RutasApiService,
     private val session:         SessionManager,
@@ -175,6 +177,23 @@ class SyncRepository @Inject constructor(
         body.kpiValues?.mapNotNull { it.toEntity() }
             ?.filter { it.valueText.isNotBlank() }
             ?.let { if (it.isNotEmpty()) kpiValueDao.upsertAll(it) }
+        // Restaurar business_profile desde el servidor (si reinstalación o primer sync)
+        body.businessProfile?.let { bp ->
+            val existing = businessProfileDao.get(session.accountId)
+            if (existing == null) {
+                // Solo insertar si no existe localmente — no sobreescribir cambios locales
+                businessProfileDao.upsert(bp.toEntity(session.accountId))
+            }
+        }
+
+        // Restaurar kpi_definitions desde el servidor
+        body.kpiDefinitions?.let { defs ->
+            if (defs.isNotEmpty()) {
+                // Upsert — el servidor es fuente de verdad para KPI definitions
+                kpiDefinitionDao.upsertAll(defs.map { it.toEntity() })
+            }
+        }
+
         body.serverTime?.let { session.lastSyncTimestamp = it }
         return true
     }
