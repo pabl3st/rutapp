@@ -184,38 +184,38 @@ fun RutasNavGraph(
 
             composable(
                 route               = Screen.CrearParada.route,
-                arguments           = listOf(navArgument("routeUid") {
-                // Guardia: viewer no puede CrearParada
-                if (userRole == "viewer") {
-                    navController.popBackStack()
-                    return@composable
-                }
- type = NavType.StringType }),
-                enterTransition     = { enterPush },
-                exitTransition      = { exitPush },
-                popEnterTransition  = { enterPop },
-                popExitTransition   = { exitPop },
-            ) {
-                CrearParadaScreen(
-                    onBack  = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() },
-                )
-            }
-
-            composable(
-                route               = Screen.Visita.route,
-                arguments           = listOf(navArgument("stopUid") {
-                // Guardia: viewer no puede Visita
-                if (userRole == "viewer") {
-                    navController.popBackStack()
-                    return@composable
-                }
- type = NavType.StringType }),
+                arguments           = listOf(navArgument("routeUid") { type = NavType.StringType }),
                 enterTransition     = { enterPush },
                 exitTransition      = { exitPush },
                 popEnterTransition  = { enterPop },
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
+                // Guardia: viewer no puede CrearParada
+                if (userRole == "viewer") {
+                    navController.popBackStack()
+                    return@composable
+                }
+                val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
+                CrearParadaScreen(
+                    routeUid = routeUid,
+                    onBack   = { navController.popBackStack() },
+                    onSaved  = { navController.popBackStack() },
+                )
+            }
+
+            composable(
+                route               = Screen.Visita.route,
+                arguments           = listOf(navArgument("stopUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
+            ) { backStackEntry ->
+                // Guardia: viewer no puede Visita
+                if (userRole == "viewer") {
+                    navController.popBackStack()
+                    return@composable
+                }
                 val stopUid = backStackEntry.arguments?.getString("stopUid") ?: return@composable
                 VisitaScreen(
                     stopUid = stopUid,
