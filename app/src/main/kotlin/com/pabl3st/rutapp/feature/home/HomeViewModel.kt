@@ -34,6 +34,7 @@ data class HomeUiState(
     val isSyncing:      Boolean = false,
     val userName:       String  = "",
     val userRole:       String  = "agent",
+    val isManager:      Boolean = false,  // owner/admin/manager/god
     val error:          String? = null,
 )
 
@@ -50,8 +51,9 @@ class HomeViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(
         HomeUiState(
-            userName = session.userDisplayName,
-            userRole = session.userRole,
+            userName  = session.userDisplayName,
+            userRole  = session.userRole,
+            isManager = session.userRole in MANAGER_ROLES,
         )
     )
     val ui: StateFlow<HomeUiState> = _ui.asStateFlow()

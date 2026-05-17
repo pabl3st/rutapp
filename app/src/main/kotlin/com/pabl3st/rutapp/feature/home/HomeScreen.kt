@@ -132,6 +132,11 @@ private fun RouteListContent(
             )
         }
 
+        // ── Panel de equipo para manager ──────────────────────
+        if (ui.isManager && ui.routes.isNotEmpty()) {
+            item { ManagerTeamSummary(routes = ui.routes) }
+        }
+
         // ── JornadaBar para todas las rutas de hoy operativas ──
         // La jornada se gestiona via DaySessionEntity (idle/running/paused/done)
         // independientemente del route.status — no filtrar por "active"
@@ -162,6 +167,49 @@ private fun RouteListContent(
         }
 
         item { Spacer(Modifier.height(Spacing.lg)) }
+    }
+}
+
+// ── ManagerTeamSummary ───────────────────────────────────────
+@Composable
+private fun ManagerTeamSummary(routes: List<RouteWithProgress>) {
+    val byAgent = routes.groupBy { it.route.userId }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text(
+                "Equipo hoy — ${byAgent.size} agente${if (byAgent.size != 1) "s" else ""}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            byAgent.forEach { (_, agentRoutes) ->
+                val totalStops = agentRoutes.sumOf { it.totalStops }
+                val doneStops  = agentRoutes.sumOf { it.doneStops }
+                val progress   = if (totalStops > 0) doneStops.toFloat() / totalStops else 0f
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            agentRoutes.joinToString(", ") { it.route.name },
+                            style    = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(Spacing.sm))
+                    Text(
+                        "$doneStops/$totalStops",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
     }
 }
 

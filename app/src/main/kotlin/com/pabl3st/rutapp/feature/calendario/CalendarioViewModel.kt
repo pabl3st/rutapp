@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.repository.RouteRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -41,16 +42,20 @@ data class CalendarioUiState(
     val snackbar:          String?                     = null,
     val error:             String?                     = null,
     val vacationDays:      Set<String>                 = emptySet(),
+    val isManager:         Boolean                     = false,
 )
 
 @HiltViewModel
 class CalendarioViewModel @Inject constructor(
     private val routeRepo:     RouteRepository,
     private val userPrefsRepo: UserPrefsRepository,
+    private val session:       SessionManager,
 ) : BaseViewModel() {
 
     private val fmt = DateTimeFormatter.ISO_LOCAL_DATE
-    private val _ui = MutableStateFlow(CalendarioUiState())
+    private val _ui = MutableStateFlow(CalendarioUiState(
+        isManager = session.userRole in listOf("owner", "admin", "manager", "god"),
+    ))
     val ui: StateFlow<CalendarioUiState> = _ui.asStateFlow()
 
     // Cache de festivos por año para no repetir llamadas
