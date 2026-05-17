@@ -637,12 +637,16 @@ if ($action === 'delta_sync') {
     $roleLevel = roleLevel($sess['role']);
     if ($roleLevel >= 3) {
         $stR = db()->prepare(
-            'SELECT * FROM routes WHERE account_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
+            'SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
+                       status, notes, created_at, updated_at, deleted_at
+                FROM routes WHERE account_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
         );
         $stR->execute([$aid, $since]);
     } else {
         $stR = db()->prepare(
-            'SELECT * FROM routes WHERE user_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
+            'SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
+                       status, notes, created_at, updated_at, deleted_at
+                FROM routes WHERE user_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
         );
         $stR->execute([$uid, $since]);
     }
@@ -688,12 +692,34 @@ if ($action === 'delta_sync') {
     $stK->execute([$uid, $since]);
 
     apiLog($action, $uid, $aid);
+    // Business profile de la cuenta
+    $stBP = db()->prepare(
+        'SELECT sector, name FROM business_profiles WHERE account_id=? LIMIT 1'
+    );
+    $stBP->execute([$aid]);
+    $bp = $stBP->fetch() ?: null;
+
+    // KPI definitions activos de la cuenta (isSystem=1 son catálogo global, también se restauran)
+    $stKD = db()->prepare(
+        'SELECT id, account_id, sector, label, type, unit, options,
+                is_system, visible, required, order_index, section
+         FROM kpi_definitions
+         WHERE account_id IN (0, ?) AND visible=1
+         ORDER BY is_system DESC, order_index ASC
+         LIMIT 200'
+    );
+    $stKD->execute([$aid]);
+    $kpiDefs = $stKD->fetchAll();
+
+    apiLog($action, $uid, $aid);
     ok([
-        'routes'       => $stR->fetchAll(),
-        'stops'        => $stS->fetchAll(),
-        'day_sessions' => $stD->fetchAll(),
-        'kpi_values'   => $stK->fetchAll(),
-        'server_time'  => date('c'),
+        'routes'           => $stR->fetchAll(),
+        'stops'            => $stS->fetchAll(),
+        'day_sessions'     => $stD->fetchAll(),
+        'kpi_values'       => $stK->fetchAll(),
+        'business_profile' => $bp,
+        'kpi_definitions'  => $kpiDefs,
+        'server_time'      => date('c'),
     ]);
 }
 
@@ -745,12 +771,20 @@ if ($action === 'batch_sync') {
                             $serverId = (int)$existingId;
                         } else {
                             // INSERT solo si no existe — account_id y user_id del token
+                            // user_id: respetar el del payload si lo envió un manager para un agente
+                            $targetUserId = isset($data['user_id']) ? (int)$data['user_id'] : $uid;
+                            // Verificar que targetUserId pertenece a la misma cuenta
+                            if ($targetUserId !== $uid) {
+                                $stCheck = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+                                $stCheck->execute([$targetUserId, $aid]);
+                                if (!$stCheck->fetchColumn()) $targetUserId = $uid; // fallback seguro
+                            }
                             $db->prepare(
                                 'INSERT INTO routes
                                     (uid, account_id, user_id, name, date_assigned, scheduled_dates, status, notes, created_at, updated_at)
                                  VALUES (?,?,?,?,?,?,?,?,?,?)'
                             )->execute([
-                                $clientUid, $aid, $uid,
+                                $clientUid, $aid, $targetUserId,
                                 san($data['name'] ?? '', 255),
                                 san($data['date_assigned'] ?? date('Y-m-d'), 10),
                                 isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
