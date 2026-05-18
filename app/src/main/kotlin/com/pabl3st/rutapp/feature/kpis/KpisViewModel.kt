@@ -244,7 +244,6 @@ class KpisViewModel @Inject constructor(
             stopsWithoutGps = stops.count { it.lat == null || it.lat == 0.0 },
             gpsRate         = if (total > 0) stops.count { it.lat != null && it.lat != 0.0 }.toFloat() / total else 0f,
             totalRoutes     = filteredRoutes.size,
-            routeOutOfPeriod = routeOutOfPeriod,
             activeRoutes    = filteredRoutes.count { it.status == "active" },
             doneRoutes      = filteredRoutes.count { it.status == "done" },
             resultContacted = stops.count { it.visitResult == "contactado" },
@@ -257,9 +256,10 @@ class KpisViewModel @Inject constructor(
 
         // ── KPIs del sector ───────────────────────────────────────
         _ui.update { it.copy(
-            metrics  = metrics,
-            routes   = allRoutes.distinctBy { it.uid },
-            isLoading = false,
+            metrics          = metrics,
+            routes           = allRoutes.distinctBy { it.uid },
+            routeOutOfPeriod = routeOutOfPeriod,
+            isLoading        = false,
         ) }
         // buildSectorKpis + Plus lógica — en coroutine separada (suspend)
         viewModelScope.launch {
