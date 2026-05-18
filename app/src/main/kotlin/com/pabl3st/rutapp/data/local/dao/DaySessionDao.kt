@@ -16,8 +16,8 @@ interface DaySessionDao {
     @Upsert
     suspend fun upsert(session: DaySessionEntity)
 
-    @Query("UPDATE day_sessions SET state = :state, pausedAt = :pausedAt, elapsedMs = :elapsedMs, updatedAt = :now WHERE routeUid = :routeUid AND dateStr = :dateStr")
-    suspend fun updateState(routeUid: String, dateStr: String, state: String, pausedAt: Long?, elapsedMs: Long, now: Long)
+    @Query("UPDATE day_sessions SET state = :state, startedAt = :startedAt, pausedAt = :pausedAt, elapsedMs = :elapsedMs, updatedAt = :now WHERE routeUid = :routeUid AND dateStr = :dateStr")
+    suspend fun updateState(routeUid: String, dateStr: String, state: String, startedAt: Long?, pausedAt: Long?, elapsedMs: Long, now: Long)
 
     @Query("UPDATE day_sessions SET distanceKm = :km, lastLat = :lat, lastLng = :lng, updatedAt = :now WHERE routeUid = :routeUid AND dateStr = :dateStr")
     suspend fun updateDistance(routeUid: String, dateStr: String, km: Double, lat: Double, lng: Double, now: Long)

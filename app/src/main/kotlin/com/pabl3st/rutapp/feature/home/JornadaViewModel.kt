@@ -125,7 +125,10 @@ class JornadaViewModel @Inject constructor(
         tickJob?.cancel()
         tickJob = viewModelScope.launch {
             while (true) {
-                _ui.update { it.copy(elapsedMs = jornadaRepo.elapsedMs(session)) }
+                // Usar la sesión más fresca del UiState, no el snapshot inicial
+                // Esto es crítico para que pause/resume actualicen el timer correctamente
+                val current = _ui.value.session ?: session
+                _ui.update { it.copy(elapsedMs = jornadaRepo.elapsedMs(current)) }
                 delay(1_000L)
             }
         }

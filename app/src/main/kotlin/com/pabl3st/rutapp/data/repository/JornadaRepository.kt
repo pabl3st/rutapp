@@ -50,8 +50,13 @@ class JornadaRepository @Inject constructor(
         val now     = System.currentTimeMillis()
         val session = dao.get(routeUid, dateStr) ?: return
         if (session.state != "running") return
-        val elapsed = session.elapsedMs + (now - (session.pausedAt ?: session.startedAt ?: now))
-        dao.updateState(routeUid, dateStr, "paused", now, elapsed, now)
+        // Acumular tiempo desde el último startedAt (no desde pausedAt)
+        val elapsed = session.elapsedMs + (now - (session.startedAt ?: now))
+        dao.updateState(routeUid, dateStr, "paused",
+            startedAt = null,  // limpiar startedAt al pausar
+            pausedAt  = now,
+            elapsedMs = elapsed,
+            now       = now)
         dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
@@ -59,7 +64,13 @@ class JornadaRepository @Inject constructor(
         val session = dao.get(routeUid, dateStr) ?: return
         if (session.state != "paused") return
         val now = System.currentTimeMillis()
-        dao.updateState(routeUid, dateStr, "running", null, session.elapsedMs, now)
+        // startedAt = now → el ticker mide desde este momento
+        // pausedAt = null → limpiado para que pause() use startedAt correctamente
+        dao.updateState(routeUid, dateStr, "running",
+            startedAt = now,
+            pausedAt  = null,
+            elapsedMs = session.elapsedMs,
+            now       = now)
         dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
@@ -70,7 +81,11 @@ class JornadaRepository @Inject constructor(
             "running" -> session.elapsedMs + (now - (session.startedAt ?: now))
             else      -> session.elapsedMs
         }
-        dao.updateState(routeUid, dateStr, "done", null, elapsed, now)
+        dao.updateState(routeUid, dateStr, "done",
+            startedAt = null,
+            pausedAt  = null,
+            elapsedMs = elapsed,
+            now       = now)
         dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
@@ -79,7 +94,11 @@ class JornadaRepository @Inject constructor(
         val session = dao.get(routeUid, dateStr) ?: return
         if (session.state != "done") return
         val now = System.currentTimeMillis()
-        dao.updateState(routeUid, dateStr, "running", now, session.elapsedMs, now)
+        dao.updateState(routeUid, dateStr, "running",
+            startedAt = now,
+            pausedAt  = null,
+            elapsedMs = session.elapsedMs,
+            now       = now)
         dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
