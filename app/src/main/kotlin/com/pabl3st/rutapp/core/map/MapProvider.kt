@@ -122,6 +122,7 @@ data class MarkerOptions(
 
 data class MapConfig(
     val provider: MapProviderType          = MapProviderType.MAPLIBRE,
+    val routeUid: String?                  = null,   // para resetear fit bounds al cambiar de ruta
     val style: MapStyle                    = MapStyle.STANDARD,
     val layers: MapLayerOptions            = MapLayerOptions(),
     val camera: CameraOptions              = CameraOptions(),

@@ -163,14 +163,34 @@ class KpisViewModel @Inject constructor(
         val today = java.time.LocalDate.now()
         val fmt   = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
 
+        // Helper: una ruta está activa en una fecha si dateAssigned == date
+        // O si scheduledDates (CSV "2026-05-06,2026-05-14,2026-05-18") contiene esa fecha
+        fun routeDatesSet(route: com.pabl3st.rutapp.data.local.entity.RouteEntity): Set<String> {
+            val dates = mutableSetOf<String>()
+            route.dateAssigned.takeIf { it.isNotBlank() && it != "1970-01-01" }?.let { dates.add(it) }
+            route.scheduledDates?.forEach { dates.add(it) }
+            return dates
+        }
+
+        fun isRouteActiveOn(route: com.pabl3st.rutapp.data.local.entity.RouteEntity, date: java.time.LocalDate): Boolean {
+            val dateStr = date.format(fmt)
+            return routeDatesSet(route).contains(dateStr)
+        }
+
+        fun isRouteActiveInRange(route: com.pabl3st.rutapp.data.local.entity.RouteEntity,
+                                  from: java.time.LocalDate, to: java.time.LocalDate): Boolean {
+            return routeDatesSet(route).any { dateStr ->
+                val d = runCatching { java.time.LocalDate.parse(dateStr, fmt) }.getOrNull()
+                d != null && d >= from && d <= to
+            }
+        }
+
         val filteredRoutes = allRoutes.filter { route ->
-            val d = runCatching { java.time.LocalDate.parse(route.dateAssigned, fmt) }.getOrNull()
-                ?: return@filter false
             val inPeriod = when (period) {
-                KpiPeriod.TODAY      -> d == today
-                KpiPeriod.WEEK       -> d >= today.minusDays(6) && d <= today
-                KpiPeriod.MONTH      -> d >= today.minusDays(29) && d <= today
-                KpiPeriod.SIX_MONTHS -> d >= today.minusDays(179) && d <= today
+                KpiPeriod.TODAY      -> isRouteActiveOn(route, today)
+                KpiPeriod.WEEK       -> isRouteActiveInRange(route, today.minusDays(6), today)
+                KpiPeriod.MONTH      -> isRouteActiveInRange(route, today.minusDays(29), today)
+                KpiPeriod.SIX_MONTHS -> isRouteActiveInRange(route, today.minusDays(179), today)
             }
             val inRoute = _ui.value.selectedRouteUid?.let { it == route.uid } ?: true
             inPeriod && inRoute
@@ -183,7 +203,7 @@ class KpisViewModel @Inject constructor(
         val weeklyTrend = (6 downTo 0).map { daysAgo ->
             val date      = today.minusDays(daysAgo.toLong())
             val dateStr   = date.format(fmt)
-            val dayRoutes = allRoutes.filter { it.dateAssigned == dateStr }.map { it.uid }.toSet()
+            val dayRoutes = allRoutes.filter { isRouteActiveOn(it, date) }.map { it.uid }.toSet()
             val dayDone   = allStops.count { it.routeUid in dayRoutes && it.status == "done" }
             dateStr to dayDone
         }
@@ -191,9 +211,10 @@ class KpisViewModel @Inject constructor(
         // Tendencia mensual (6 meses)
         val monthlyTrend = (5 downTo 0).map { monthsAgo ->
             val month     = today.minusMonths(monthsAgo.toLong())
+            val monthStart = month.withDayOfMonth(1)
+            val monthEnd   = month.withDayOfMonth(month.lengthOfMonth())
             val monthRoutes = allRoutes.filter {
-                val d = runCatching { java.time.LocalDate.parse(it.dateAssigned, fmt) }.getOrNull()
-                d?.year == month.year && d.monthValue == month.monthValue
+                isRouteActiveInRange(it, monthStart, monthEnd)
             }.map { it.uid }.toSet()
             val monthDone = allStops.count { it.routeUid in monthRoutes && it.status == "done" }
             val label = month.format(java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale("es")))

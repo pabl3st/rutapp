@@ -117,34 +117,45 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         // Rastrear si ya hemos hecho el fit inicial (una sola vez por composición)
         var didInitialFit by remember { mutableStateOf(false) }
 
-        // Fit bounds a los stops cuando lleguen (corrección: el update{} puede
-        // ejecutarse antes de que el style esté cargado)
+        // Resetear didInitialFit cuando cambia la ruta
+        // Usamos el número de stops como proxy: si cambia la ruta, cambian los stops
+        // y también reseteamos si el primer stop cambia de uid (indicador de ruta nueva)
+        val firstStopKey = stops.firstOrNull()?.uid ?: ""
+        LaunchedEffect(config.routeUid, firstStopKey) {
+            didInitialFit = false
+        }
+
+        // Fit bounds cuando llegan los stops — SOLO aquí, no en update{}
+        // El delay garantiza que el style de MapLibre esté completamente cargado
         LaunchedEffect(stops) {
-            val map = _mapReadyRef ?: return@LaunchedEffect
-            if (!didInitialFit && stops.any { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }) {
-                // Pequeño delay para asegurar que el style está completamente listo
-                kotlinx.coroutines.delay(300)
-                val mapNow = _mapReadyRef ?: return@LaunchedEffect
-                if (mapNow.style?.isFullyLoaded == true) {
-                    val pts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
-                    if (pts.size >= 2) {
-                        val latMin = pts.minOf { it.latLng.lat }
-                        val latMax = pts.maxOf { it.latLng.lat }
-                        val lngMin = pts.minOf { it.latLng.lng }
-                        val lngMax = pts.maxOf { it.latLng.lng }
-                        mapNow.animateCamera(
-                            CameraUpdateFactory.newLatLngBounds(
-                                org.maplibre.android.geometry.LatLngBounds.from(latMax, lngMax, latMin, lngMin), 80
-                            ), 800
-                        )
-                        didInitialFit = true
-                    } else if (pts.size == 1) {
-                        mapNow.animateCamera(
-                            CameraUpdateFactory.newLatLngZoom(MLLatLng(pts[0].latLng.lat, pts[0].latLng.lng), 14.0), 600
-                        )
-                        didInitialFit = true
-                    }
+            if (didInitialFit) return@LaunchedEffect
+            val pts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
+            if (pts.isEmpty()) return@LaunchedEffect
+
+            // Reintentar hasta que el style esté listo (máx 3 intentos)
+            repeat(3) { attempt ->
+                kotlinx.coroutines.delay(200L * (attempt + 1))
+                val mapNow = _mapReadyRef ?: return@repeat
+                if (mapNow.style?.isFullyLoaded != true) return@repeat
+
+                if (pts.size >= 2) {
+                    val latMin = pts.minOf { it.latLng.lat }
+                    val latMax = pts.maxOf { it.latLng.lat }
+                    val lngMin = pts.minOf { it.latLng.lng }
+                    val lngMax = pts.maxOf { it.latLng.lng }
+                    mapNow.animateCamera(
+                        CameraUpdateFactory.newLatLngBounds(
+                            org.maplibre.android.geometry.LatLngBounds.from(latMax, lngMax, latMin, lngMin), 80
+                        ), 800
+                    )
+                } else {
+                    mapNow.animateCamera(
+                        CameraUpdateFactory.newLatLngZoom(
+                            MLLatLng(pts[0].latLng.lat, pts[0].latLng.lng), 14.0), 600
+                    )
                 }
+                didInitialFit = true
+                return@LaunchedEffect
             }
         }
 
@@ -251,23 +262,11 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                                 .width(3f).alpha(0.85f)
                         )
                     }
-                    // Fit bounds la primera vez que llegan stops con GPS
-                    if (!didInitialFit && stops.any { it.latLng.lat != 0.0 }) {
-                        didInitialFit = true
-                        // Si ya tenemos localización del usuario, incluirla en el bounds
-                        val allPts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
-                        if (allPts.size >= 2) {
-                            val latMin = allPts.minOf { it.latLng.lat }
-                            val latMax = allPts.maxOf { it.latLng.lat }
-                            val lngMin = allPts.minOf { it.latLng.lng }
-                            val lngMax = allPts.maxOf { it.latLng.lng }
-                            val bounds = org.maplibre.android.geometry.LatLngBounds.from(
-                                latMax, lngMax, latMin, lngMin)
-                            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80), 800)
-                        } else if (allPts.size == 1) {
-                            map.animateCamera(CameraUpdateFactory.newLatLngZoom(
-                                MLLatLng(allPts[0].latLng.lat, allPts[0].latLng.lng), 14.0), 600)
-                        }
+                    // Fit bounds lo gestiona LaunchedEffect(stops) con check de style
+                    // No hacerlo aquí porque el style puede no estar listo todavía
+                    if (false) {  // placeholder para mantener estructura
+                        @Suppress("UNUSED_EXPRESSION")
+                        didInitialFit  // referencia para evitar warning de variable no usada
                     }
                 }
             }

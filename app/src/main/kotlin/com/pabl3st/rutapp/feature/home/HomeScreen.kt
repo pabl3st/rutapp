@@ -338,8 +338,34 @@ private fun RouteProgressCard(
                         maxLines  = 1,
                         overflow  = TextOverflow.Ellipsis,
                     )
+                    // Calcular label de fecha:
+                    // si hoy está en scheduledDates → "Hoy"
+                    // si dateAssigned == hoy → "Hoy"
+                    // si dateAssigned == "1970-01-01" o vacío → "Sin fecha"
+                    // si hoy está en scheduledDates pero dateAssigned es pasada → "Hoy (+ fechas)"
+                    val todayStr = java.time.LocalDate.now().toString()
+                    val dateLabel = when {
+                        route.dateAssigned == todayStr -> "Hoy"
+                        route.scheduledDates?.contains(todayStr) == true -> "Hoy"
+                        route.dateAssigned.isBlank() || route.dateAssigned == "1970-01-01" -> "Sin fecha"
+                        else -> {
+                            runCatching {
+                                val fmt = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
+                                val d = java.time.LocalDate.parse(route.dateAssigned, fmt)
+                                val tomorrow = java.time.LocalDate.now().plusDays(1)
+                                val yesterday = java.time.LocalDate.now().minusDays(1)
+                                when (d) {
+                                    java.time.LocalDate.now() -> "Hoy"
+                                    tomorrow  -> "Mañana"
+                                    yesterday -> "Ayer"
+                                    else -> d.format(java.time.format.DateTimeFormatter
+                                        .ofPattern("d MMM yyyy", java.util.Locale("es")))
+                                }
+                            }.getOrDefault(route.dateAssigned)
+                        }
+                    }
                     Text(
-                        text  = route.dateAssigned,
+                        text  = dateLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
