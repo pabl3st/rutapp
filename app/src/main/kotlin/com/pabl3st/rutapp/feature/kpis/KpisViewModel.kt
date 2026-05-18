@@ -54,6 +54,7 @@ data class KpiMetrics(
     val totalRoutes:     Int     = 0,
     val activeRoutes:    Int     = 0,
     val doneRoutes:      Int     = 0,
+    val doneStopsTrend:  Int?    = null,
 
     // Resultados de visita
     val resultContacted:  Int    = 0,    // visitResult = "contactado"
@@ -204,6 +205,20 @@ class KpisViewModel @Inject constructor(
             allRoutes.any { it.uid == selectedUid } &&
             selectedUid !in routeUids
         val stops = allStops.filter { it.routeUid in routeUids }
+        // Variación done vs período anterior
+        val prevDoneStops: Int? = when (period) {
+            KpiPeriod.TODAY -> {
+                val yd = today.minusDays(1)
+                val pu = allRoutes.filter { isRouteActiveOn(it, yd) }.map { it.uid }.toSet()
+                allStops.count { it.routeUid in pu && it.status == "done" }
+            }
+            KpiPeriod.WEEK -> {
+                val pu = allRoutes.filter { isRouteActiveInRange(it, today.minusDays(13), today.minusDays(7)) }.map { it.uid }.toSet()
+                allStops.count { it.routeUid in pu && it.status == "done" }
+            }
+            else -> null
+        }
+        val trendDelta = prevDoneStops?.let { stops.count { it.status == "done" } - it }
 
         // Tendencia semanal (7 días)
         val weeklyTrend = (6 downTo 0).map { daysAgo ->
@@ -243,7 +258,8 @@ class KpisViewModel @Inject constructor(
             stopsWithGps    = stops.count { it.lat != null && it.lat != 0.0 },
             stopsWithoutGps = stops.count { it.lat == null || it.lat == 0.0 },
             gpsRate         = if (total > 0) stops.count { it.lat != null && it.lat != 0.0 }.toFloat() / total else 0f,
-            totalRoutes     = filteredRoutes.size,
+            totalRoutes      = filteredRoutes.size,
+            doneStopsTrend   = trendDelta,
             activeRoutes    = filteredRoutes.count { it.status == "active" },
             doneRoutes      = filteredRoutes.count { it.status == "done" },
             resultContacted = stops.count { it.visitResult == "contactado" },

@@ -104,7 +104,7 @@ fun RouteDetailScreen(
             when {
                 ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
-                           verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                           verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator()
                         Text(
                             "Sincronizando ruta...",
@@ -358,6 +358,65 @@ private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}, modifier: 
                     Text(addr, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
                         overflow = TextOverflow.Ellipsis)
+                }
+                // Resultado última visita + fecha
+                stop.visitResult?.let { result ->
+                    val (label, color) = when (result) {
+                        "contactado" -> "Contactado"  to androidx.compose.ui.graphics.Color(0xFF1D9E75)
+                        "no_estaba"  -> "No estaba"   to MaterialTheme.colorScheme.error
+                        "volvemos"   -> "Volvemos"    to MaterialTheme.colorScheme.tertiary
+                        "rechazado"  -> "Rechazado"   to MaterialTheme.colorScheme.error
+                        else         -> result        to MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier              = Modifier.padding(top = 2.dp),
+                    ) {
+                        Icon(Icons.Default.History, null, Modifier.size(10.dp), tint = color)
+                        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                        stop.visitedAt?.take(10)?.let { date ->
+                            Text("· $date", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                // Próxima acción
+                stop.nextAction?.takeIf { it.isNotBlank() }?.let { action ->
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier              = Modifier.padding(top = 2.dp),
+                    ) {
+                        Icon(Icons.Default.NextPlan, null, Modifier.size(10.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Text(action, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            // Badge prioridad + estado PDV
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (stop.priority in 1..3) {
+                    val pColor = when (stop.priority) {
+                        1 -> MaterialTheme.colorScheme.error
+                        2 -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+                    Surface(shape = MaterialTheme.shapes.extraSmall, color = pColor.copy(alpha = 0.15f)) {
+                        Text("P${stop.priority}",
+                            style    = MaterialTheme.typography.labelSmall,
+                            color    = pColor,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                    }
+                }
+                if (stop.pdvInactive) {
+                    Icon(Icons.Default.Block, null, Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.error)
+                } else if (!stop.pdvOpen) {
+                    Icon(Icons.Default.StoreMallDirectory, null, Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (!isDone) {

@@ -430,9 +430,10 @@ private fun CalendarGrid(
                         val isVacation = dateStr in vacationDays
 
                         Box(
-                            modifier          = Modifier.weight(1f).aspectRatio(1f)
+                            modifier          = Modifier.weight(1f)
+                                .heightIn(min = 44.dp)
                                 .padding(2.dp)
-                                .clip(CircleShape)
+                                .clip(MaterialTheme.shapes.extraSmall)
                                 .background(
                                     when {
                                         isSelected  -> MaterialTheme.colorScheme.primary
@@ -463,6 +464,24 @@ private fun CalendarGrid(
                                         else        -> MaterialTheme.colorScheme.onSurface
                                     },
                                 )
+                                // Nombre de ruta en miniatura (solo si 1 ruta)
+                                if (hasRoutes && routes.size == 1) {
+                                    Text(
+                                        text     = routes[0].name,
+                                        style    = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = androidx.compose.ui.unit.TextUnit(
+                                                7f, androidx.compose.ui.unit.TextUnitType.Sp)
+                                        ),
+                                        color    = when {
+                                            isSelected -> MaterialTheme.colorScheme.onPrimary
+                                            allDone    -> MaterialTheme.colorScheme.secondary
+                                            else       -> MaterialTheme.colorScheme.tertiary
+                                        },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 2.dp),
+                                    )
+                                }
                                 when {
                                     hasRoutes -> {
                                         val routeCount = routes.size

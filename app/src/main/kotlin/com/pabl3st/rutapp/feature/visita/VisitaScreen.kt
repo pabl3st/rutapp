@@ -144,10 +144,31 @@ fun VisitaScreen(
                             Text(stop.name, style = MaterialTheme.typography.titleMedium)
                             stop.address?.let { addr ->
                                 Spacer(Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
                                     Icon(Icons.Default.Place, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Spacer(Modifier.width(4.dp))
-                                    Text(addr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(addr, style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f), maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis)
+                                    // Botón navegar a Maps
+                                    if (stop.lat != null && stop.lng != null) {
+                                        IconButton(
+                                            onClick = {
+                                                val uri = android.net.Uri.parse(
+                                                    "geo:${stop.lat},${stop.lng}?q=${stop.lat},${stop.lng}(${android.net.Uri.encode(stop.name)})"
+                                                )
+                                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                                            },
+                                            modifier = Modifier.size(28.dp),
+                                        ) {
+                                            Icon(Icons.Default.Navigation, "Navegar",
+                                                Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
                                 }
                             }
                             stop.contactName?.let { contact ->
@@ -180,6 +201,51 @@ fun VisitaScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                     )
+                                }
+                            }
+                            // Horario de apertura
+                            stop.openingHours?.takeIf { it.isNotBlank() }?.let { hours ->
+                                Spacer(Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Schedule, null, Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(hours, style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            // Segmento + prioridad
+                            val hasMeta = (stop.segment != null) || (stop.priority in 1..3)
+                            if (hasMeta) {
+                                Spacer(Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    stop.segment?.takeIf { it.isNotBlank() }?.let { seg ->
+                                        Surface(
+                                            shape = MaterialTheme.shapes.extraSmall,
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                        ) {
+                                            Text(seg, style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                    }
+                                    if (stop.priority in 1..3) {
+                                        val pColor = when (stop.priority) {
+                                            1 -> MaterialTheme.colorScheme.error
+                                            2 -> MaterialTheme.colorScheme.tertiary
+                                            else -> MaterialTheme.colorScheme.primary
+                                        }
+                                        Surface(
+                                            shape = MaterialTheme.shapes.extraSmall,
+                                            color = pColor.copy(alpha = 0.15f),
+                                        ) {
+                                            Text("P${stop.priority}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = pColor,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                    }
                                 }
                             }
                         }

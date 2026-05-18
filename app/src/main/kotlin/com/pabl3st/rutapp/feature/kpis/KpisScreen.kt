@@ -368,6 +368,7 @@ private fun MetricCard(
     label:    String,
     icon:     ImageVector,
     color:    Color,
+    trend: Int? = null,
 ) {
     Card(
         modifier = modifier,
@@ -396,6 +397,19 @@ private fun MetricCard(
                 color     = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
+            trend?.let { delta ->
+                val (tColor, tPrefix) = if (delta >= 0)
+                    MaterialTheme.colorScheme.secondary to "+"
+                else MaterialTheme.colorScheme.error to ""
+                Text(
+                    text  = "${tPrefix}${delta} vs anterior",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = androidx.compose.ui.unit.TextUnit(
+                            9f, androidx.compose.ui.unit.TextUnitType.Sp)),
+                    color = tColor,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

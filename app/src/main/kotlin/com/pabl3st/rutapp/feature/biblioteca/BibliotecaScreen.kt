@@ -183,6 +183,58 @@ private fun BibliotecaStopCard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
 
+            // Resultado última visita + próxima visita sugerida
+            val hasVisitData = stop.visitResult != null || stop.visitedAt != null
+            if (hasVisitData) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    stop.visitResult?.let { result ->
+                        val (label, color) = when (result) {
+                            "contactado" -> "Contactado"  to androidx.compose.ui.graphics.Color(0xFF1D9E75)
+                            "no_estaba"  -> "No estaba"   to MaterialTheme.colorScheme.error
+                            "volvemos"   -> "Volvemos"    to MaterialTheme.colorScheme.tertiary
+                            "rechazado"  -> "Rechazado"   to MaterialTheme.colorScheme.error
+                            else         -> result        to MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(Icons.Default.History, null, Modifier.size(10.dp), tint = color)
+                            Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                        }
+                    }
+                    stop.visitedAt?.take(10)?.let { date ->
+                        Text(date, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    // Próxima visita sugerida
+                    stop.visitFrequency?.let { freq ->
+                        stop.visitedAt?.take(10)?.let { lastDateStr ->
+                            runCatching {
+                                val last = java.time.LocalDate.parse(lastDateStr)
+                                val next = last.plusDays(freq.toLong())
+                                val today = java.time.LocalDate.now()
+                                val label = when {
+                                    next < today  -> "Vencida"
+                                    next == today -> "Hoy"
+                                    else          -> next.format(java.time.format.DateTimeFormatter
+                                        .ofPattern("d MMM", java.util.Locale("es")))
+                                }
+                                val color = if (next <= today) MaterialTheme.colorScheme.error
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                Row(verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Icon(Icons.Default.CalendarToday, null, Modifier.size(10.dp), tint = color)
+                                    Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                                }
+                            }.getOrNull()
+                        }
+                    }
+                }
+            }
+
             // Tags estáticos — solo si hay alguno activo
             if (activeTags.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
