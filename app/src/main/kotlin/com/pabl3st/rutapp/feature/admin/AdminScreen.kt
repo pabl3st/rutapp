@@ -334,7 +334,10 @@ private fun UserCard(
                 AssistChip(
                     onClick    = { if (canEdit) onChangeRole() },
                     label      = { Text(roleLabel(user.role), style = MaterialTheme.typography.labelSmall) },
-                    trailingIcon = if (canEdit) { { Icon(Icons.Default.Edit, null, Modifier.size(14.dp)) } } else null,
+                    trailingIcon = if (canEdit) {
+                        val icon: @Composable () -> Unit = { Icon(Icons.Default.Edit, null, Modifier.size(14.dp)) }
+                        icon
+                    } else null,
                     modifier   = Modifier.height(24.dp),
                 )
             }

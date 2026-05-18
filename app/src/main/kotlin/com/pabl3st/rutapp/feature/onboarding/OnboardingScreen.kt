@@ -105,7 +105,7 @@ fun OnboardingScreen(
                             onAllow      = {
                                 permLauncher.launch(perm.manifestPermissions.toTypedArray())
                             },
-                            onSkip       = if (!perm.isCritical) vm::skipCurrentPermission else null,
+                            onSkip       = if (!perm.isCritical) ({ vm.skipCurrentPermission() }) else null,
                         )
                     }
                 }
