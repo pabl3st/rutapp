@@ -58,7 +58,7 @@ fun RutasScreen(
                         )
                         Spacer(Modifier.width(12.dp))
                     }
-                    // Importar: solo owner y admin (ellos crean rutas y las asignan)
+                    // Importar: owner, admin y manager pueden importar rutas
                     if (ui.canCreate) {
                         IconButton(onClick = onImport) {
                             Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")

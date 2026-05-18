@@ -36,8 +36,9 @@ class RutasMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         val data = message.data
 
-        // type=sync → sync inmediato sin esperar el periódico (15min)
-        if (data["type"] == "sync") {
+        // Sync inmediato para type=sync y cualquier notificación de ruta
+        val shouldSync = data["type"] in listOf("sync", "route_assigned", "route_reassigned")
+        if (shouldSync) {
             workManager.enqueueUniqueWork(
                 SyncWorker.WORK_NAME_ONDEMAND,
                 androidx.work.ExistingWorkPolicy.REPLACE,
