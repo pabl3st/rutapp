@@ -273,6 +273,52 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         )
     }
 
+        /** Genera bitmap de pin de parada con color según status.
+         *  done=verde, visiting=azul, skipped=gris, pending=naranja/rojo */
+        private fun buildStopIcon(colorHex: String, isDone: Boolean): org.maplibre.android.annotations.Icon {
+            val size   = 40
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val color  = android.graphics.Color.parseColor(colorHex)
+
+            // Círculo principal
+            val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.2f, fillPaint)
+
+            // Borde blanco
+            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = android.graphics.Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = size / 8f
+            }
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.2f, strokePaint)
+
+            // Check interno si done
+            if (isDone) {
+                val checkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = android.graphics.Color.WHITE
+                    style      = Paint.Style.STROKE
+                    strokeWidth = size / 7f
+                    strokeCap   = Paint.Cap.ROUND
+                    strokeJoin  = Paint.Join.ROUND
+                }
+                val r = size / 5f
+                val cx = size / 2f
+                val cy = size / 2f
+                val path = android.graphics.Path().apply {
+                    moveTo(cx - r, cy)
+                    lineTo(cx - r * 0.2f, cy + r * 0.7f)
+                    lineTo(cx + r, cy - r * 0.5f)
+                }
+                canvas.drawPath(path, checkPaint)
+            }
+
+            return IconFactory.getInstance(context).fromBitmap(bitmap)
+        }
+
         /** Genera un bitmap de círculo azul con borde blanco para el marcador del usuario. */
         private fun buildUserLocationIcon(): org.maplibre.android.annotations.Icon {
             val size   = 48
@@ -320,11 +366,14 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                     else -> stop.name
                 }
 
+                val colorHex = markerColorHex(stop.status, opts)
+                val icon     = buildStopIcon(colorHex, stop.status == "done")
                 map.addMarker(
                     MLMarkerOptions()
                         .position(MLLatLng(stop.latLng.lat, stop.latLng.lng))
                         .title(label)
                         .snippet(stop.uid)
+                        .icon(icon)
                 )
             }
     }
