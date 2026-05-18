@@ -18,6 +18,7 @@ import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
@@ -83,8 +84,22 @@ class RouteDetailViewModel @Inject constructor(
 
     private fun loadRoute() {
         viewModelScope.launch {
-            val route = routeRepo.getByUid(routeUid)
-            _ui.update { it.copy(route = route, isLoading = false) }
+            // Fetch inicial con retry — la ruta puede llegar vía sync justo después del deeplink FCM
+            var route = routeRepo.getByUid(routeUid)
+            if (route == null) {
+                // Esperar hasta 10s en intervalos de 1s (el sync ondemand suele tardar 2-4s)
+                _ui.update { it.copy(isLoading = true) }
+                repeat(10) { attempt ->
+                    if (route != null) return@repeat
+                    delay(1_000L)
+                    route = routeRepo.getByUid(routeUid)
+                }
+            }
+            _ui.update { it.copy(
+                route    = route,
+                isLoading = false,
+                error    = if (route == null) "Ruta no encontrada. Comprueba tu conexión y vuelve a intentarlo." else null,
+            ) }
         }
     }
 

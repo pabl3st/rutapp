@@ -103,7 +103,15 @@ fun RouteDetailScreen(
 
             when {
                 ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                           verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                        CircularProgressIndicator()
+                        Text(
+                            "Sincronizando ruta...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 ui.stops.isEmpty() -> Box(
                     Modifier.fillMaxSize(),

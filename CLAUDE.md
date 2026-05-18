@@ -210,14 +210,37 @@ Screen.Importar        // importar
 - api.php: users_list, invite_user, update_role, deactivate_user, reactivate_user,
   invite_list, invite_delete, account_config_save, push_register, stats_month, file_upload
 
+### S15 — COMPLETADO ✅ (Jerarquía de roles y permisos)
+- Roles: god > owner > admin > manager > agent > viewer con permisos en cascada
+- owner/admin: crear/eliminar rutas y paradas, importar CSV, asignar supervisores
+- manager: ve solo sus agentes (managedAgentIds vía delta_sync), asigna fechas
+- agent: ejecuta rutas propias, no puede crear/eliminar
+- viewer: solo Perfil — 10 guardias en NavGraph bloquean todo lo demás
+- assign_manager endpoint: jerarquía fija con detección de ciclos transitivos
+- Supervisor picker en AdminScreen con ManagerPickerDialog
+- FCM push al asignar ruta (pushToUser helper en api.php)
+- Sync inmediato al recibir route_assigned/route_reassigned
+- Race condition deeplink: retry 10s en RouteDetailViewModel
+
+### S16 — COMPLETADO ✅ (Bugs de jornada y KPIs)
+- Timer jornada: 3 bugs encadenados corregidos (startedAt/pausedAt/snapshot)
+- distanceKm: Haversine acumulado desde LocationForegroundService
+- KPIs: filtros de período usan scheduledDates + dateAssigned
+- HomeScreen: label fecha "Hoy" cuando today ∈ scheduledDates
+- MapLibreProvider: fit bounds robusto (reset por ruta, 3 reintentos con style check)
+- Pins de mapa con color por estado (done=verde, pending=azul, visiting=ámbar)
+- KpisScreen: aviso cuando ruta seleccionada está fuera del período
+- RouteMapScreen: "Visitado" en lugar de km para stops done
+- JornadaBar: reabrir jornada finalizada con AlertDialog
+
 ### PENDIENTES ⏳
 
-#### S15 — IA (depende S08+S09+S11)
+#### S17 — IA (depende S08+S09+S11)
 - Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)
 - Asesor pre-visita por PDV: risk score + objetivo
 - Contexto: historial KpiDefinition + JornadaSession
 
-#### S16 — Play Store
+#### S18 — Play Store
 - Firma release: keystore, secrets GitHub (KEYSTORE_BASE64, KEY_ALIAS, KEY_PASSWORD, STORE_PASSWORD)
 - build-release.yml: assembleRelease + zipalign + apksigner
 - Ficha Play Store: descripción ES+EN, capturas, icono 512×512, política privacidad
@@ -241,6 +264,8 @@ session.userEmail, session.userRole  // "owner"|"admin"|"manager"|"agent"|"viewe
 session.userDisplayName, session.accountId, session.accountType
 session.accountName, session.isCompany, session.deviceId
 session.lastSyncTimestamp  // ISO8601, usado para delta_sync
+session.managedAgentIds    // List<Int> — agentes bajo supervisión directa (manager)
+    // Se actualiza en cada delta_sync desde managed_agent_ids del servidor
 session.saveAuth(...), session.clear()
 // accountName es var — se puede actualizar tras account_config_save
 ```
@@ -285,7 +310,10 @@ stopRepo.reorderStops(stops)                  // suspend — bulk update orderIn
 ### `RouteRepository` — API disponible
 ```kotlin
 routeRepo.createRoute(name, dateAssigned)     // suspend → RouteEntity
-routeRepo.observeAll()                        // Flow<List<RouteEntity>>
+routeRepo.observeAll()                        // Flow — bifurca: isFullAccountView|isManagedView|agent
+    // isFullAccountView: owner/admin/god → observeByAccount (toda la cuenta)
+    // isManagedView: manager → observeByUserIds(managedAgentIds + userId)
+    // agent/viewer → observeByUser(userId)
 routeRepo.observeToday()                      // Flow<List<RouteEntity>>
 routeRepo.getByUid(uid)                       // suspend → RouteEntity?
 routeRepo.assignDate(uid, dateStr)            // suspend
@@ -473,6 +501,81 @@ Resultado: 1 commit, 1 build CI.
 
 ---
 
+### ERROR 21: `routeOutOfPeriod` en data class equivocada
+```kotlin
+// ROMPE — routeOutOfPeriod no existe en KpiMetrics:
+_ui.update { it.copy(metrics = KpiMetrics(..., routeOutOfPeriod = x)) }
+// CORRECTO — pertenece a KpisUiState, no a KpiMetrics:
+_ui.update { it.copy(metrics = KpiMetrics(...), routeOutOfPeriod = x) }
+```
+Regla general: antes de añadir un campo a un `.copy()`, verificar en qué `data class` está declarado.
+
+### ERROR 22: `startTick()` con snapshot congelado de session
+```kotlin
+// ROMPE — session es el objeto del momento del collect, nunca se actualiza:
+private fun startTick(session: DaySessionEntity) {
+    tickJob = launch { while(true) { elapsedMs(session); delay(1000) } }
+}
+// CORRECTO — leer la sesión más fresca del UiState en cada tick:
+private fun startTick(session: DaySessionEntity) {
+    tickJob = launch { while(true) { val current = _ui.value.session ?: session; elapsedMs(current); delay(1000) } }
+}
+```
+
+### ERROR 23: `pause()` calcula elapsed desde `pausedAt` en lugar de `startedAt`
+```kotlin
+// ROMPE en 2º pause — pausedAt tiene el timestamp del 1er pause:
+val elapsed = elapsedMs + (now - (session.pausedAt ?: session.startedAt ?: now))
+// CORRECTO — siempre usar startedAt como base; limpiar startedAt al pausar:
+val elapsed = elapsedMs + (now - (session.startedAt ?: now))
+dao.updateState(..., startedAt = null, pausedAt = now, elapsedMs = elapsed)
+```
+Y `resume()` debe actualizar `startedAt = now` y limpiar `pausedAt = null`.
+
+### ERROR 24: `return@composable` dentro de bloque `navArgument { }` 
+El script de inserción automática buscaba el primer `{` tras `composable(` y lo encontraba
+dentro de `navArgument("uid") { type = NavType.StringType }` en lugar del cuerpo del composable.
+```kotlin
+// ROMPE — return@composable en bloque de configuración de argumento:
+composable(arguments = listOf(navArgument("uid") {
+    if (cond) { return@composable }   // ← ilegal aquí
+    type = NavType.StringType
+})) { ... }
+// CORRECTO — guardia dentro del lambda del composable:
+composable(arguments = listOf(navArgument("uid") { type = NavType.StringType })) { backStackEntry ->
+    if (cond) { navController.popBackStack(); return@composable }
+    ...
+}
+```
+
+### ERROR 25: `{ { lambda } } else null` produce `Nothing?` solo con KFunction references
+```kotlin
+// ROMPE — KFunction no es compatible con Function0 en contexto nullable:
+trailingIcon = if (canEdit) vm::doSomething else null
+// OK — lambda normal sí se infiere como @Composable () -> Unit? :
+trailingIcon = if (canEdit) { { Icon(...) } } else null
+// MEJOR siempre — variable local explícita, nunca ambigüedad:
+val icon: @Composable (() -> Unit)? = if (canEdit) { { Icon(...) } } else null
+trailingIcon = icon
+```
+
+### ERROR 26: Race condition FCM deeplink — ruta no existe en Room al navegar
+Cuando FCM llega con `route_assigned` y se navega a `RouteDetail(uid)`, el sync
+ondemand se dispara pero Room puede estar vacío. `getByUid()` devuelve null → pantalla vacía.
+Solución: retry con polling hasta 10s en `RouteDetailViewModel`:
+```kotlin
+var route = routeRepo.getByUid(routeUid)
+if (route == null) { repeat(10) { delay(1000); route = routeRepo.getByUid(routeUid) } }
+```
+
+### ERROR 27: `scheduledDates` no consultado en filtros de período de KPIs
+`KpisViewModel` filtraba rutas solo por `dateAssigned`. Una ruta con `dateAssigned='2026-05-06'`
+y `scheduledDates=['2026-05-18']` aparecía vacía en KPIs el 18 de mayo.
+Solución: helpers `routeDatesSet()`, `isRouteActiveOn()`, `isRouteActiveInRange()` que consultan
+ambos campos. Lo mismo aplica a cualquier query temporal que use `dateAssigned`.
+
+---
+
 ## Checklist pre-commit
 
 - [ ] `@file:OptIn(ExperimentalMaterial3Api::class)` en todas las screens con TopAppBar/ModalBottomSheet/etc.
@@ -487,6 +590,11 @@ Resultado: 1 commit, 1 build CI.
 - [ ] Commit atómico (Git Data API, no PUT en bucle)
 - [ ] No hay clases/funciones duplicadas
 - [ ] Nuevos repositorios usan `AuthResult<T>` del mismo sealed class
+- [ ] Campos de `.copy()` verificados contra el `data class` correcto (ERROR 21)
+- [ ] `startTick()` usa `_ui.value.session` no snapshot congelado (ERROR 22)
+- [ ] `pause()`/`resume()` actualizan `startedAt` correctamente (ERROR 23)
+- [ ] Guardias de viewer en NavGraph dentro del lambda, no en `navArgument{}` (ERROR 24)
+- [ ] `scheduledDates` consultado en cualquier filtro temporal de rutas (ERROR 27)
 - [ ] NO crear carpetas con `import` en el nombre del package
 - [ ] Imports duplicados: `grep "^import" fichero | sort | uniq -d`
 - [ ] X-Auth-Token sin prefijo Bearer
