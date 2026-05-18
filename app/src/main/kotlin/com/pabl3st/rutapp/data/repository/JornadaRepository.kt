@@ -74,6 +74,15 @@ class JornadaRepository @Inject constructor(
         dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
     }
 
+    /** Reabre una jornada finalizada → vuelve a estado "running" */
+    suspend fun reopen(routeUid: String, dateStr: String) {
+        val session = dao.get(routeUid, dateStr) ?: return
+        if (session.state != "done") return
+        val now = System.currentTimeMillis()
+        dao.updateState(routeUid, dateStr, "running", now, session.elapsedMs, now)
+        dao.get(routeUid, dateStr)?.let { enqueueSession(it) }
+    }
+
     suspend fun updateGps(routeUid: String, dateStr: String, lat: Double, lng: Double) {
         val session = dao.get(routeUid, dateStr) ?: return
         if (session.state != "running") return

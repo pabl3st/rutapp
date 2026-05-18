@@ -86,6 +86,7 @@ data class KpisUiState(
     val activePeriod:    KpiPeriod  = KpiPeriod.TODAY,
     val routes:          List<RouteEntity> = emptyList(),
     val selectedRouteUid: String?   = null,
+    val routeOutOfPeriod: Boolean   = false,  // ruta seleccionada no tiene visitas en el período
     val sectorKpis:      List<Triple<KpiDefinitionEntity, String, Boolean>> = emptyList(),
     val isLoading:       Boolean    = true,
     val error:           String?    = null,
@@ -197,7 +198,12 @@ class KpisViewModel @Inject constructor(
         }
 
         val routeUids = filteredRoutes.map { it.uid }.toSet()
-        val stops     = allStops.filter { it.routeUid in routeUids }
+        // Detectar si la ruta seleccionada existe pero no tiene visitas en este período
+        val selectedUid = _ui.value.selectedRouteUid
+        val routeOutOfPeriod = selectedUid != null &&
+            allRoutes.any { it.uid == selectedUid } &&
+            selectedUid !in routeUids
+        val stops = allStops.filter { it.routeUid in routeUids }
 
         // Tendencia semanal (7 días)
         val weeklyTrend = (6 downTo 0).map { daysAgo ->
@@ -238,6 +244,7 @@ class KpisViewModel @Inject constructor(
             stopsWithoutGps = stops.count { it.lat == null || it.lat == 0.0 },
             gpsRate         = if (total > 0) stops.count { it.lat != null && it.lat != 0.0 }.toFloat() / total else 0f,
             totalRoutes     = filteredRoutes.size,
+            routeOutOfPeriod = routeOutOfPeriod,
             activeRoutes    = filteredRoutes.count { it.status == "active" },
             doneRoutes      = filteredRoutes.count { it.status == "done" },
             resultContacted = stops.count { it.visitResult == "contactado" },

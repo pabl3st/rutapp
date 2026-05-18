@@ -15,10 +15,11 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class JornadaUiState(
-    val session:    DaySessionEntity? = null,
-    val elapsedMs:  Long              = 0L,
-    val distanceKm: Double            = 0.0,
-    val isLocating: Boolean           = false,
+    val session:          DaySessionEntity? = null,
+    val elapsedMs:        Long              = 0L,
+    val distanceKm:       Double            = 0.0,
+    val isLocating:       Boolean           = false,
+    val showReopenDialog: Boolean           = false,
 )
 
 @HiltViewModel
@@ -92,6 +93,17 @@ class JornadaViewModel @Inject constructor(
         viewModelScope.launch {
             jornadaRepo.finish(routeUid, jornadaRepo.todayStr())
             stopGpsService()
+        }
+    }
+
+    fun onReopenRequest() = _ui.update { it.copy(showReopenDialog = true) }
+    fun onReopenDismiss() = _ui.update { it.copy(showReopenDialog = false) }
+
+    fun confirmReopen() {
+        _ui.update { it.copy(showReopenDialog = false) }
+        viewModelScope.launch {
+            jornadaRepo.reopen(routeUid, jornadaRepo.todayStr())
+            startGpsService()
         }
     }
 

@@ -103,6 +103,29 @@ fun KpisScreen(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.height(Spacing.sm))
+                // Aviso cuando la ruta seleccionada existe pero no tiene visitas en este período
+                if (ui.routeOutOfPeriod) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
+                        color    = MaterialTheme.colorScheme.surfaceVariant,
+                        shape    = MaterialTheme.shapes.small,
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            Icon(Icons.Default.Info, null,
+                                Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Esta ruta no tiene visitas en el período seleccionado",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

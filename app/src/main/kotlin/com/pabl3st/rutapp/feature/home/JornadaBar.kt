@@ -96,7 +96,7 @@ fun JornadaBar(
                 }
                 StopStatus.DONE -> {
                     SuggestionChip(
-                        onClick = {},
+                        onClick = vm::onReopenRequest,
                         label   = { Text("Finalizada", style = MaterialTheme.typography.labelSmall) },
                         icon    = {
                             Icon(
@@ -113,5 +113,21 @@ fun JornadaBar(
                 }
             }
         }
+    }
+
+    // Diálogo de confirmación para reabrir jornada
+    if (ui.showReopenDialog) {
+        AlertDialog(
+            onDismissRequest = vm::onReopenDismiss,
+            icon    = { Icon(Icons.Default.Refresh, null) },
+            title   = { Text("¿Reabrir jornada?") },
+            text    = { Text("Volverá a estado activo. El tiempo acumulado se conserva.") },
+            confirmButton = {
+                Button(onClick = vm::confirmReopen) { Text("Reabrir") }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::onReopenDismiss) { Text("Cancelar") }
+            },
+        )
     }
 }

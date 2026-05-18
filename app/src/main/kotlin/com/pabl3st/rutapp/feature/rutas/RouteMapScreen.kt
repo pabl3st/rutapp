@@ -326,9 +326,15 @@ private fun StopDistanceCard(
                     }
                 }
                 Spacer(Modifier.height(2.dp))
-                Text(item.distanceLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (isDone) {
+                    Text("Visitado",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary)
+                } else {
+                    Text(item.distanceLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
 
             Spacer(Modifier.width(8.dp))
