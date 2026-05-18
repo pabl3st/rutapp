@@ -267,6 +267,7 @@ class RouteRepository @Inject constructor(
         "status"           to r.status,
         "notes"            to r.notes,
         "created_at"       to r.createdAt,
+        "user_id"          to r.userId,   // necesario para asignación a agente y reasignación
     )
 
     private suspend fun enqueue(entity: String, uid: String, op: String, data: Map<String, Any?>) {

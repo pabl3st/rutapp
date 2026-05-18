@@ -801,7 +801,7 @@ if ($action === 'batch_sync') {
                                 $newUserId,
                                 san($data['name'] ?? '', 255),
                                 san($data['date_assigned'] ?? date('Y-m-d'), 10),
-                                isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
+                                isset($data['scheduled_dates']) ? normalizeScheduledDates($data['scheduled_dates']) : null,
                                 san($data['status'] ?? 'pending', 20),
                                 san($data['notes'] ?? '', 5000) ?: null,
                                 date('c'),
@@ -845,7 +845,7 @@ if ($action === 'batch_sync') {
                                 $clientUid, $aid, $targetUserId,
                                 san($data['name'] ?? '', 255),
                                 san($data['date_assigned'] ?? date('Y-m-d'), 10),
-                                isset($data['scheduled_dates']) ? json_encode(json_decode($data['scheduled_dates'])) : null,
+                                isset($data['scheduled_dates']) ? normalizeScheduledDates($data['scheduled_dates']) : null,
                                 san($data['status'] ?? 'pending', 20),
                                 san($data['notes'] ?? '', 5000) ?: null,
                                 san($data['created_at'] ?? date('c'), 30),
@@ -1755,6 +1755,21 @@ if ($action === 'god_users_all') {
         return $u;
     }, $rows);
     ok(['users' => $rows]);
+}
+
+// ── Helper: normalizar scheduled_dates (acepta CSV o JSON array) ──────────
+function normalizeScheduledDates(?string $raw): ?string {
+    if ($raw === null || $raw === '') return null;
+    $raw = trim($raw);
+    // Si es JSON array → convertir a CSV
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        $csv = implode(',', array_filter(array_map('trim', $decoded)));
+        return $csv ?: null;
+    }
+    // Ya es CSV → devolver tal cual (limpiando espacios)
+    $parts = array_filter(array_map('trim', explode(',', $raw)));
+    return $parts ? implode(',', $parts) : null;
 }
 
 // ── Helper: push FCM a un usuario específico (por userId) ─────────────────
