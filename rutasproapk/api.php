@@ -633,29 +633,51 @@ if ($action === 'delta_sync') {
     $uid = (int)$sess['uid'];
     $aid = (int)$sess['account_id'];
 
-    // Managers y owners ven rutas de todo el account
     $roleLevel = roleLevel($sess['role']);
-    if ($roleLevel >= 3) {
+    $role      = $sess['role'];
+
+    // Calcular qué user_ids puede ver el caller:
+    // owner/admin/god → toda la cuenta
+    // manager         → sus agentes directos + él mismo
+    // agent/viewer    → solo él mismo
+    if ($roleLevel >= 4) {                          // owner/admin/god
         $stR = db()->prepare(
             'SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
                        status, notes, created_at, updated_at, deleted_at
                 FROM routes WHERE account_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
         );
         $stR->execute([$aid, $since]);
-    } else {
+        $stopsWhere = 'r.account_id=?';
+        $stopsParam = $aid;
+    } elseif ($role === 'manager') {                 // manager: solo sus agentes directos
+        // Obtener IDs de agentes con manager_id = $uid
+        $stMA = db()->prepare(
+            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1'
+        );
+        $stMA->execute([$aid, $uid]);
+        $agentIds = array_column($stMA->fetchAll(), 'id');
+        $agentIds[] = $uid;  // también sus propias rutas
+        $placeholders = implode(',', array_fill(0, count($agentIds), '?'));
+        $stR = db()->prepare(
+            "SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
+                       status, notes, created_at, updated_at, deleted_at
+                FROM routes WHERE user_id IN ($placeholders) AND updated_at > ?
+                ORDER BY updated_at ASC LIMIT 200"
+        );
+        $stR->execute([...$agentIds, $since]);
+        $stopsWhere = "r.user_id IN ($placeholders)";
+        $stopsParam = null;  // se pasa el array directamente abajo
+    } else {                                         // agent/viewer
         $stR = db()->prepare(
             'SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
                        status, notes, created_at, updated_at, deleted_at
                 FROM routes WHERE user_id=? AND updated_at > ? ORDER BY updated_at ASC LIMIT 200'
         );
         $stR->execute([$uid, $since]);
+        $stopsWhere = 'r.user_id=?';
+        $stopsParam = $uid;
     }
-
-    // Stops: managers ven todos los del account
-    $stopsWhere = ($roleLevel >= 3) ? 'r.account_id=?' : 'r.user_id=?';
-    $stopsParam = ($roleLevel >= 3) ? $aid : $uid;
-    $stS = db()->prepare(
-        "SELECT s.id, s.uid, s.route_id, r.uid AS route_uid, s.account_id,
+    $stopsQuery = "SELECT s.id, s.uid, s.route_id, r.uid AS route_uid, s.account_id,
                 s.name, s.address, s.lat, s.lng, s.order_index,
                 s.external_id, s.contact_name, s.contact_phone,
                 s.visit_frequency, s.priority, s.segment, s.account_status, s.opening_hours,
@@ -664,9 +686,14 @@ if ($action === 'delta_sync') {
          FROM stops s
          JOIN routes r ON r.id = s.route_id
          WHERE {$stopsWhere} AND s.updated_at > ?
-         ORDER BY s.updated_at ASC LIMIT 500"
-    );
-    $stS->execute([$stopsParam, $since]);
+         ORDER BY s.updated_at ASC LIMIT 500";
+    $stS = db()->prepare($stopsQuery);
+    if ($stopsParam === null) {
+        // manager: $agentIds ya contiene los user_ids
+        $stS->execute([...$agentIds, $since]);
+    } else {
+        $stS->execute([$stopsParam, $since]);
+    }
 
     // Jornadas del usuario en el período
     $stD = db()->prepare(
