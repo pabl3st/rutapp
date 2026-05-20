@@ -191,19 +191,14 @@ class ImportarViewModel @Inject constructor(
                     // owner/god  → admin + manager + agent
                     // admin      → manager + agent
                     // manager    → solo sus agentes directos (managedAgentIds)
-                    val allowedRoles: Set<String> = when (callerRole) {
-                        "owner", "god" -> setOf("admin", "manager", "agent")
-                        "admin"        -> setOf("manager", "agent")
-                        "manager"      -> setOf("agent")
-                        else           -> emptySet()
-                    }
-                    val managedIds = if (callerRole == "manager")
-                        session.managedAgentIds.toSet() else null
-
+                    // El servidor ya filtra por rol en users_list:
+                    // manager → solo sus agentes directos (manager_id = uid)
+                    // admin/owner/god → todos del account
+                    // Solo excluimos roles que nunca reciben rutas (viewer)
+                    // y al propio caller (no se asigna rutas a sí mismo aquí)
                     val agents = result.data.filter { u ->
-                        u.isActive &&
-                        u.role in allowedRoles &&
-                        (managedIds == null || u.userId in managedIds)
+                        u.isActive && u.userId != session.userId &&
+                        u.role in setOf("admin", "manager", "agent")
                     }
                     _ui.update { it.copy(availableAgents = agents, isLoadingAgents = false) }
                 }
