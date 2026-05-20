@@ -133,7 +133,7 @@ class VisitaViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
-            val gpsPos = locationMgr.lastKnownLocation()
+            val gpsPos = locationMgr.getLastLocation()
 
             // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
             stopRepo.saveVisitResult(

@@ -143,6 +143,7 @@ fun VisitaScreen(
                         Column(Modifier.padding(16.dp)) {
                             stop.externalId?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
                             Text(stop.name, style = MaterialTheme.typography.titleMedium)
+                            val ctxForNav = LocalContext.current
                             stop.address?.let { addr ->
                                 Spacer(Modifier.height(4.dp))
                                 Row(
@@ -162,7 +163,7 @@ fun VisitaScreen(
                                                 val uri = android.net.Uri.parse(
                                                     "geo:${stop.lat},${stop.lng}?q=${stop.lat},${stop.lng}(${android.net.Uri.encode(stop.name)})"
                                                 )
-                                                LocalContext.current.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                                                ctxForNav.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
                                             },
                                             modifier = Modifier.size(28.dp),
                                         ) {
