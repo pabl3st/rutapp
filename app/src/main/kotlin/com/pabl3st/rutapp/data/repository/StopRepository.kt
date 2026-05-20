@@ -35,6 +35,9 @@ class StopRepository @Inject constructor(
     fun observeByRoute(routeUid: String): Flow<List<StopEntity>> =
         stopDao.observeByRoute(routeUid)
 
+    suspend fun getByRoute(routeUid: String): List<StopEntity> =
+        stopDao.getByRoute(routeUid)
+
     private fun triggerSync() {
         runCatching {
             WorkManager.getInstance(appContext)
@@ -129,8 +132,10 @@ class StopRepository @Inject constructor(
         result:      String,
         notes:       String?,
         nextAction:  String?,
-        pdvOpen:     Boolean = true,
-        pdvInactive: Boolean = false,
+        pdvOpen:     Boolean  = true,
+        pdvInactive: Boolean  = false,
+        gpsLat:      Double?  = null,
+        gpsLng:      Double?  = null,
     ) {
         val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -145,6 +150,10 @@ class StopRepository @Inject constructor(
         val stopBefore = stopDao.getByUid(uid)
         val accountStatus = newAccountStatus ?: (stopBefore?.accountStatus ?: "active")
         stopDao.updateVisitResult(uid, result, notes, nextAction, pdvOpen, pdvInactive, accountStatus, now)
+        // Actualizar GPS del check-in si se capturó
+        if (gpsLat != null && gpsLng != null) {
+            stopDao.updateCoords(uid, gpsLat, gpsLng, now)
+        }
         val stopAfter = stopDao.getByUid(uid) ?: return
         enqueue("stop", uid, "update", stopToMap(stopAfter))
     }

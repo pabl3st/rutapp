@@ -11,11 +11,14 @@ data class MapLatLng(val lat: Double, val lng: Double)
 data class StopMapMarker(
     val uid: String,
     val name: String,
-    val externalId: String?,
-    val latLng: MapLatLng,
-    val status: String,           // pending|visiting|done|skipped
+    val externalId:  String?,
+    val latLng:      MapLatLng,
+    val status:      String,      // pending|visiting|done|skipped
     val distanceLabel: String,
-    val orderIndex: Int,
+    val orderIndex:  Int,
+    val address:     String?  = null,
+    val visitResult: String?  = null,
+    val visitedAt:   String?  = null,
 )
 
 data class MapRoute(

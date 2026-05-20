@@ -19,10 +19,11 @@ import javax.inject.Inject
 
 // ── Modelo de ruta enriquecido con progreso de paradas ────────
 data class RouteWithProgress(
-    val route:        RouteEntity,
-    val totalStops:   Int    = 0,
-    val doneStops:    Int    = 0,
-    val progress:     Float  = 0f,   // 0.0 – 1.0
+    val route:            RouteEntity,
+    val totalStops:       Int          = 0,
+    val doneStops:        Int          = 0,
+    val progress:         Float        = 0f,   // 0.0 – 1.0
+    val nextPendingStop:  StopEntity?  = null, // primera parada pendiente
 )
 
 data class HomeUiState(
@@ -99,10 +100,13 @@ class HomeViewModel @Inject constructor(
                         val done    = stops.count { it.status == "done" }
                         val total   = stops.size
                         RouteWithProgress(
-                            route      = route,
-                            totalStops = total,
-                            doneStops  = done,
-                            progress   = if (total > 0) done.toFloat() / total else 0f,
+                            route           = route,
+                            totalStops      = total,
+                            doneStops       = done,
+                            progress        = if (total > 0) done.toFloat() / total else 0f,
+                            nextPendingStop = stops
+                                .filter { it.status == "pending" || it.status == "visiting" }
+                                .minByOrNull { it.orderIndex },
                         )
                     }
                     val totalAll   = enriched.sumOf { it.totalStops }

@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.core.location.LocationForegroundService
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.repository.JornadaRepository
+import com.pabl3st.rutapp.data.repository.RouteRepository
+import com.pabl3st.rutapp.data.repository.StopRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -25,6 +27,8 @@ data class JornadaUiState(
 @HiltViewModel
 class JornadaViewModel @Inject constructor(
     private val jornadaRepo: JornadaRepository,
+    private val routeRepo:   RouteRepository,
+    private val stopRepo:    StopRepository,
     @ApplicationContext private val appContext: Context,
 ) : BaseViewModel() {
 
@@ -93,6 +97,11 @@ class JornadaViewModel @Inject constructor(
         viewModelScope.launch {
             jornadaRepo.finish(routeUid, jornadaRepo.todayStr())
             stopGpsService()
+            // Sincronizar route.status: si todos los stops están done/skipped → marcar ruta done
+            val stops = stopRepo.getByRoute(routeUid)
+            if (stops.isNotEmpty() && stops.all { it.status == "done" || it.status == "skipped" }) {
+                routeRepo.markDone(routeUid)
+            }
         }
     }
 

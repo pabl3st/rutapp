@@ -126,7 +126,7 @@ fun GlobalMapScreen(
                     },
                     userLocation = ui.userLocation,
                     polyline     = ui.routePolyline,
-                    onStopClick  = onNavigateToStop,
+                    onStopClick  = { stopUid -> vm.onPinTap(stopUid) },
                     onMapClick   = {},
                     onCameraIdle = { _, _ -> },
                 )
@@ -226,6 +226,63 @@ fun GlobalMapScreen(
     }
 
     // ── Diálogo permiso GPS ───────────────────────────────────
+    // ── Popup de pin al tocar un stop en el mapa ──────────────
+    ui.selectedPinStop?.let { pin ->
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = vm::onPinDismiss,
+            sheetState       = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+                    .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                // Nombre + externalId
+                pin.externalId?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+                Text(pin.name, style = MaterialTheme.typography.titleMedium)
+                pin.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.Place, null, Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(addr, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                    }
+                }
+                // Resultado última visita
+                pin.visitResult?.let { result ->
+                    val (label, color) = when (result) {
+                        "contactado" -> "Contactado"  to androidx.compose.ui.graphics.Color(0xFF1D9E75)
+                        "no_estaba"  -> "No estaba"   to MaterialTheme.colorScheme.error
+                        "volvemos"   -> "Volvemos"    to MaterialTheme.colorScheme.tertiary
+                        "rechazado"  -> "Rechazado"   to MaterialTheme.colorScheme.error
+                        else         -> result        to MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.History, null, Modifier.size(12.dp), tint = color)
+                        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                // Botón iniciar visita
+                Button(
+                    onClick  = { vm.onPinDismiss(); onNavigateToStop(pin.uid) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Default.Edit, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Registrar visita")
+                }
+            }
+        }
+    }
+
     if (ui.showPermissionRationale) {
         AlertDialog(
             onDismissRequest = vm::dismissPermissionRationale,

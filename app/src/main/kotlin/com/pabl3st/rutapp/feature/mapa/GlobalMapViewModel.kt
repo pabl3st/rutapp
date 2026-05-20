@@ -76,6 +76,8 @@ data class GlobalMapUiState(
 
     // Tags de estado para GlobalStopCard (solo STATUS_DONE, STATUS_PENDING, DAYS_SINCE_VISIT)
     val stopTags: List<StopTagConfig> = emptyList(),
+    // Popup de pin — stop seleccionado al tocar en el mapa
+    val selectedPinStop: StopMapMarker? = null,
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -175,6 +177,9 @@ class GlobalMapViewModel @Inject constructor(
             status        = status,
             distanceLabel = dist?.formatAsDistance() ?: if (hasGps) "—" else "Sin GPS",
             orderIndex    = orderIndex,
+            address       = address,
+            visitResult   = visitResult,
+            visitedAt     = visitedAt,
         )
     }
 
@@ -217,6 +222,13 @@ class GlobalMapViewModel @Inject constructor(
     }
 
     // ── GPS ───────────────────────────────────────────────────
+    fun onPinTap(stopUid: String) {
+        val stop = _ui.value.allStops.firstOrNull { it.uid == stopUid }
+        _ui.update { it.copy(selectedPinStop = stop) }
+    }
+
+    fun onPinDismiss() = _ui.update { it.copy(selectedPinStop = null) }
+
     fun onPermissionGranted() {
         _ui.update { it.copy(locationPermissionGranted = true, showPermissionRationale = false) }
         startLocationUpdates()

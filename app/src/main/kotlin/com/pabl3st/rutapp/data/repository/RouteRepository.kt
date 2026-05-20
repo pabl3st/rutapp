@@ -77,6 +77,13 @@ class RouteRepository @Inject constructor(
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
 
+    /** Marca la ruta como completada y encola para sync */
+    suspend fun markDone(uid: String) {
+        val now = java.time.Instant.now().toString()
+        routeDao.updateStatus(uid, "done", now)
+        triggerSync()
+    }
+
     /** Elimina una fecha concreta del array scheduledDates de la ruta.
      *  Si era la fecha principal (dateAssigned), promueve la siguiente del array.
      *  Si no quedan fechas, deja dateAssigned = "1970-01-01". */

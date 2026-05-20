@@ -387,6 +387,30 @@ private fun RouteProgressCard(
 
             Spacer(Modifier.height(Spacing.sm))
 
+            // ── Siguiente parada pendiente ───────────────────
+            rwp.nextPendingStop?.let { stop ->
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier              = Modifier.padding(bottom = 4.dp),
+                ) {
+                    Icon(Icons.Default.NavigateNext, null,
+                        Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(stop.name,
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = MaterialTheme.colorScheme.primary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false))
+                    stop.address?.takeIf { it.isNotBlank() }?.let { addr ->
+                        Text("· $addr",
+                            style    = MaterialTheme.typography.labelSmall,
+                            color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+
             // ── Progreso ──────────────────────────────────────
             Row(
                 modifier              = Modifier.fillMaxWidth(),

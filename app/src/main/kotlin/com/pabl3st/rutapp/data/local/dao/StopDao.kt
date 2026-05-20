@@ -11,6 +11,9 @@ interface StopDao {
     @Query("SELECT * FROM stops WHERE routeUid = :routeUid AND deletedAt IS NULL ORDER BY orderIndex ASC")
     fun observeByRoute(routeUid: String): Flow<List<StopEntity>>
 
+    @Query("SELECT * FROM stops WHERE routeUid = :routeUid AND deletedAt IS NULL ORDER BY orderIndex ASC")
+    suspend fun getByRoute(routeUid: String): List<StopEntity>
+
     // ── Mapa global: stops de varias rutas ───────────────────
     @Query("SELECT * FROM stops WHERE routeUid IN (:routeUids) AND deletedAt IS NULL ORDER BY orderIndex ASC")
     fun observeByRouteUids(routeUids: List<String>): Flow<List<StopEntity>>

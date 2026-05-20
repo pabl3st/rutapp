@@ -72,6 +72,9 @@ interface RouteDao {
     @Query("UPDATE routes SET syncStatus = :status, syncedAt = :at WHERE uid = :uid")
     suspend fun updateSyncStatus(uid: String, status: String, at: String?)
 
+    @Query("UPDATE routes SET status = :status, updatedAt = :now, syncStatus = 'pending' WHERE uid = :uid")
+    suspend fun updateStatus(uid: String, status: String, now: String)
+
     @Query("DELETE FROM routes WHERE uid = :uid")
     suspend fun deleteByUid(uid: String)
 }

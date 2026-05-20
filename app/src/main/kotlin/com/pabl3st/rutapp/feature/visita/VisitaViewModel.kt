@@ -56,6 +56,7 @@ class VisitaViewModel @Inject constructor(
     private val syncQueueDao: SyncQueueDao,
     private val prefsRepo:    UserPrefsRepository,
     private val moshi:        Moshi,
+    private val locationMgr:  com.pabl3st.rutapp.core.location.LocationManager,
 ) : BaseViewModel() {
 
     private val stopUid: String = checkNotNull(savedStateHandle["stopUid"])
@@ -132,6 +133,7 @@ class VisitaViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
+            val gpsPos = locationMgr.lastKnownLocation()
 
             // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
             stopRepo.saveVisitResult(
@@ -141,6 +143,8 @@ class VisitaViewModel @Inject constructor(
                 nextAction  = _ui.value.nextAction.trim().ifEmpty { null },
                 pdvOpen     = _ui.value.storeOpen,
                 pdvInactive = _ui.value.pdvInactive,
+                gpsLat      = gpsPos?.latitude,
+                gpsLng      = gpsPos?.longitude,
             )
 
             // 2. Persistir valores KPI en Room
