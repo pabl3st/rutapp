@@ -48,17 +48,6 @@ interface StopDao {
      * Usado para KPIs acumulativos: cargar el valor más alto del mes al abrir formulario.
      * monthPrefix = "YYYY-MM" — ej: "2026-05"
      */
-    @Query("""
-        SELECT * FROM stops
-        WHERE accountId  = :accountId
-          AND externalId = :externalId
-          AND externalId IS NOT NULL
-          AND status     = 'done'
-          AND visitedAt  LIKE :monthPrefix || '%'
-          AND uid        != :excludeUid
-          AND deletedAt  IS NULL
-        ORDER BY visitedAt DESC
-    """)
     /** Historial completo de visitas al PDV (mismo externalId), más reciente primero */
     @Query("""
         SELECT * FROM stops
@@ -83,6 +72,17 @@ interface StopDao {
     """)
     suspend fun getVisitHistoryByUid(stopUid: String): List<StopEntity>
 
+    @Query("""
+        SELECT * FROM stops
+        WHERE accountId  = :accountId
+          AND externalId = :externalId
+          AND externalId IS NOT NULL
+          AND status     = 'done'
+          AND visitedAt  LIKE :monthPrefix || '%'
+          AND uid        != :excludeUid
+          AND deletedAt  IS NULL
+        ORDER BY visitedAt DESC
+    """)
     suspend fun getDoneByExternalIdInMonth(
         accountId:   Int,
         externalId:  String,
