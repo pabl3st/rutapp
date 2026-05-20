@@ -105,6 +105,45 @@ class StopRepository @Inject constructor(
         return stop
     }
 
+    suspend fun updateStop(
+        uid:            String,
+        name:           String,
+        externalId:     String? = null,
+        address:        String? = null,
+        lat:            Double? = null,
+        lng:            Double? = null,
+        notes:          String? = null,
+        contactName:    String? = null,
+        contactPhone:   String? = null,
+        visitFrequency: Int?    = null,
+        priority:       Int     = 3,
+        segment:        String? = null,
+        openingHours:   String? = null,
+    ) {
+        val existing = stopDao.getByUid(uid) ?: return
+        val now = Instant.now().atOffset(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val updated = existing.copy(
+            name           = name,
+            externalId     = externalId,
+            address        = address,
+            lat            = lat ?: existing.lat,
+            lng            = lng ?: existing.lng,
+            notes          = notes,
+            contactName    = contactName,
+            contactPhone   = contactPhone,
+            visitFrequency = visitFrequency,
+            priority       = priority,
+            segment        = segment,
+            openingHours   = openingHours,
+            updatedAt      = now,
+            syncStatus     = "pending",
+        )
+        stopDao.upsert(updated)
+        enqueue("stop", uid, "update", stopToMap(updated))
+        triggerSync()
+    }
+
     suspend fun markVisiting(uid: String) {
         stopDao.markVisiting(uid)
         // No enqueue — status visiting is transient, not synced until saveVisitResult

@@ -28,6 +28,7 @@ import com.pabl3st.rutapp.feature.perfil.BusinessProfileScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.biblioteca.BibliotecaScreen
 import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
+import com.pabl3st.rutapp.feature.rutas.EditarParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
 import com.pabl3st.rutapp.feature.rutas.RouteMapScreen
 import com.pabl3st.rutapp.feature.rutas.RutasScreen
@@ -174,6 +175,7 @@ fun RutasNavGraph(
                     onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
                     onStopClick     = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                     onAddStop       = { uid -> navController.navigate(Screen.CrearParada.createRoute(uid)) },
+                    onEditStop      = { uid -> navController.navigate(Screen.EditarParada.createRoute(uid)) },
                 )
             }
 
@@ -209,6 +211,25 @@ fun RutasNavGraph(
                     return@composable
                 }
                 CrearParadaScreen(
+                    onBack  = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+
+            composable(
+                route               = Screen.EditarParada.route,
+                arguments           = listOf(navArgument("stopUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
+            ) { backStackEntry ->
+                // Guardia: solo owner/admin/god pueden editar paradas
+                if (userRole !in listOf("owner", "admin", "god")) {
+                    navController.popBackStack()
+                    return@composable
+                }
+                EditarParadaScreen(
                     onBack  = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() },
                 )

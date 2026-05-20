@@ -31,8 +31,9 @@ fun RouteDetailScreen(
     routeUid: String,
     onBack: () -> Unit,
     onNavigateToMap: (String) -> Unit = {},
-    onStopClick: (String) -> Unit = {},
-    onAddStop: (String) -> Unit = {},
+    onStopClick:     (String) -> Unit = {},
+    onAddStop:       (String) -> Unit = {},
+    onEditStop:      (String) -> Unit = {},
     vm: RouteDetailViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -138,6 +139,7 @@ fun RouteDetailScreen(
                             modifier     = Modifier.semantics { testTag = "stop-card-$idx" },
                             stop         = stop,
                             onOpenVisita = { onStopClick(stop.uid) },
+                            onEdit       = if (ui.canEditStops) ({ onEditStop(stop.uid) }) else null,
                         )
                     }
                 }
@@ -316,7 +318,12 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}, modifier: Modifier = Modifier) {
+private fun StopCard(
+    stop:         StopEntity,
+    onOpenVisita: () -> Unit    = {},
+    onEdit:       (() -> Unit)? = null,
+    modifier:     Modifier      = Modifier,
+) {
     val isDone = stop.status == "done"
     Card(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -419,16 +426,24 @@ private fun StopCard(stop: StopEntity, onOpenVisita: () -> Unit = {}, modifier: 
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            if (!isDone) {
-                IconButton(onClick = onOpenVisita) {
-                    Icon(Icons.Default.Edit,
-                        contentDescription = "Registrar visita",
-                        tint = MaterialTheme.colorScheme.primary)
+            Column(horizontalAlignment = Alignment.End) {
+                if (!isDone) {
+                    IconButton(onClick = onOpenVisita) {
+                        Icon(Icons.Default.Edit, "Registrar visita",
+                            tint = MaterialTheme.colorScheme.primary)
+                    }
+                } else {
+                    Icon(Icons.Default.CheckCircle, null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.padding(12.dp))
                 }
-            } else {
-                Icon(Icons.Default.CheckCircle, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.padding(12.dp))
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Tune, "Editar datos del PDV",
+                            Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }
