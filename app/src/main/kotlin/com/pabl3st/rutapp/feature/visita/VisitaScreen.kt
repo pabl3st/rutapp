@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -161,7 +162,7 @@ fun VisitaScreen(
                                                 val uri = android.net.Uri.parse(
                                                     "geo:${stop.lat},${stop.lng}?q=${stop.lat},${stop.lng}(${android.net.Uri.encode(stop.name)})"
                                                 )
-                                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                                                LocalContext.current.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
                                             },
                                             modifier = Modifier.size(28.dp),
                                         ) {
