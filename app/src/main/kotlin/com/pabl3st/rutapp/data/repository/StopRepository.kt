@@ -105,6 +105,19 @@ class StopRepository @Inject constructor(
         return stop
     }
 
+    /** Devuelve el historial de visitas a este PDV (hasta 20 más recientes).
+     *  Si el stop tiene externalId, busca todas las instancias del mismo PDV.
+     *  Si no, devuelve solo el stop actual si está done. */
+    suspend fun getVisitHistory(stopUid: String): List<StopEntity> {
+        val stop = stopDao.getByUid(stopUid) ?: return emptyList()
+        return if (!stop.externalId.isNullOrBlank()) {
+            stopDao.getVisitHistoryByExternalId(session.accountId, stop.externalId!!)
+                .filter { it.uid != stopUid } // excluir el actual (ya se muestra en cabecera)
+        } else {
+            emptyList() // sin externalId no hay historial fiable
+        }
+    }
+
     suspend fun updateStop(
         uid:            String,
         name:           String,

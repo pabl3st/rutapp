@@ -42,6 +42,7 @@ data class VisitaUiState(
     val kpiFields: List<KpiDefinitionEntity> = emptyList(),
     val kpiValues: Map<String, String>       = emptyMap(),
     val error: String?                       = null,
+    val previousVisits: List<StopEntity>     = emptyList(),
 )
 
 @HiltViewModel
@@ -94,10 +95,12 @@ class VisitaViewModel @Inject constructor(
                     return@launch
                 }
             }
+            val history = if (stop != null) stopRepo.getVisitHistory(stopUid) else emptyList()
             _ui.update {
                 it.copy(
                     stop           = stop,
                     isLoading      = false,
+                    previousVisits = history,
                     selectedResult = "contactado", // siempre limpio al abrir
                     notes          = "",
                     nextAction     = "",

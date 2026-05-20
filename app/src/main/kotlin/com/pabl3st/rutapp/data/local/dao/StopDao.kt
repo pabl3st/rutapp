@@ -59,6 +59,30 @@ interface StopDao {
           AND deletedAt  IS NULL
         ORDER BY visitedAt DESC
     """)
+    /** Historial completo de visitas al PDV (mismo externalId), más reciente primero */
+    @Query("""
+        SELECT * FROM stops
+        WHERE accountId  = :accountId
+          AND externalId = :externalId
+          AND externalId IS NOT NULL
+          AND status     = 'done'
+          AND deletedAt  IS NULL
+        ORDER BY visitedAt DESC
+        LIMIT 20
+    """)
+    suspend fun getVisitHistoryByExternalId(
+        accountId:  Int,
+        externalId: String,
+    ): List<StopEntity>
+
+    /** Historial para stops sin externalId — por uid directo */
+    @Query("""
+        SELECT * FROM stops
+        WHERE uid = :stopUid AND status = 'done'
+        LIMIT 1
+    """)
+    suspend fun getVisitHistoryByUid(stopUid: String): List<StopEntity>
+
     suspend fun getDoneByExternalIdInMonth(
         accountId:   Int,
         externalId:  String,

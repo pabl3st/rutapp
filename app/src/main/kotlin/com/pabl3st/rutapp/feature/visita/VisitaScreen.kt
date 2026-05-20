@@ -406,7 +406,71 @@ fun VisitaScreen(
                         OutlinedTextField(value = ui.nextAction, onValueChange = { if (it.length <= 255) vm.onNextActionChange(it) }, label = { Text("Próxima acción") }, placeholder = { Text("Qué hacer en la siguiente visita...") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, leadingIcon = { Icon(Icons.AutoMirrored.Filled.NextPlan, null, Modifier.size(18.dp)) })
                     }
 
+                    // ── Historial de visitas anteriores ─────────────
+                    if (ui.previousVisits.isNotEmpty()) {
+                        Spacer(Modifier.height(Spacing.sm))
+                        Text("Visitas anteriores",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.height(Spacing.xs))
+                        ui.previousVisits.forEach { visit ->
+                            PreviousVisitCard(visit)
+                            Spacer(Modifier.height(4.dp))
+                        }
+                    }
+
                     Spacer(Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviousVisitCard(visit: com.pabl3st.rutapp.data.local.entity.StopEntity) {
+    val (label, color) = when (visit.visitResult) {
+        "contactado" -> "Contactado"  to androidx.compose.ui.graphics.Color(0xFF1D9E75)
+        "no_estaba"  -> "No estaba"   to MaterialTheme.colorScheme.error
+        "volvemos"   -> "Volvemos"    to MaterialTheme.colorScheme.tertiary
+        "rechazado"  -> "Rechazado"   to MaterialTheme.colorScheme.error
+        else         -> (visit.visitResult ?: "Sin resultado") to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val dateStr = visit.visitedAt?.take(10) ?: return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors   = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ),
+    ) {
+        Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.History, null, Modifier.size(12.dp), tint = color)
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                }
+                Text(dateStr, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            visit.notes?.takeIf { it.isNotBlank() }?.let { notes ->
+                Text(notes, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            visit.nextAction?.takeIf { it.isNotBlank() }?.let { action ->
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.NextPlan, null, Modifier.size(10.dp),
+                        tint = MaterialTheme.colorScheme.primary)
+                    Text(action, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
