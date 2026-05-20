@@ -186,12 +186,29 @@ class ImportarViewModel @Inject constructor(
             _ui.update { it.copy(isLoadingAgents = true) }
             when (val result = adminRepo.listUsers()) {
                 is com.pabl3st.rutapp.data.repository.AuthResult.Success -> {
+                    val callerRole = session.userRole
+                    // Roles que puede recibir rutas según la jerarquía:
+                    // owner/god  → admin + manager + agent
+                    // admin      → manager + agent
+                    // manager    → solo sus agentes directos (managedAgentIds)
+                    val allowedRoles: Set<String> = when (callerRole) {
+                        "owner", "god" -> setOf("admin", "manager", "agent")
+                        "admin"        -> setOf("manager", "agent")
+                        "manager"      -> setOf("agent")
+                        else           -> emptySet()
+                    }
+                    val managedIds = if (callerRole == "manager")
+                        session.managedAgentIds.toSet() else null
+
                     val agents = result.data.filter { u ->
-                        u.role in listOf("agent", "viewer") && u.isActive
+                        u.isActive &&
+                        u.role in allowedRoles &&
+                        (managedIds == null || u.userId in managedIds)
                     }
                     _ui.update { it.copy(availableAgents = agents, isLoadingAgents = false) }
                 }
-                is com.pabl3st.rutapp.data.repository.AuthResult.Error -> _ui.update { it.copy(isLoadingAgents = false) }
+                is com.pabl3st.rutapp.data.repository.AuthResult.Error ->
+                    _ui.update { it.copy(isLoadingAgents = false) }
             }
         }
     }
