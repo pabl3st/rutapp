@@ -33,7 +33,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 12,
+    version      = 13,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -161,6 +161,15 @@ abstract class RutasDatabase : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vp_stop   ON visit_photos (stopUid)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vp_sync   ON visit_photos (syncStatus)")
+            }
+        }
+
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE stops ADD COLUMN checkInTs INTEGER")
+                db.execSQL("ALTER TABLE stops ADD COLUMN checkOutTs INTEGER")
+                db.execSQL("ALTER TABLE stops ADD COLUMN gpsLatVisit REAL")
+                db.execSQL("ALTER TABLE stops ADD COLUMN gpsLngVisit REAL")
             }
         }
 

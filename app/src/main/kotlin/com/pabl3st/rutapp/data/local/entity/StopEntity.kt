@@ -37,7 +37,11 @@ data class StopEntity(
     // ── Estado y visita ───────────────────────────────────────
     val status: String      = "pending",   // pending|visiting|done|skipped
     val notes: String?      = null,
-    val visitedAt: String?  = null,
+    val visitedAt:    String?  = null,
+    val checkInTs:    Long?    = null,   // epoch ms — cuando se abrió el formulario
+    val checkOutTs:   Long?    = null,   // epoch ms — cuando se guardó la visita
+    val gpsLatVisit:  Double?  = null,   // GPS del agente al momento del check-in
+    val gpsLngVisit:  Double?  = null,
 
     // ── Resultado visita (S06) ────────────────────────────────
     val visitResult: String?  = null,      // contactado|no_estaba|volvemos|rechazado

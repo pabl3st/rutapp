@@ -96,6 +96,7 @@ class VisitaViewModel @Inject constructor(
                 }
             }
             val history = if (stop != null) stopRepo.getVisitHistory(stopUid) else emptyList()
+            val checkInTs = System.currentTimeMillis()  // momento en que el agente abre el formulario
             _ui.update {
                 it.copy(
                     stop           = stop,
@@ -139,6 +140,7 @@ class VisitaViewModel @Inject constructor(
             val gpsPos = locationMgr.getLastLocation()
 
             // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
+            val checkOutTs = System.currentTimeMillis()
             stopRepo.saveVisitResult(
                 uid         = stopUid,
                 result      = _ui.value.selectedResult,
@@ -148,6 +150,8 @@ class VisitaViewModel @Inject constructor(
                 pdvInactive = _ui.value.pdvInactive,
                 gpsLat      = gpsPos?.latitude,
                 gpsLng      = gpsPos?.longitude,
+                checkInTs   = checkInTs,
+                checkOutTs  = checkOutTs,
             )
 
             // 2. Persistir valores KPI en Room

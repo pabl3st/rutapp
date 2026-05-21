@@ -188,6 +188,8 @@ class StopRepository @Inject constructor(
         pdvInactive: Boolean  = false,
         gpsLat:      Double?  = null,
         gpsLng:      Double?  = null,
+        checkInTs:   Long?    = null,
+        checkOutTs:  Long?    = null,
     ) {
         val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -205,6 +207,9 @@ class StopRepository @Inject constructor(
         // Actualizar GPS del check-in si se capturó
         if (gpsLat != null && gpsLng != null) {
             stopDao.updateCoords(uid, gpsLat, gpsLng, now)
+        }
+        if (checkInTs != null || checkOutTs != null) {
+            stopDao.updateCheckInOut(uid, checkInTs, checkOutTs, gpsLat, gpsLng)
         }
         val stopAfter = stopDao.getByUid(uid) ?: return
         enqueue("stop", uid, "update", stopToMap(stopAfter))
@@ -275,6 +280,10 @@ class StopRepository @Inject constructor(
         "contact_name"  to s.contactName,
         "contact_phone" to s.contactPhone,
         "visited_at"   to s.visitedAt,
+        "check_in_ts"  to s.checkInTs,
+        "check_out_ts" to s.checkOutTs,
+        "gps_lat_visit" to s.gpsLatVisit,
+        "gps_lng_visit" to s.gpsLngVisit,
         "visit_result" to s.visitResult,
         "next_action"  to s.nextAction,
         "pdv_open"     to if (s.pdvOpen) 1 else 0,

@@ -117,6 +117,18 @@ interface StopDao {
     @Query("UPDATE stops SET status = 'visiting', syncStatus = 'pending' WHERE uid = :uid AND status = 'pending'")
     suspend fun markVisiting(uid: String)
 
+    @Query("""
+        UPDATE stops SET
+            checkInTs   = COALESCE(:checkInTs,  checkInTs),
+            checkOutTs  = COALESCE(:checkOutTs, checkOutTs),
+            gpsLatVisit = COALESCE(:gpsLat,     gpsLatVisit),
+            gpsLngVisit = COALESCE(:gpsLng,     gpsLngVisit),
+            syncStatus  = 'pending'
+        WHERE uid = :uid
+    """)
+    suspend fun updateCheckInOut(uid: String, checkInTs: Long?, checkOutTs: Long?,
+                                  gpsLat: Double?, gpsLng: Double?)
+
     @Query("UPDATE stops SET lat = :lat, lng = :lng, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateCoords(uid: String, lat: Double, lng: Double, at: String)
 

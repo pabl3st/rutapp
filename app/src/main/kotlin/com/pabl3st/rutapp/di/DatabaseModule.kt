@@ -29,6 +29,8 @@ object DatabaseModule {
                 RutasDatabase.MIGRATION_8_9,
                 RutasDatabase.MIGRATION_9_10,
                 RutasDatabase.MIGRATION_10_11,
+                RutasDatabase.MIGRATION_11_12,
+                RutasDatabase.MIGRATION_12_13,
             )
             .build()
 
