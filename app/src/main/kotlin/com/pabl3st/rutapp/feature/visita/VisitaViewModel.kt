@@ -43,6 +43,7 @@ data class VisitaUiState(
     val kpiValues: Map<String, String>       = emptyMap(),
     val error: String?                       = null,
     val previousVisits: List<StopEntity>     = emptyList(),
+    val checkInTs: Long?                     = null,   // capturado al abrir el formulario
 )
 
 @HiltViewModel
@@ -96,12 +97,12 @@ class VisitaViewModel @Inject constructor(
                 }
             }
             val history = if (stop != null) stopRepo.getVisitHistory(stopUid) else emptyList()
-            val checkInTs = System.currentTimeMillis()  // momento en que el agente abre el formulario
             _ui.update {
                 it.copy(
                     stop           = stop,
                     isLoading      = false,
                     previousVisits = history,
+                    checkInTs      = System.currentTimeMillis(),  // capturado al abrir
                     selectedResult = "contactado", // siempre limpio al abrir
                     notes          = "",
                     nextAction     = "",
@@ -150,7 +151,7 @@ class VisitaViewModel @Inject constructor(
                 pdvInactive = _ui.value.pdvInactive,
                 gpsLat      = gpsPos?.latitude,
                 gpsLng      = gpsPos?.longitude,
-                checkInTs   = checkInTs,
+                checkInTs   = _ui.value.checkInTs,
                 checkOutTs  = checkOutTs,
             )
 
