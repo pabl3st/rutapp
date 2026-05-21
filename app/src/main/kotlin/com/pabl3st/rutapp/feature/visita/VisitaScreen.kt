@@ -2,7 +2,6 @@
 package com.pabl3st.rutapp.feature.visita
 
 import com.pabl3st.rutapp.core.ui.theme.RutasColors
-import com.pabl3st.rutapp.core.ui.theme.Spacing
 
 import android.Manifest
 import android.content.ContentValues
@@ -409,12 +408,12 @@ fun VisitaScreen(
 
                     // ── Historial de visitas anteriores ─────────────
                     if (ui.previousVisits.isNotEmpty()) {
-                        Spacer(Modifier.height(Spacing.sm))
+                        Spacer(Modifier.height(8.dp))
                         Text("Visitas anteriores",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        Spacer(Modifier.height(Spacing.xs))
+                        Spacer(Modifier.height(4.dp))
                         ui.previousVisits.forEach { visit ->
                             PreviousVisitCard(visit)
                             Spacer(Modifier.height(4.dp))
@@ -445,7 +444,7 @@ private fun PreviousVisitCard(visit: com.pabl3st.rutapp.data.local.entity.StopEn
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         ),
     ) {
-        Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
