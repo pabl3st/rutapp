@@ -1000,6 +1000,10 @@ if ($action === 'batch_sync') {
                                     pdv_open=?, pdv_inactive=?,
                                     visit_frequency=?, priority=?, segment=?,
                                     account_status=IF(?=1,\'inactive\',account_status),
+                                    check_in_ts=COALESCE(?,check_in_ts),
+                                    check_out_ts=COALESCE(?,check_out_ts),
+                                    gps_lat_visit=COALESCE(?,gps_lat_visit),
+                                    gps_lng_visit=COALESCE(?,gps_lng_visit),
                                     updated_at=?
                                  WHERE uid=? AND account_id=?'
                             )->execute([
@@ -1022,6 +1026,10 @@ if ($action === 'batch_sync') {
                                 isset($data['priority']) ? (int)$data['priority'] : 0,
                                 san($data['segment'] ?? '', 50) ?: null,
                                 isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
+                                $data['check_in_ts']   ?? null,
+                                $data['check_out_ts']  ?? null,
+                                isset($data['gps_lat_visit']) ? (float)$data['gps_lat_visit'] : null,
+                                isset($data['gps_lng_visit']) ? (float)$data['gps_lng_visit'] : null,
                                 date('c'),
                                 $clientUid, $aid,
                             ]);
