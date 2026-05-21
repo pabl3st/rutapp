@@ -49,6 +49,9 @@ data class RouteDetailUiState(
     val loadingUsers:       Boolean              = false,
     val isReassigning:      Boolean              = false,
     val snackbar:           String?              = null,
+    // Selector de fecha para rutas multi-día
+    val availableDates: List<String>              = emptyList(),
+    val selectedDate:   String?                   = java.time.LocalDate.now().toString(),
 )
 
 @HiltViewModel
@@ -105,7 +108,15 @@ class RouteDetailViewModel @Inject constructor(
 
     private fun observeStops() {
         viewModelScope.launch {
-            stopRepo.observeByRoute(routeUid)
+            // Cargar fechas disponibles y filtrar stops por fecha seleccionada
+            val availDates = stopRepo.getDistinctDates(routeUid)
+            if (availDates.isNotEmpty()) {
+                _ui.update { it.copy(availableDates = availDates) }
+                val sel = _ui.value.selectedDate ?: availDates.first()
+                stopRepo.observeByRouteAndDate(routeUid, sel)
+            } else {
+                stopRepo.observeByRoute(routeUid)
+            }
                 .catch { e -> _ui.update { it.copy(error = e.message) } }
                 .collect { stops ->
                     _baseStops.value = stops
@@ -253,6 +264,14 @@ class RouteDetailViewModel @Inject constructor(
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }
+
+    fun onDateSelected(date: String) {
+        _ui.update { it.copy(selectedDate = date) }
+        viewModelScope.launch {
+            stopRepo.observeByRouteAndDate(routeUid, date)
+                .collect { stops -> applySortMode(_ui.value.sortMode, stops) }
+        }
+    }
 
     // ── Haversine en km ───────────────────────────────────────
     private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

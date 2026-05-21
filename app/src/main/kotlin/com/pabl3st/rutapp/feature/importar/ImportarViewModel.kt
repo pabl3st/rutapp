@@ -612,25 +612,35 @@ class ImportarViewModel @Inject constructor(
                             forUserId      = _ui.value.targetUser?.userId,
                         )
 
-                        stops.forEachIndexed { stopIdx, preview ->
-                            val stop = stopRepo.createStop(
-                                routeUid       = route.uid,
-                                name           = preview.name,
-                                externalId     = preview.externalId,
-                                address        = preview.address,
-                                lat            = preview.lat,
-                                lng            = preview.lng,
-                                orderIndex     = stopIdx,
-                                notes          = preview.notes,
-                                contactName    = preview.contactName,
-                                contactPhone   = preview.contactPhone,
-                                visitFrequency = preview.visitFrequency,
-                                priority       = preview.priority,
-                                segment        = preview.segment,
-                            )
-                            preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
-                            saved++
-                            _ui.update { it.copy(saveProgress = saved) }
+                        // Crear un stop INDEPENDIENTE por cada fecha del schedule
+                        // Así cada visita tiene su propio ciclo de vida (como en la web)
+                        val dates = if (allDates.isNotEmpty()) allDates else listOf(dateAssigned)
+                        dates.forEach { dateForStop ->
+                            stops.forEachIndexed { stopIdx, preview ->
+                                val stop = stopRepo.createStop(
+                                    routeUid       = route.uid,
+                                    name           = preview.name,
+                                    externalId     = preview.externalId,
+                                    address        = preview.address,
+                                    lat            = preview.lat,
+                                    lng            = preview.lng,
+                                    // Ordenar por fecha primero, luego por posición en la ruta
+                                    orderIndex     = dates.indexOf(dateForStop) * 1000 + stopIdx,
+                                    notes          = preview.notes,
+                                    contactName    = preview.contactName,
+                                    contactPhone   = preview.contactPhone,
+                                    visitFrequency = preview.visitFrequency,
+                                    priority       = preview.priority,
+                                    segment        = preview.segment,
+                                    dateAssigned   = dateForStop,
+                                )
+                                // Solo guardar el uid del stop de la primera fecha para KPIs históricos
+                                if (dateForStop == dates.first()) {
+                                    preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
+                                }
+                                saved++
+                                _ui.update { it.copy(saveProgress = saved) }
+                            }
                         }
                     }
                 } catch (e: Exception) {

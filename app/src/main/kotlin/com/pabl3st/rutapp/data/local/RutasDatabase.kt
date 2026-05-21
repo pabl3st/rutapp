@@ -33,7 +33,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 13,
+    version      = 14,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -170,6 +170,13 @@ abstract class RutasDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE stops ADD COLUMN checkOutTs INTEGER")
                 db.execSQL("ALTER TABLE stops ADD COLUMN gpsLatVisit REAL")
                 db.execSQL("ALTER TABLE stops ADD COLUMN gpsLngVisit REAL")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Fecha de visita concreta del stop (un stop por fecha del schedule)
+                db.execSQL("ALTER TABLE stops ADD COLUMN dateAssigned TEXT")
             }
         }
 

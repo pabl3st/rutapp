@@ -6,6 +6,7 @@ import com.pabl3st.rutapp.core.ui.theme.StopStatusTokens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -100,6 +101,28 @@ fun RouteDetailScreen(
                     isSaving  = ui.isReordering,
                     modifier  = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+            }
+
+            // ── Selector de fecha si hay múltiples días ───────
+            if (ui.availableDates.size > 1) {
+                androidx.compose.foundation.lazy.LazyRow(
+                    modifier              = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(ui.availableDates) { date ->
+                        val today   = java.time.LocalDate.now().toString()
+                        val label   = if (date == today) "Hoy" else
+                            runCatching {
+                                java.time.LocalDate.parse(date).format(
+                                    java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale("es")))
+                            }.getOrDefault(date)
+                        FilterChip(
+                            selected = date == ui.selectedDate,
+                            onClick  = { vm.onDateSelected(date) },
+                            label    = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                        )
+                    }
+                }
             }
 
             when {
@@ -347,13 +370,35 @@ private fun StopCard(
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                stop.externalId?.let { extId ->
-                    Text(
-                        text  = extId,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    )
+                // Cabecera: externalId + chip de fecha si hay múltiples fechas
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    stop.externalId?.let { extId ->
+                        Text(
+                            text  = extId,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        )
+                    }
+                    stop.dateAssigned?.let { date ->
+                        val today = java.time.LocalDate.now().toString()
+                        val label = if (date == today) "Hoy" else
+                            runCatching {
+                                java.time.LocalDate.parse(date).format(
+                                    java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale("es")))
+                            }.getOrDefault(date)
+                        val isToday = date == today
+                        Surface(shape = MaterialTheme.shapes.extraSmall,
+                            color = if (isToday) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant) {
+                            Text(label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                        }
+                    }
                 }
                 Text(
                     text  = stop.name,

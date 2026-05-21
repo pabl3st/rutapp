@@ -35,6 +35,12 @@ class StopRepository @Inject constructor(
     fun observeByRoute(routeUid: String): Flow<List<StopEntity>> =
         stopDao.observeByRoute(routeUid)
 
+    fun observeByRouteAndDate(routeUid: String, date: String): Flow<List<StopEntity>> =
+        stopDao.observeByRouteAndDate(routeUid, date)
+
+    suspend fun getDistinctDates(routeUid: String): List<String> =
+        stopDao.getDistinctDates(routeUid)
+
     suspend fun getByRoute(routeUid: String): List<StopEntity> =
         stopDao.getByRoute(routeUid)
 
@@ -74,6 +80,7 @@ class StopRepository @Inject constructor(
         visitFrequency: Int?    = null,
         priority:       Int     = 3,
         segment:        String? = null,
+        dateAssigned:   String? = null,  // fecha de esta visita concreta
     ): StopEntity {
         require(name.isNotBlank())     { "Nombre de parada vacío" }
         require(routeUid.isNotBlank()) { "routeUid vacío" }
@@ -95,6 +102,7 @@ class StopRepository @Inject constructor(
             visitFrequency = visitFrequency,
             priority       = priority,
             segment        = segment,
+            dateAssigned   = dateAssigned,
             createdAt      = now,
             updatedAt      = now,
             syncStatus     = "pending",
@@ -280,6 +288,7 @@ class StopRepository @Inject constructor(
         "contact_name"  to s.contactName,
         "contact_phone" to s.contactPhone,
         "visited_at"   to s.visitedAt,
+        "date_assigned" to s.dateAssigned,
         "check_in_ts"  to s.checkInTs,
         "check_out_ts" to s.checkOutTs,
         "gps_lat_visit" to s.gpsLatVisit,

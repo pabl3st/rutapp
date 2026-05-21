@@ -11,6 +11,26 @@ interface StopDao {
     @Query("SELECT * FROM stops WHERE routeUid = :routeUid AND deletedAt IS NULL ORDER BY orderIndex ASC")
     fun observeByRoute(routeUid: String): Flow<List<StopEntity>>
 
+    /** Stops de la ruta de una fecha concreta (para el modelo de informe independiente por día) */
+    @Query("""
+        SELECT * FROM stops
+        WHERE routeUid = :routeUid
+          AND deletedAt IS NULL
+          AND (dateAssigned = :date OR dateAssigned IS NULL)
+        ORDER BY orderIndex ASC
+    """)
+    fun observeByRouteAndDate(routeUid: String, date: String): Flow<List<StopEntity>>
+
+    /** Todas las fechas únicas de stops de una ruta (para el selector de fecha en RouteDetail) */
+    @Query("""
+        SELECT DISTINCT dateAssigned FROM stops
+        WHERE routeUid = :routeUid
+          AND deletedAt IS NULL
+          AND dateAssigned IS NOT NULL
+        ORDER BY dateAssigned ASC
+    """)
+    suspend fun getDistinctDates(routeUid: String): List<String>
+
     @Query("SELECT * FROM stops WHERE routeUid = :routeUid AND deletedAt IS NULL ORDER BY orderIndex ASC")
     suspend fun getByRoute(routeUid: String): List<StopEntity>
 

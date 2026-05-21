@@ -35,6 +35,7 @@ data class StopEntity(
     val pdvInactive: Boolean    = false,        // PDV cerrado permanentemente (inactivo)
 
     // ── Estado y visita ───────────────────────────────────────
+    val dateAssigned: String? = null,      // fecha de esta visita concreta (YYYY-MM-DD)
     val status: String      = "pending",   // pending|visiting|done|skipped
     val notes: String?      = null,
     val visitedAt:    String?  = null,
