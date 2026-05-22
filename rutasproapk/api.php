@@ -1912,6 +1912,68 @@ if ($action === 'clear_routes') {
     ok(['cleared' => true]);
 }
 
+if ($action === 'assign_route') {
+    $sess     = requireAuth();
+    $callerId = (int)$sess['uid'];
+    $callerRole = $sess['role'];
+    $aid      = (int)$sess['account_id'];
+
+    // Mínimo manager para reasignar
+    if (roleLevel($callerRole) < 3) err('Sin permisos para reasignar rutas', 403);
+
+    $routeUid  = san($body['route_uid']  ?? '', 50);
+    $newUserId = (int)($body['new_user_id'] ?? 0);
+    if (!$routeUid)   err('route_uid requerido');
+    if (!$newUserId)  err('new_user_id requerido');
+
+    // Verificar que la ruta pertenece a la cuenta
+    $route = db()->prepare('SELECT id, user_id, name FROM routes WHERE uid=? AND account_id=? AND deleted_at IS NULL LIMIT 1');
+    $route->execute([$routeUid, $aid]);
+    $routeRow = $route->fetch();
+    if (!$routeRow) err('Ruta no encontrada', 404);
+
+    // Verificar que el destinatario existe y el caller puede asignarle
+    $target = db()->prepare('SELECT id, name, role, manager_id FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
+    $target->execute([$newUserId, $aid]);
+    $targetRow = $target->fetch();
+    if (!$targetRow) err('Usuario destino no encontrado', 404);
+
+    // Regla: manager solo puede asignar a sus agentes directos
+    if ($callerRole === 'manager') {
+        if ((int)$targetRow['manager_id'] !== $callerId) {
+            err('Solo puedes asignar rutas a tus agentes directos', 403);
+        }
+    }
+    // admin puede asignar a cualquiera de la cuenta excepto owner/god
+    if ($callerRole === 'admin' && in_array($targetRow['role'], ['owner', 'god'])) {
+        err('No puedes asignar rutas a owner o god', 403);
+    }
+
+    // Actualizar user_id en la ruta
+    db()->prepare('UPDATE routes SET user_id=?, updated_at=NOW() WHERE uid=? AND account_id=?')
+        ->execute([$newUserId, $routeUid, $aid]);
+
+    // Actualizar también los stops de esa ruta para que el nuevo agente los vea
+    db()->prepare('UPDATE stops s JOIN routes r ON r.uid=s.route_uid SET s.updated_at=NOW() WHERE r.uid=? AND r.account_id=?')
+        ->execute([$routeUid, $aid]);
+
+    // FCM push al nuevo agente
+    $fcmToken = db()->prepare('SELECT fcm_token FROM users WHERE id=? AND fcm_token IS NOT NULL LIMIT 1');
+    $fcmToken->execute([$newUserId]);
+    $tokenRow = $fcmToken->fetch();
+    if ($tokenRow && $tokenRow['fcm_token']) {
+        sendFcmNotification(
+            $tokenRow['fcm_token'],
+            'Nueva ruta asignada',
+            'Se te ha asignado la ruta: ' . $routeRow['name'],
+            ['type' => 'route_assigned', 'route_uid' => $routeUid]
+        );
+    }
+
+    apiLog($action, $callerId, $aid);
+    ok(['assigned' => true, 'route_uid' => $routeUid, 'new_user_id' => $newUserId]);
+}
+
 err("Acción desconocida: {$action}", 404);
 
 
