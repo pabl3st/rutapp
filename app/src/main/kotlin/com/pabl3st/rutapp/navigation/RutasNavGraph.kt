@@ -39,6 +39,9 @@ import com.pabl3st.rutapp.feature.kpis.KpisScreen
 import com.pabl3st.rutapp.feature.mapa.GlobalMapScreen
 import com.pabl3st.rutapp.feature.importar.ImportarScreen
 import com.pabl3st.rutapp.feature.visita.VisitaScreen
+import com.pabl3st.rutapp.feature.onboarding.LocationOnboardingScreen
+import com.pabl3st.rutapp.core.location.locationPermissionState
+import com.pabl3st.rutapp.core.location.LocationPermissionState
 
 // ── Transiciones de navegación ───────────────────────────
 private val enterPush   = slideInHorizontally(tween(280)) { it / 4 } + fadeIn(tween(280))
