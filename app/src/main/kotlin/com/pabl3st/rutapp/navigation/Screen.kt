@@ -24,6 +24,7 @@ sealed class Screen(val route: String) {
     object EditarParada : Screen("editar-parada/{stopUid}") {
         fun createRoute(stopUid: String) = "editar-parada/$stopUid"
     }
+    object LocationOnboarding : Screen("location-onboarding")
     object BusinessProfile : Screen("business-profile")
     object Biblioteca      : Screen("biblioteca")
     object Importar        : Screen("importar")

@@ -235,6 +235,70 @@ Screen.Importar        // importar
 
 ### PENDIENTES ⏳
 
+### GRUPOS UX A-D — COMPLETADOS ✅ (builds 74-89)
+**Grupo A (datos en Room, solo UI):**
+  StopCard: visitResult coloreado, nextAction, badge prioridad, icono PDV inactivo/cerrado
+  BibliotecaStopCard: visitResult + próxima visita calculada desde visitFrequency
+  CalendarioScreen: nombre de ruta en celda + altura mínima 44dp
+  VisitaScreen: cabecera completa (navegar Maps, horario, segmento, prioridad)
+  KpisScreen: MetricCard con trend "+N vs anterior" vs período anterior
+
+**Grupo B (ViewModel/data):**
+  HomeScreen: nextPendingStop en RouteProgressCard
+  route.status sincronizado con DaySession al finalizar (markDone si todos done/skipped)
+  GlobalMapScreen: popup BottomSheet al tocar pin con info PDV + botón registrar visita
+  VisitaScreen: GPS automático al guardar + check-in/out timestamps
+
+**Grupo C (pantallas nuevas):**
+  EditarParadaScreen: editar todos los campos del PDV (owner/admin/god)
+  VisitaScreen: historial de visitas anteriores por externalId (hasta 20)
+
+**Grupo D (sync con API web):**
+  StopEntity: checkInTs, checkOutTs, gpsLatVisit, gpsLngVisit
+  Room migration 12→13, api.php batch_sync incluye los nuevos campos
+  migration_v12.sql para aplicar en phpMyAdmin
+
+**Informes diarios independientes (build 87):**
+  1 StopEntity por fecha por PDV (dateAssigned). Room migration 13→14.
+  Selector de fecha chips en RouteDetailScreen. Upsert en import sin duplicados.
+  Deduplicación Biblioteca por externalId.
+
+**Operaciones de cuenta (builds 88-89):**
+  Borrar todas las rutas y paradas (owner/god). Endpoint clear_routes.
+  Dedup Biblioteca. Upsert import. Roles en import corregidos.
+
+### PENDIENTES ⏳
+
+#### S18 — Play Store
+- Keystore firma release, build-release.yml, proguard-rules.pro
+- Subida al track de pruebas cerrado de Play Store
+
+#### S19 — Manager operativo al 100%
+- assign_route endpoint en api.php (reasignar ruta a otro agente)
+- Reasignar ruta en RouteDetailScreen (todos los roles que pueden gestionar)
+- Guardia EditarParada: manager puede editar paradas de sus agentes
+- Onboarding de permisos GPS (LocationPermissionScreen)
+
+#### S20 — Visibilidad del equipo
+- team_overview endpoint (lista agentes + estado jornada + stops hoy + GPS)
+- TeamScreen: lista de agentes con progreso de hoy
+- AgentDetailScreen: actividad detallada de un agente
+
+#### S21 — KPIs por agente + mapa mejorado
+- KPIsScreen: selector de agente para ver KPIs de reportador
+- GlobalMapScreen: marcadores de posición de agentes activos (polling 30s)
+- AdminScreen: gráfica de tendencia semanal (librería Vico o MPAndroidChart)
+
+#### S22 — Calidad del agente
+- OnboardingGPSScreen: explicar por qué se necesita background location
+- ResumenJornadaScreen: pantalla al finalizar con km, tiempo, resultados
+- Offline retry: WorkManager SyncWorker con exponential backoff
+
+#### S23 — Agenda equipo + exportar
+- AgendaEquipoScreen: grid agentes × días (solo manager con sus directos)
+- Exportar informe mensual PDF (PdfDocument Android nativo)
+- CalendarioScreen modo equipo para manager
+
 #### S17 — IA (depende S08+S09+S11)
 - Reoptimización de ruta en tiempo real (Gemini/Groq con clave usuario)
 - Asesor pre-visita por PDV: risk score + objetivo
@@ -575,6 +639,55 @@ Solución: helpers `routeDatesSet()`, `isRouteActiveOn()`, `isRouteActiveInRange
 ambos campos. Lo mismo aplica a cualquier query temporal que use `dateAssigned`.
 
 ---
+
+### ERROR 28: `Spacing.X` sin import en archivo nuevo
+Cuando se añade código que usa `Spacing.md/sm/xs` en un archivo que no tenía el import, el compilador
+falla con "Unresolved reference: Spacing". `Spacing` NO es parte de Material3 — es un objeto propio del proyecto.
+```kotlin
+// SIEMPRE añadir:
+import com.pabl3st.rutapp.core.ui.theme.Spacing
+// O mejor: sustituir por dp literales para evitar la dependencia
+```
+
+### ERROR 29: `LocalContext.current` en lambda `onClick` (no @Composable)
+```kotlin
+// ROMPE — onClick es una lambda normal, no un contexto @Composable:
+IconButton(onClick = { LocalContext.current.startActivity(...) })
+// CORRECTO — capturar fuera del lambda:
+val ctx = LocalContext.current
+IconButton(onClick = { ctx.startActivity(...) })
+```
+
+### ERROR 30: Nombre de método incorrecto en LocationManager
+LocationManager expone `getLastLocation()` (suspend), no `lastKnownLocation()`.
+```kotlin
+// ROMPE: locationMgr.lastKnownLocation()
+// CORRECTO: locationMgr.getLastLocation()
+```
+
+### ERROR 31: Variable local en corrutina no accesible desde otra función
+```kotlin
+// ROMPE — checkInTs solo existe en el scope de loadStop():
+fun loadStop() { viewModelScope.launch { val checkInTs = System.currentTimeMillis() } }
+fun saveVisit() { ... checkInTs ... }  // ← Unresolved reference
+// CORRECTO — guardarlo en UiState:
+data class UiState(val checkInTs: Long? = null, ...)
+fun loadStop() { _ui.update { it.copy(checkInTs = System.currentTimeMillis()) } }
+fun saveVisit() { ... _ui.value.checkInTs ... }
+```
+
+### ERROR 32: `@Query` Room separado de `suspend fun` por bloque insertado
+Al insertar código entre el `@Query(...)` y el `suspend fun` que lo implementa, KSP no los asocia.
+Room requiere que `@Query` y `fun` sean contiguos (solo líneas en blanco entre ellos, no código).
+```
+// ROMPE:
+@Query("SELECT ...")
+/** nuevo comentario */
+@Query("otra query")      ← esto "roba" la primera @Query
+suspend fun metodoOriginal()  ← queda sin @Query
+
+// CORRECTO: insertar ANTES del @Query existente, no entre @Query y fun
+```
 
 ## Checklist pre-commit
 

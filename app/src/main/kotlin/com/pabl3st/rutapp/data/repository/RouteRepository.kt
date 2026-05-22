@@ -223,16 +223,29 @@ class RouteRepository @Inject constructor(
      *  Solo permitido para owner/admin/manager (verificado en la capa ViewModel).
      *  El cambio se sincroniza con el servidor vía delta sync. */
     suspend fun reassignRoute(routeUid: String, newUserId: Int): Result<Unit> = runCatching {
+        val token = session.token ?: error("Sin sesión activa")
         val route = routeDao.getByUid(routeUid) ?: error("Ruta no encontrada: $routeUid")
-        val now   = Instant.now().atOffset(ZoneOffset.UTC)
+
+        // 1. Llamar al servidor — valida jerarquía y envía FCM push al nuevo agente
+        val response = api.assignRoute(
+            token = token,
+            body  = mapOf("route_uid" to routeUid, "new_user_id" to newUserId),
+        )
+        if (!response.isSuccessful || response.body()?.ok != true) {
+            error(response.body()?.error ?: "Error al reasignar en el servidor")
+        }
+
+        // 2. Actualizar Room local
+        val now = Instant.now().atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         val updated = route.copy(
             userId     = newUserId,
             updatedAt  = now,
-            syncStatus = "pending",
+            syncStatus = "synced",  // ya está en el servidor
         )
         routeDao.upsert(updated)
-        enqueue("route", routeUid, "update", routeToMap(updated))
+
+        // 3. Forzar delta_sync para traer el estado actualizado
         triggerSync()
     }
 

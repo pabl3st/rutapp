@@ -70,7 +70,7 @@ class RouteDetailViewModel @Inject constructor(
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 
     private val _ui = MutableStateFlow(RouteDetailUiState(
-        canEditStops = session.userRole in listOf("owner", "admin", "god"),
+        canEditStops = session.userRole in listOf("owner", "admin", "god", "manager"),
         canReassign  = session.userRole in listOf("owner", "admin", "manager", "god"),
     ))
     val ui: StateFlow<RouteDetailUiState> = _ui.asStateFlow()

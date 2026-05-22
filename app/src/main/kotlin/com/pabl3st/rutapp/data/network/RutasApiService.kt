@@ -574,6 +574,13 @@ interface RutasApiService {
     ): Response<BatchSyncResponse>
 
     @POST(API_PATH)
+    suspend fun assignRoute(
+        @Query("action")        action: String = "assign_route",
+        @Header("X-Auth-Token") token: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): retrofit2.Response<BaseResponse>
+
+    @POST(API_PATH)
     suspend fun clearRoutes(
         @Query("action")        action: String = "clear_routes",
         @Header("X-Auth-Token") token: String,

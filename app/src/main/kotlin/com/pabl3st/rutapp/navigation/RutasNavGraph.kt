@@ -84,16 +84,23 @@ fun RutasNavGraph(
                 OnboardingScreen(
                     onComplete = { isLoggedIn ->
                         if (isLoggedIn) {
-                            // Ya tiene sesión — ir directo a home
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Onboarding.route) { inclusive = true }
-                            }
-                            // Deep link desde notificación cuando la app ya tenía sesión
-                            if (!initialRouteUid.isNullOrBlank()) {
-                                navController.navigate(Screen.RouteDetail.createRoute(initialRouteUid))
+                            // Verificar GPS para agent/manager antes de ir al home
+                            val ctx      = navController.context
+                            val hasGps   = ctx.locationPermissionState() == LocationPermissionState.Granted
+                            val needsGps = userRole in listOf("agent", "manager")
+                            if (!hasGps && needsGps) {
+                                navController.navigate(Screen.LocationOnboarding.route) {
+                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                }
+                            } else {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                }
+                                if (!initialRouteUid.isNullOrBlank()) {
+                                    navController.navigate(Screen.RouteDetail.createRoute(initialRouteUid))
+                                }
                             }
                         } else {
-                            // Sin sesión — ir a login
                             navController.navigate(Screen.Auth.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
                             }
@@ -224,8 +231,9 @@ fun RutasNavGraph(
                 popEnterTransition  = { enterPop },
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
-                // Guardia: solo owner/admin/god pueden editar paradas
-                if (userRole !in listOf("owner", "admin", "god")) {
+                // Guardia: owner/admin/god/manager pueden editar paradas
+                // Manager edita PDVs de sus agentes directos (validación en UI y servidor)
+                if (userRole !in listOf("owner", "admin", "god", "manager")) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -317,6 +325,22 @@ fun RutasNavGraph(
                     return@composable
                 }
                 AdminScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.LocationOnboarding.route) {
+                LocationOnboardingScreen(
+                    onPermissionGranted = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.LocationOnboarding.route) { inclusive = true }
+                        }
+                    },
+                    onSkip = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.LocationOnboarding.route) { inclusive = true }
+                        }
+                    },
+                    isAgentRole = userRole == "agent",
+                )
             }
 
             composable(Screen.GodDashboard.route) {
