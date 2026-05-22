@@ -1974,6 +1974,209 @@ if ($action === 'assign_route') {
     ok(['assigned' => true, 'route_uid' => $routeUid, 'new_user_id' => $newUserId]);
 }
 
+// ─── S20: team_overview ────────────────────────────────────────────────────
+if ($action === 'team_overview') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    $role = $sess['role'];
+
+    if (roleLevel($role) < 3) err('Sin permisos', 403);
+
+    $today = date('Y-m-d');
+    $month = date('Y-m');
+
+    // Obtener agentes según jerarquía
+    if ($role === 'manager') {
+        $stU = db()->prepare(
+            'SELECT id, name, username, role, avatar_url FROM users
+             WHERE account_id=? AND manager_id=? AND active=1 AND role="agent"
+             ORDER BY name ASC'
+        );
+        $stU->execute([$aid, $uid]);
+    } elseif (roleLevel($role) >= 4) {
+        $stU = db()->prepare(
+            'SELECT id, name, username, role, avatar_url FROM users
+             WHERE account_id=? AND active=1 AND role IN ("agent","manager")
+             ORDER BY role DESC, name ASC'
+        );
+        $stU->execute([$aid]);
+    } else {
+        ok(['agents' => []]);
+    }
+    $agents = $stU->fetchAll();
+    if (empty($agents)) { ok(['agents' => []]); }
+
+    $agentIds = array_column($agents, 'id');
+    $ph = implode(',', array_fill(0, count($agentIds), '?'));
+
+    // Jornada activa de hoy por agente
+    $stJ = db()->prepare(
+        "SELECT user_id, state, elapsed_ms, distance_km, last_lat, last_lng, updated_at
+         FROM jornadas WHERE user_id IN ($ph) AND date_str=? ORDER BY updated_at DESC"
+    );
+    $stJ->execute([...$agentIds, $today]);
+    $jornadas = [];
+    foreach ($stJ->fetchAll() as $j) {
+        $jornadas[$j['user_id']] = $j;
+    }
+
+    // Stops de hoy por agente
+    $stS = db()->prepare(
+        "SELECT r.user_id,
+                COUNT(s.id)                         AS total,
+                SUM(s.status='done')                AS done,
+                SUM(s.status='skipped')             AS skipped,
+                SUM(s.visit_result='contactado')    AS contacted
+         FROM stops s
+         JOIN routes r ON r.uid=s.route_uid AND r.account_id=?
+         WHERE r.user_id IN ($ph)
+           AND (r.date_assigned=? OR r.scheduled_dates LIKE CONCAT('%',?,'%'))
+           AND s.deleted_at IS NULL
+         GROUP BY r.user_id"
+    );
+    $stS->execute([$aid, ...$agentIds, $today, $today]);
+    $stopsMap = [];
+    foreach ($stS->fetchAll() as $s) { $stopsMap[$s['user_id']] = $s; }
+
+    // Stops del mes para KPI mensual
+    $monthStart = $month . '-01';
+    $monthEnd   = date('Y-m-t', strtotime($monthStart));
+    $stM = db()->prepare(
+        "SELECT r.user_id,
+                COUNT(s.id)                         AS total_month,
+                SUM(s.status='done')                AS done_month,
+                SUM(s.visit_result='contactado')    AS contacted_month
+         FROM stops s
+         JOIN routes r ON r.uid=s.route_uid AND r.account_id=?
+         WHERE r.user_id IN ($ph)
+           AND r.date_assigned BETWEEN ? AND ?
+           AND s.deleted_at IS NULL
+         GROUP BY r.user_id"
+    );
+    $stM->execute([$aid, ...$agentIds, $monthStart, $monthEnd]);
+    $monthMap = [];
+    foreach ($stM->fetchAll() as $m) { $monthMap[$m['user_id']] = $m; }
+
+    $result = [];
+    foreach ($agents as $ag) {
+        $agId    = (int)$ag['id'];
+        $jornada = $jornadas[$agId] ?? null;
+        $stops   = $stopsMap[$agId] ?? null;
+        $month_s = $monthMap[$agId]  ?? null;
+        $result[] = [
+            'user_id'       => $agId,
+            'name'          => $ag['name'],
+            'username'      => $ag['username'],
+            'role'          => $ag['role'],
+            'avatar_url'    => $ag['avatar_url'],
+            // Jornada hoy
+            'jornada_state'   => $jornada['state']        ?? null,
+            'elapsed_ms'      => $jornada['elapsed_ms']   ?? 0,
+            'distance_km'     => $jornada['distance_km']  ?? 0,
+            'last_lat'        => $jornada['last_lat']      ?? null,
+            'last_lng'        => $jornada['last_lng']      ?? null,
+            'last_gps_at'     => $jornada['updated_at']   ?? null,
+            // Stops hoy
+            'stops_total'     => (int)($stops['total']     ?? 0),
+            'stops_done'      => (int)($stops['done']      ?? 0),
+            'stops_skipped'   => (int)($stops['skipped']   ?? 0),
+            'stops_contacted' => (int)($stops['contacted'] ?? 0),
+            // KPIs mes
+            'month_total'     => (int)($month_s['total_month']      ?? 0),
+            'month_done'      => (int)($month_s['done_month']       ?? 0),
+            'month_contacted' => (int)($month_s['contacted_month']  ?? 0),
+        ];
+    }
+    ok(['agents' => $result]);
+}
+
+// ─── S20: agent_detail ─────────────────────────────────────────────────────
+if ($action === 'agent_detail') {
+    $sess     = requireAuth();
+    $callerId = (int)$sess['uid'];
+    $aid      = (int)$sess['account_id'];
+    $callerRole = $sess['role'];
+
+    if (roleLevel($callerRole) < 3) err('Sin permisos', 403);
+
+    $targetId = (int)($_GET['user_id'] ?? 0);
+    if (!$targetId) err('user_id requerido');
+
+    // Verificar que el caller puede ver este agente
+    if ($callerRole === 'manager') {
+        $chk = db()->prepare('SELECT id FROM users WHERE id=? AND manager_id=? AND account_id=? LIMIT 1');
+        $chk->execute([$targetId, $callerId, $aid]);
+        if (!$chk->fetch()) err('No tienes acceso a este agente', 403);
+    } elseif (roleLevel($callerRole) < 4) {
+        err('Sin permisos para ver detalles de agente', 403);
+    }
+
+    $today      = date('Y-m-d');
+    $month      = date('Y-m');
+    $monthStart = $month . '-01';
+    $monthEnd   = date('Y-m-t', strtotime($monthStart));
+
+    // Info del agente
+    $stU = db()->prepare('SELECT id, name, username, role, email, avatar_url, created_at FROM users WHERE id=? AND account_id=? LIMIT 1');
+    $stU->execute([$targetId, $aid]);
+    $agent = $stU->fetch();
+    if (!$agent) err('Agente no encontrado', 404);
+
+    // Jornada de hoy
+    $stJ = db()->prepare('SELECT * FROM jornadas WHERE user_id=? AND date_str=? LIMIT 1');
+    $stJ->execute([$targetId, $today]);
+    $jornada = $stJ->fetch() ?: null;
+
+    // Rutas y stops de hoy
+    $stR = db()->prepare(
+        'SELECT r.uid, r.name, r.status, r.date_assigned,
+                COUNT(s.id)               AS total_stops,
+                SUM(s.status="done")      AS done_stops,
+                SUM(s.status="skipped")   AS skipped_stops,
+                SUM(s.status="pending")   AS pending_stops
+         FROM routes r
+         LEFT JOIN stops s ON s.route_uid=r.uid AND s.deleted_at IS NULL
+         WHERE r.user_id=? AND r.account_id=?
+           AND (r.date_assigned=? OR r.scheduled_dates LIKE CONCAT("%",?,"%"))
+           AND r.deleted_at IS NULL
+         GROUP BY r.uid, r.name, r.status, r.date_assigned'
+    );
+    $stR->execute([$targetId, $aid, $today, $today]);
+    $todayRoutes = $stR->fetchAll();
+
+    // Historial últimas 5 visitas completadas
+    $stV = db()->prepare(
+        'SELECT s.uid, s.name, s.visit_result, s.visited_at, s.next_action,
+                s.gps_lat_visit, s.gps_lng_visit, r.name AS route_name
+         FROM stops s JOIN routes r ON r.uid=s.route_uid
+         WHERE r.user_id=? AND r.account_id=? AND s.status="done" AND s.deleted_at IS NULL
+         ORDER BY s.visited_at DESC LIMIT 10'
+    );
+    $stV->execute([$targetId, $aid]);
+    $recentVisits = $stV->fetchAll();
+
+    // KPIs del mes
+    $stKpi = db()->prepare(
+        'SELECT COUNT(s.id) AS total, SUM(s.status="done") AS done,
+                SUM(s.visit_result="contactado") AS contacted,
+                SUM(s.visit_result="no_estaba") AS not_home,
+                SUM(s.visit_result="rechazado") AS rejected
+         FROM stops s JOIN routes r ON r.uid=s.route_uid AND r.account_id=?
+         WHERE r.user_id=? AND r.date_assigned BETWEEN ? AND ? AND s.deleted_at IS NULL'
+    );
+    $stKpi->execute([$aid, $targetId, $monthStart, $monthEnd]);
+    $kpis = $stKpi->fetch();
+
+    ok([
+        'agent'        => $agent,
+        'jornada'      => $jornada,
+        'today_routes' => $todayRoutes,
+        'recent_visits'=> $recentVisits,
+        'month_kpis'   => $kpis,
+    ]);
+}
+
 err("Acción desconocida: {$action}", 404);
 
 
