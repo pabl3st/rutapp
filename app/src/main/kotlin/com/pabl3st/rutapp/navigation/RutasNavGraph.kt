@@ -148,9 +148,12 @@ fun RutasNavGraph(
                     ExitAppDialog(onConfirm = onExitApp, onDismiss = { showExitDialog = false })
                 }
                 HomeScreen(
-                    onRouteClick     = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
-                    onStopClick      = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
-                    onNavigateToMapa = { navController.navigate(Screen.Mapa.route) },
+                    onRouteClick      = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
+                    onStopClick       = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    onNavigateToMapa  = { navController.navigate(Screen.Mapa.route) },
+                    onNavigateToTeam  = if (userRole in listOf("manager", "admin", "owner", "god")) {
+                        { navController.navigate(Screen.Team.route) }
+                    } else null,
                 )
             }
 
@@ -402,6 +405,9 @@ fun RutasNavGraph(
                         else
                             navController.navigate(Screen.Admin.route)
                     },
+                    onNavigateToTeam = if (userRole in listOf("manager", "admin", "owner", "god")) {
+                        { navController.navigate(Screen.Team.route) }
+                    } else null,
                 )
             }
 

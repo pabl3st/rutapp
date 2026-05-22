@@ -49,6 +49,7 @@ fun PerfilScreen(
     onNavigateToBusinessProfile: () -> Unit = {},
     onNavigateToCalendario:      () -> Unit = {},
     onNavigateToAdmin:           () -> Unit = {},
+    onNavigateToTeam:            (() -> Unit)? = null,
     vm:      PerfilViewModel  = hiltViewModel(),
     themeVm: ThemeViewModel   = hiltViewModel(),
 ) {
@@ -291,6 +292,16 @@ fun PerfilScreen(
                     onClick = onNavigateToCalendario,
                 )
                 if (ui.canAccessAdmin) {
+                    // "Mi equipo" — acceso directo para manager/admin/owner
+                    if (onNavigateToTeam != null) {
+                        Div()
+                        InfoRowNav(
+                            icon   = Icons.Default.Group,
+                            label  = "Mi equipo",
+                            detail = "Estado y progreso de tus agentes",
+                            onClick = onNavigateToTeam,
+                        )
+                    }
                     Div()
                     InfoRowNav(
                         icon   = Icons.Default.AdminPanelSettings,

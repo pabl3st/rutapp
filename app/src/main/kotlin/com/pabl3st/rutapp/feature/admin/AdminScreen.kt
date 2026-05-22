@@ -129,10 +129,27 @@ fun AdminScreen(
                 }
             }
 
-            // ── Mis reportadores directos (manager/admin/owner) ───
+            // ── Mi equipo (manager/admin/owner/god) ───────────────
             if (ui.showDirectReports) {
                 item {
-                    SectionTitle("Mis reportadores hoy")
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        Arrangement.SpaceBetween,
+                        Alignment.CenterVertically,
+                    ) {
+                        SectionTitle("Mi equipo · hoy")
+                        if (onNavigateToTeam != null) {
+                            Button(
+                                onClick  = onNavigateToTeam,
+                                modifier = Modifier.height(34.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp),
+                            ) {
+                                Icon(Icons.Default.Group, null, Modifier.size(15.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Ver todo", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(Spacing.sm))
                 }
                 if (ui.directReportsLoading) {

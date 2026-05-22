@@ -36,9 +36,10 @@ import java.util.Locale
 // ────────────────────────────────────────────────────────────
 @Composable
 fun HomeScreen(
-    onRouteClick:     (String) -> Unit = {},
-    onStopClick:      (String) -> Unit = {},
-    onNavigateToMapa: () -> Unit        = {},
+    onRouteClick:      (String) -> Unit   = {},
+    onStopClick:       (String) -> Unit   = {},
+    onNavigateToMapa:  () -> Unit          = {},
+    onNavigateToTeam:  (() -> Unit)?       = null,  // solo manager/admin/owner/god
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val ui    by vm.ui.collectAsStateWithLifecycle()
@@ -67,6 +68,12 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    // Botón "Mi equipo" para manager/admin/owner
+                    if (onNavigateToTeam != null) {
+                        IconButton(onClick = onNavigateToTeam) {
+                            Icon(Icons.Default.Group, contentDescription = "Mi equipo")
+                        }
+                    }
                     // Mapa global — solo roles con rutas asignadas
                     if (ui.userRole !in listOf("viewer", "god")) {
                         IconButton(onClick = onNavigateToMapa) {
