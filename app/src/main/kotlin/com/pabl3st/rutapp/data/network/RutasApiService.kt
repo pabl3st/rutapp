@@ -500,6 +500,86 @@ data class GodSetRoleRequest(
     @Json(name = "role")    val role:   String,
 )
 
+// ─── S20 DTOs ──────────────────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class AgentOverviewDto(
+    @Json(name = "user_id")       val userId:       Int,
+    val name:                                        String,
+    val username:                                    String,
+    val role:                                        String,
+    @Json(name = "avatar_url")    val avatarUrl:    String?,
+    @Json(name = "jornada_state") val jornadaState: String?,  // running|paused|done|null
+    @Json(name = "elapsed_ms")    val elapsedMs:    Long     = 0L,
+    @Json(name = "distance_km")   val distanceKm:   Double   = 0.0,
+    @Json(name = "last_lat")      val lastLat:      Double?  = null,
+    @Json(name = "last_lng")      val lastLng:      Double?  = null,
+    @Json(name = "last_gps_at")   val lastGpsAt:    String?  = null,
+    @Json(name = "stops_total")   val stopsTotal:   Int      = 0,
+    @Json(name = "stops_done")    val stopsDone:    Int      = 0,
+    @Json(name = "stops_skipped") val stopsSkipped: Int      = 0,
+    @Json(name = "stops_contacted") val stopsContacted: Int  = 0,
+    @Json(name = "month_total")   val monthTotal:   Int      = 0,
+    @Json(name = "month_done")    val monthDone:    Int      = 0,
+    @Json(name = "month_contacted") val monthContacted: Int  = 0,
+) {
+    val progressToday: Float get() = if (stopsTotal > 0) stopsDone.toFloat() / stopsTotal else 0f
+    val isActive: Boolean     get() = jornadaState == "running"
+    val isPaused: Boolean     get() = jornadaState == "paused"
+    val isDone:   Boolean     get() = jornadaState == "done"
+}
+
+@JsonClass(generateAdapter = true)
+data class TeamOverviewResponse(
+    val ok:     Boolean,
+    val agents: List<AgentOverviewDto> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class AgentTodayRouteDto(
+    val uid:            String,
+    val name:           String,
+    val status:         String,
+    @Json(name = "date_assigned")  val dateAssigned:  String?,
+    @Json(name = "total_stops")    val totalStops:    Int = 0,
+    @Json(name = "done_stops")     val doneStops:     Int = 0,
+    @Json(name = "skipped_stops")  val skippedStops:  Int = 0,
+    @Json(name = "pending_stops")  val pendingStops:  Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class AgentRecentVisitDto(
+    val uid:          String,
+    val name:         String,
+    @Json(name = "visit_result")  val visitResult:  String?,
+    @Json(name = "visited_at")    val visitedAt:    String?,
+    @Json(name = "next_action")   val nextAction:   String?,
+    @Json(name = "gps_lat_visit") val gpsLat:       Double?,
+    @Json(name = "gps_lng_visit") val gpsLng:       Double?,
+    @Json(name = "route_name")    val routeName:    String?,
+)
+
+@JsonClass(generateAdapter = true)
+data class AgentMonthKpisDto(
+    val total:     Int = 0,
+    val done:      Int = 0,
+    val contacted: Int = 0,
+    @Json(name = "not_home") val notHome: Int = 0,
+    val rejected:  Int = 0,
+) {
+    val completionRate: Float get() = if (total > 0) done.toFloat() / total else 0f
+    val contactRate:    Float get() = if (done  > 0) contacted.toFloat() / done else 0f
+}
+
+@JsonClass(generateAdapter = true)
+data class AgentDetailResponse(
+    val ok:             Boolean,
+    val agent:          UserDto?,
+    val jornada:        Map<String, Any?>?     = null,
+    @Json(name = "today_routes")   val todayRoutes:   List<AgentTodayRouteDto> = emptyList(),
+    @Json(name = "recent_visits")  val recentVisits:  List<AgentRecentVisitDto> = emptyList(),
+    @Json(name = "month_kpis")     val monthKpis:     AgentMonthKpisDto?   = null,
+)
+
 interface RutasApiService {
 
     @POST(API_PATH)
@@ -579,6 +659,19 @@ interface RutasApiService {
         @Header("X-Auth-Token") token: String,
         @Body body: Map<String, @JvmSuppressWildcards Any>,
     ): retrofit2.Response<BaseResponse>
+
+    @GET(API_PATH)
+    suspend fun teamOverview(
+        @Query("action")        action: String = "team_overview",
+        @Header("X-Auth-Token") token: String,
+    ): retrofit2.Response<TeamOverviewResponse>
+
+    @GET(API_PATH)
+    suspend fun agentDetail(
+        @Query("action")        action: String = "agent_detail",
+        @Header("X-Auth-Token") token: String,
+        @Query("user_id")       userId: Int,
+    ): retrofit2.Response<AgentDetailResponse>
 
     @POST(API_PATH)
     suspend fun clearRoutes(

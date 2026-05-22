@@ -27,7 +27,9 @@ import androidx.compose.ui.text.AnnotatedString
 
 @Composable
 fun AdminScreen(
-    onBack: () -> Unit = {},
+    onBack:            () -> Unit         = {},
+    onNavigateToTeam:  (() -> Unit)?      = null,
+    onNavigateToAgent: ((Int) -> Unit)?   = null,
     vm: AdminViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -161,6 +163,7 @@ fun AdminScreen(
                             pendingStops = ui.reporterPendingStops[reporter.userId] ?: 0,
                             contacted    = kpiStats?.contacted  ?: 0,
                             totalStops   = kpiStats?.totalStops ?: 0,
+                            onClick      = onNavigateToAgent?.let { nav -> { nav(reporter.userId) } },
                         )
                     }
                 }
@@ -727,9 +730,14 @@ private fun DirectReporterCard(
     doneStops:    Int,
     pendingStops: Int,
     contacted:    Int = 0,
-    totalStops:   Int = 0,   // total del mes (servidor)
+    totalStops:   Int = 0,
+    onClick:      (() -> Unit)? = null,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick   = onClick ?: {},
+        modifier  = Modifier.fillMaxWidth(),
+        enabled   = onClick != null,
+    ) {
         Column(modifier = Modifier.padding(Spacing.lg)) {
             // Cabecera: nombre + rol
             Row(

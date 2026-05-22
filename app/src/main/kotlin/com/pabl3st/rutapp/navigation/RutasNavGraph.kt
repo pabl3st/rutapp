@@ -42,6 +42,8 @@ import com.pabl3st.rutapp.feature.visita.VisitaScreen
 import com.pabl3st.rutapp.feature.onboarding.LocationOnboardingScreen
 import com.pabl3st.rutapp.core.location.locationPermissionState
 import com.pabl3st.rutapp.core.location.LocationPermissionState
+import com.pabl3st.rutapp.feature.team.TeamScreen
+import com.pabl3st.rutapp.feature.team.AgentDetailScreen
 
 // ── Transiciones de navegación ───────────────────────────
 private val enterPush   = slideInHorizontally(tween(280)) { it / 4 } + fadeIn(tween(280))
@@ -327,7 +329,35 @@ fun RutasNavGraph(
                     navController.popBackStack()
                     return@composable
                 }
-                AdminScreen(onBack = { navController.popBackStack() })
+                AdminScreen(
+                    onBack             = { navController.popBackStack() },
+                    onNavigateToTeam   = { navController.navigate(Screen.Team.route) },
+                    onNavigateToAgent  = { id -> navController.navigate(Screen.AgentDetail.createRoute(id)) },
+                )
+            }
+
+            // ── S20: Equipo ──────────────────────────────────────
+            composable(Screen.Team.route) {
+                // Guardia: solo manager, admin, owner, god
+                if (userRole !in listOf("manager", "admin", "owner", "god")) {
+                    navController.popBackStack(); return@composable
+                }
+                TeamScreen(
+                    onBack        = { navController.popBackStack() },
+                    onAgentDetail = { id -> navController.navigate(Screen.AgentDetail.createRoute(id)) },
+                )
+            }
+
+            composable(
+                route     = Screen.AgentDetail.route,
+                arguments = listOf(navArgument("agentId") { type = NavType.IntType }),
+            ) {
+                if (userRole !in listOf("manager", "admin", "owner", "god")) {
+                    navController.popBackStack(); return@composable
+                }
+                AgentDetailScreen(
+                    onBack = { navController.popBackStack() },
+                )
             }
 
             composable(Screen.LocationOnboarding.route) {
