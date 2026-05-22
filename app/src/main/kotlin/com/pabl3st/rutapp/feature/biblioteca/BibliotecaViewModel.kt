@@ -60,8 +60,22 @@ class BibliotecaViewModel @Inject constructor(
                         BibliotecaTab.ORPHAN -> stopRepo.observeOrphaned(session.accountId)
                     }
                     base.map { stops ->
-                        val filtered = if (query.isBlank()) stops
-                        else stops.filter {
+                        // Deduplicar por externalId: mostrar un solo PDV por externalId
+                        // (el más reciente por visitedAt, o el que tenga dateAssigned futuro)
+                        val deduped = stops
+                            .groupBy { it.externalId ?: it.uid }
+                            .mapValues { (_, group) ->
+                                // Preferir el de hoy si existe, si no el más reciente visitado
+                                val today = java.time.LocalDate.now().toString()
+                                group.firstOrNull { it.dateAssigned == today }
+                                    ?: group.maxByOrNull { it.visitedAt ?: it.dateAssigned ?: "" }
+                                    ?: group.first()
+                            }
+                            .values.toList()
+                            .sortedWith(compareByDescending { it.visitedAt ?: it.updatedAt })
+
+                        val filtered = if (query.isBlank()) deduped
+                        else deduped.filter {
                             it.name.contains(query, ignoreCase = true) ||
                             it.address?.contains(query, ignoreCase = true) == true ||
                             it.externalId?.contains(query, ignoreCase = true) == true

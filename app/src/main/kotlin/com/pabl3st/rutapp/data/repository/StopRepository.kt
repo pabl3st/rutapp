@@ -44,6 +44,10 @@ class StopRepository @Inject constructor(
     suspend fun getByRoute(routeUid: String): List<StopEntity> =
         stopDao.getByRoute(routeUid)
 
+    suspend fun getByExternalIdDateAndRoute(
+        routeUid: String, externalId: String, dateAssigned: String
+    ): StopEntity? = stopDao.getByExternalIdDateAndRoute(routeUid, externalId, dateAssigned)
+
     private fun triggerSync() {
         runCatching {
             WorkManager.getInstance(appContext)

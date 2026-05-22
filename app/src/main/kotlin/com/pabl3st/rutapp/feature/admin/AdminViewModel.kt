@@ -59,6 +59,9 @@ data class AdminUiState(
     // KPIs del equipo desde servidor (stats_month)
     val reporterServerStats:  List<StatsMonthAgent> = emptyList(),
     val isLoadingKpis:        Boolean               = false,
+    // Borrar todas las rutas
+    val showClearDialog:      Boolean               = false,
+    val isClearingRoutes:     Boolean               = false,
 )
 
 @HiltViewModel
@@ -353,6 +356,23 @@ class AdminViewModel @Inject constructor(
 
     fun clearError()    = _ui.update { it.copy(error = null) }
     fun clearSnackbar() = _ui.update { it.copy(snackbar = null) }
+
+    fun onClearRoutesRequest() = _ui.update { it.copy(showClearDialog = true) }
+    fun onClearRoutesDismiss() = _ui.update { it.copy(showClearDialog = false) }
+
+    fun confirmClearRoutes() {
+        _ui.update { it.copy(showClearDialog = false, isClearingRoutes = true) }
+        viewModelScope.launch {
+            val ok = routeRepo.clearAllRoutes()
+            _ui.update {
+                it.copy(
+                    isClearingRoutes = false,
+                    snackbar = if (ok) "Todas las rutas y paradas eliminadas"
+                               else "Error al eliminar — comprueba la conexión",
+                )
+            }
+        }
+    }
     override fun onCoroutineError(t: Throwable) {
         _ui.update { it.copy(
             isLoading = false,

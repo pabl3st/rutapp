@@ -605,7 +605,10 @@ class ImportarViewModel @Inject constructor(
                         val dateAssigned   = allDates.firstOrNull() ?: (entry.date?.toString() ?: "")
                         val scheduledList  = if (allDates.size > 1) allDates.drop(1) else null
 
-                        val route = routeRepo.createRoute(
+                        // Upsert de ruta: si ya existe por nombre+usuario, reutilizar
+                        val targetUserId = _ui.value.targetUser?.userId ?: session.userId
+                        val existingRoute = routeRepo.getByNameAndUser(entry.routeName, targetUserId)
+                        val route = existingRoute ?: routeRepo.createRoute(
                             name           = entry.routeName,
                             dateAssigned   = dateAssigned,
                             scheduledDates = scheduledList,
@@ -617,14 +620,17 @@ class ImportarViewModel @Inject constructor(
                         val dates = if (allDates.isNotEmpty()) allDates else listOf(dateAssigned)
                         dates.forEach { dateForStop ->
                             stops.forEachIndexed { stopIdx, preview ->
-                                val stop = stopRepo.createStop(
+                                // Upsert de stop: si ya existe por externalId+fecha+ruta, no duplicar
+                                val existingStop = preview.externalId?.let {
+                                    stopRepo.getByExternalIdDateAndRoute(route.uid, it, dateForStop)
+                                }
+                                val stop = existingStop ?: stopRepo.createStop(
                                     routeUid       = route.uid,
                                     name           = preview.name,
                                     externalId     = preview.externalId,
                                     address        = preview.address,
                                     lat            = preview.lat,
                                     lng            = preview.lng,
-                                    // Ordenar por fecha primero, luego por posición en la ruta
                                     orderIndex     = dates.indexOf(dateForStop) * 1000 + stopIdx,
                                     notes          = preview.notes,
                                     contactName    = preview.contactName,

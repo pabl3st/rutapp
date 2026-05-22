@@ -60,6 +60,9 @@ interface RouteDao {
     @Query("SELECT * FROM routes WHERE uid = :uid LIMIT 1")
     suspend fun getByUid(uid: String): RouteEntity?
 
+    @Query("SELECT * FROM routes WHERE name = :name AND userId = :userId AND deletedAt IS NULL LIMIT 1")
+    suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity?
+
     @Query("SELECT * FROM routes WHERE syncStatus = 'pending' OR syncStatus = 'error'")
     suspend fun getPendingSync(): List<RouteEntity>
 
@@ -74,6 +77,9 @@ interface RouteDao {
 
     @Query("UPDATE routes SET status = :status, updatedAt = :now, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateStatus(uid: String, status: String, now: String)
+
+    @Query("DELETE FROM routes WHERE accountId = :accountId")
+    suspend fun deleteAllByAccount(accountId: Int)
 
     @Query("DELETE FROM routes WHERE uid = :uid")
     suspend fun deleteByUid(uid: String)

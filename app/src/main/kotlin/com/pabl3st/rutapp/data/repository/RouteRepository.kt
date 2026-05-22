@@ -77,6 +77,23 @@ class RouteRepository @Inject constructor(
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
 
+    suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity? =
+        routeDao.getByNameAndUser(name, userId)
+
+    /** Borra TODAS las rutas y paradas de la cuenta (solo owner/god).
+     *  Primero llama al servidor, luego limpia Room local. */
+    suspend fun clearAllRoutes(): Boolean {
+        return try {
+            val token = session.authToken ?: return false
+            val response = api.clearRoutes(token = token)
+            if (response.isSuccessful) {
+                routeDao.deleteAllByAccount(session.accountId)
+                stopDao.deleteAllByAccount(session.accountId)
+                true
+            } else false
+        } catch (e: Exception) { false }
+    }
+
     /** Marca la ruta como completada y encola para sync */
     suspend fun markDone(uid: String) {
         val now = java.time.Instant.now().toString()

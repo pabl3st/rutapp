@@ -244,8 +244,63 @@ fun AdminScreen(
                 }
             }
 
+            // ── Zona de peligro — solo owner/god ────────────
+            if (userRole in listOf("owner", "god")) {
+                item {
+                    Spacer(Modifier.height(Spacing.md))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text("Zona de peligro",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 2.dp))
+                    Spacer(Modifier.height(Spacing.sm))
+                    OutlinedButton(
+                        onClick  = vm::onClearRoutesRequest,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled  = !ui.isClearingRoutes,
+                        colors   = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error),
+                        border   = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                    ) {
+                        if (ui.isClearingRoutes) {
+                            CircularProgressIndicator(Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.error, strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Icon(Icons.Default.DeleteForever, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Borrar todas las rutas y paradas")
+                    }
+                }
+            }
+
             item { Spacer(Modifier.height(Spacing.xl)) }
         }
+    }
+
+    // ── Dialog borrar rutas ───────────────────────────────────
+    if (ui.showClearDialog) {
+        AlertDialog(
+            onDismissRequest = vm::onClearRoutesDismiss,
+            icon  = { Icon(Icons.Default.Warning, null,
+                tint = MaterialTheme.colorScheme.error) },
+            title = { Text("¿Borrar todo el contenido?") },
+            text  = {
+                Text("Se eliminarán TODAS las rutas, paradas e historial de visitas " +
+                     "de la cuenta. Esta acción no se puede deshacer.")
+            },
+            confirmButton = {
+                Button(onClick = vm::confirmClearRoutes,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error),
+                ) { Text("Sí, borrar todo") }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::onClearRoutesDismiss) { Text("Cancelar") }
+            },
+        )
     }
 
     // ── Dialogs ───────────────────────────────────────────────

@@ -573,6 +573,12 @@ interface RutasApiService {
         @Body body: BatchSyncRequest,
     ): Response<BatchSyncResponse>
 
+    @POST(API_PATH)
+    suspend fun clearRoutes(
+        @Query("action")        action: String = "clear_routes",
+        @Header("X-Auth-Token") token: String,
+    ): retrofit2.Response<BaseResponse>
+
     // ── S14 Admin endpoints ───────────────────────────────────
     @POST(API_PATH)
     suspend fun updateUserPrefs(
