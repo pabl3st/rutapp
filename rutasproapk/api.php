@@ -1907,7 +1907,9 @@ if ($action === 'clear_routes') {
         JOIN routes r ON r.uid = s.route_uid
         WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE FROM routes WHERE account_id = ?')->execute([$aid]);
-    db()->prepare('DELETE FROM sync_queue WHERE account_id = ?')->execute([$aid]);
+    // sync_log registra operaciones — no hay sync_queue en este esquema
+    // Los registros de sync_log de esta cuenta se limpian también
+    db()->prepare('DELETE FROM sync_log WHERE account_id = ?')->execute([$aid]);
     apiLog($action, $sess['uid'], $aid);
     ok(['cleared' => true]);
 }
@@ -2013,7 +2015,7 @@ if ($action === 'team_overview') {
     // Jornada activa de hoy por agente
     $stJ = db()->prepare(
         "SELECT user_id, state, elapsed_ms, distance_km, last_lat, last_lng, updated_at
-         FROM jornadas WHERE user_id IN ($ph) AND date_str=? ORDER BY updated_at DESC"
+         FROM day_sessions WHERE user_id IN ($ph) AND date_str=? ORDER BY updated_at DESC"
     );
     $stJ->execute([...$agentIds, $today]);
     $jornadas = [];
@@ -2124,7 +2126,7 @@ if ($action === 'agent_detail') {
     if (!$agent) err('Agente no encontrado', 404);
 
     // Jornada de hoy
-    $stJ = db()->prepare('SELECT * FROM jornadas WHERE user_id=? AND date_str=? LIMIT 1');
+    $stJ = db()->prepare('SELECT * FROM day_sessions WHERE user_id=? AND date_str=? LIMIT 1');
     $stJ->execute([$targetId, $today]);
     $jornada = $stJ->fetch() ?: null;
 
