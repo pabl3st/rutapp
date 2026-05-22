@@ -1893,6 +1893,25 @@ if ($action === 'god_set_role') {
     ok(['updated'=>true,'user_id'=>$targetId,'new_role'=>$newRole]);
 }
 
+if ($action === 'clear_routes') {
+    $sess = requireAuth();
+    // Solo owner/god pueden borrar todo el contenido de la cuenta
+    if (roleLevel($sess['role']) < 5) err('Forbidden', 403);
+    $aid = (int)$sess['account_id'];
+    // Borrar en orden correcto por FK: kpi_values → stops → routes → sync_queue
+    db()->prepare('DELETE kv FROM kpi_values kv
+        JOIN stops s ON s.uid = kv.stop_uid
+        JOIN routes r ON r.uid = s.route_uid
+        WHERE r.account_id = ?')->execute([$aid]);
+    db()->prepare('DELETE s FROM stops s
+        JOIN routes r ON r.uid = s.route_uid
+        WHERE r.account_id = ?')->execute([$aid]);
+    db()->prepare('DELETE FROM routes WHERE account_id = ?')->execute([$aid]);
+    db()->prepare('DELETE FROM sync_queue WHERE account_id = ?')->execute([$aid]);
+    apiLog($action, $sess['uid'], $aid);
+    ok(['cleared' => true]);
+}
+
 err("Acción desconocida: {$action}", 404);
 
 
