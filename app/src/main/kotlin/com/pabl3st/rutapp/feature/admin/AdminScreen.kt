@@ -245,7 +245,7 @@ fun AdminScreen(
             }
 
             // ── Zona de peligro — solo owner/god ────────────
-            if (userRole in listOf("owner", "god")) {
+            if (ui.userRole in listOf("owner", "god")) {
                 item {
                     Spacer(Modifier.height(Spacing.md))
                     HorizontalDivider(color = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))

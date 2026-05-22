@@ -84,7 +84,7 @@ class RouteRepository @Inject constructor(
      *  Primero llama al servidor, luego limpia Room local. */
     suspend fun clearAllRoutes(): Boolean {
         return try {
-            val token = session.authToken ?: return false
+            val token = session.token ?: return false
             val response = api.clearRoutes(token = token)
             if (response.isSuccessful) {
                 routeDao.deleteAllByAccount(session.accountId)
