@@ -709,57 +709,48 @@ class ImportarViewModel @Inject constructor(
                             )
                         }
 
-                        // Crear un stop INDEPENDIENTE por cada fecha del schedule
-                        // Así cada visita tiene su propio ciclo de vida (como en la web)
-                        val dates = if (allDates.isNotEmpty()) allDates else listOf(dateAssigned)
-                        dates.forEach { dateForStop ->
-                            stops.forEachIndexed { stopIdx, preview ->
-                                // Upsert de stop: si ya existe por externalId+fecha+ruta, no duplicar
-                                val existingStop = preview.externalId?.let {
-                                    stopRepo.getByExternalIdDateAndRoute(route.uid, it, dateForStop)
-                                }
-                                val stop = if (existingStop != null) {
-                                    // Upsert real: actualizar campos que pueden haber cambiado
-                                    // pero mantener status, visitResult, notes de visita
-                                    stopRepo.updateImportFields(
-                                        uid           = existingStop.uid,
-                                        name          = preview.name,
-                                        address       = preview.address,
-                                        lat           = preview.lat,
-                                        lng           = preview.lng,
-                                        contactName   = preview.contactName?.takeIf { it.isNotBlank() } ?: existingStop.contactName,
-                                        contactPhone  = preview.contactPhone?.takeIf { it.isNotBlank() } ?: existingStop.contactPhone,
-                                        visitFrequency = preview.visitFrequency,
-                                        priority      = preview.priority,
-                                        segment       = preview.segment,
-                                        orderIndex    = dates.indexOf(dateForStop) * 1000 + stopIdx,
-                                    )
-                                    existingStop
-                                } else {
-                                    stopRepo.createStop(
-                                        routeUid       = route.uid,
-                                        name           = preview.name,
-                                        externalId     = preview.externalId,
-                                        address        = preview.address,
-                                        lat            = preview.lat,
-                                        lng            = preview.lng,
-                                        orderIndex     = dates.indexOf(dateForStop) * 1000 + stopIdx,
-                                        notes          = preview.notes,
-                                        contactName    = preview.contactName,
-                                        contactPhone   = preview.contactPhone,
-                                        visitFrequency = preview.visitFrequency,
-                                        priority       = preview.priority,
-                                        segment        = preview.segment,
-                                        dateAssigned   = dateForStop,
-                                    )
-                                }
-                                // Solo guardar el uid del stop de la primera fecha para KPIs históricos
-                                if (dateForStop == dates.first()) {
-                                    preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
-                                }
-                                saved++
-                                _ui.update { it.copy(saveProgress = saved) }
+                        // 1 stop por PDV — las fechas van en route.scheduledDates
+                        // No se duplica un stop por cada fecha del calendario
+                        stops.forEachIndexed { stopIdx, preview ->
+                            val existingStop = preview.externalId?.let {
+                                stopRepo.getByExternalIdAndRoute(route.uid, it)
                             }
+                            val stop = if (existingStop != null) {
+                                stopRepo.updateImportFields(
+                                    uid            = existingStop.uid,
+                                    name           = preview.name,
+                                    address        = preview.address,
+                                    lat            = preview.lat,
+                                    lng            = preview.lng,
+                                    contactName    = preview.contactName?.takeIf { it.isNotBlank() } ?: existingStop.contactName,
+                                    contactPhone   = preview.contactPhone?.takeIf { it.isNotBlank() } ?: existingStop.contactPhone,
+                                    visitFrequency = preview.visitFrequency,
+                                    priority       = preview.priority,
+                                    segment        = preview.segment,
+                                    orderIndex     = stopIdx,
+                                )
+                                existingStop
+                            } else {
+                                stopRepo.createStop(
+                                    routeUid       = route.uid,
+                                    name           = preview.name,
+                                    externalId     = preview.externalId,
+                                    address        = preview.address,
+                                    lat            = preview.lat,
+                                    lng            = preview.lng,
+                                    orderIndex     = stopIdx,
+                                    notes          = preview.notes,
+                                    contactName    = preview.contactName,
+                                    contactPhone   = preview.contactPhone,
+                                    visitFrequency = preview.visitFrequency,
+                                    priority       = preview.priority,
+                                    segment        = preview.segment,
+                                    dateAssigned   = dateAssigned,
+                                )
+                            }
+                            preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
+                            saved++
+                            _ui.update { it.copy(saveProgress = saved) }
                         }
                     }
                 } catch (e: Exception) {

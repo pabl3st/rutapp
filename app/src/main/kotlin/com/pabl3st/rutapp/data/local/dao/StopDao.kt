@@ -80,6 +80,18 @@ interface StopDao {
         dateAssigned: String,
     ): StopEntity?
 
+    @Query("""
+        SELECT * FROM stops
+        WHERE routeUid = :routeUid
+          AND externalId = :externalId
+          AND deletedAt IS NULL
+        LIMIT 1
+    """)
+    suspend fun getByExternalIdAndRoute(
+        routeUid:   String,
+        externalId: String,
+    ): StopEntity?
+
     /**
      * Stops del mismo PDV (mismo externalId) visitados en el mes dado.
      * Usado para KPIs acumulativos: cargar el valor más alto del mes al abrir formulario.

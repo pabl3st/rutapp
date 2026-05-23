@@ -44,6 +44,12 @@ class StopRepository @Inject constructor(
     suspend fun getByRoute(routeUid: String): List<StopEntity> =
         stopDao.getByRoute(routeUid)
 
+
+    suspend fun getByExternalIdAndRoute(
+        routeUid:   String,
+        externalId: String,
+    ): StopEntity? = stopDao.getByExternalIdAndRoute(routeUid, externalId)
+
     suspend fun getByExternalIdDateAndRoute(
         routeUid: String, externalId: String, dateAssigned: String
     ): StopEntity? = stopDao.getByExternalIdDateAndRoute(routeUid, externalId, dateAssigned)

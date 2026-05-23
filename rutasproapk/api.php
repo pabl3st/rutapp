@@ -1951,7 +1951,7 @@ if ($action === 'god_set_role') {
 if ($action === 'clear_routes') {
     $sess = requireAuth();
     // Solo owner/god pueden borrar todo el contenido de la cuenta
-    if (roleLevel($sess['role']) < 5) err('Forbidden', 403);
+    if (roleLevel($sess['role']) < 4) err('Forbidden', 403);  // owner + admin pueden borrar
     $aid = (int)$sess['account_id'];
     // Borrar en orden correcto por FK: kpi_values → stops → routes → sync_queue
     db()->prepare('DELETE kv FROM kpi_values kv
@@ -2045,17 +2045,44 @@ if ($action === 'team_overview') {
 
     // Obtener agentes según jerarquía
     if ($role === 'manager') {
+        // Manager: solo sus agentes directos (manager_id = uid)
         $stU = db()->prepare(
-            'SELECT id, name, username, role, avatar_url FROM users
-             WHERE account_id=? AND manager_id=? AND active=1 AND role="agent"
-             ORDER BY name ASC'
+            "SELECT id, name, username, role, avatar_url FROM users
+             WHERE account_id=? AND manager_id=? AND active=1 AND role='agent'
+             ORDER BY name ASC"
         );
         $stU->execute([$aid, $uid]);
-    } elseif (roleLevel($role) >= 4) {
+    } elseif ($role === 'admin') {
+        // Admin: sus managers directos + agents de esos managers
+        $stMgr2 = db()->prepare(
+            "SELECT id FROM users WHERE account_id=? AND manager_id=? AND role='manager' AND active=1"
+        );
+        $stMgr2->execute([$aid, $uid]);
+        $myMgrIds = array_column($stMgr2->fetchAll(), 'id');
+        if (empty($myMgrIds)) {
+            // Admin sin managers asignados: ver agents directos suyos
+            $stU = db()->prepare(
+                "SELECT id, name, username, role, avatar_url FROM users
+                 WHERE account_id=? AND manager_id=? AND active=1 AND role='agent'
+                 ORDER BY name ASC"
+            );
+            $stU->execute([$aid, $uid]);
+        } else {
+            $phMgr = implode(',', array_fill(0, count($myMgrIds), '?'));
+            $stU = db()->prepare(
+                "SELECT id, name, username, role, avatar_url FROM users
+                 WHERE account_id=? AND (manager_id=? OR manager_id IN ($phMgr)) AND active=1
+                   AND role IN ('agent','manager')
+                 ORDER BY role DESC, name ASC"
+            );
+            $stU->execute(array_merge([$aid, $uid], $myMgrIds));
+        }
+    } elseif (roleLevel($role) >= 5) {
+        // Owner/god: todo el equipo (agents + managers)
         $stU = db()->prepare(
-            'SELECT id, name, username, role, avatar_url FROM users
-             WHERE account_id=? AND active=1 AND role IN ("agent","manager")
-             ORDER BY role DESC, name ASC'
+            "SELECT id, name, username, role, avatar_url FROM users
+             WHERE account_id=? AND active=1 AND role IN ('agent','manager')
+             ORDER BY role DESC, name ASC"
         );
         $stU->execute([$aid]);
     } else {
