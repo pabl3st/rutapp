@@ -2,6 +2,7 @@
 package com.pabl3st.rutapp.feature.admin
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
