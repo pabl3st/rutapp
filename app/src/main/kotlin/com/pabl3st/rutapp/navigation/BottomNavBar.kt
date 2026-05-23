@@ -41,9 +41,10 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
 
     // viewer: solo Perfil — sin acceso a rutas, mapa ni KPIs
     // god: solo Perfil (su dashboard está accesible desde Perfil)
-    val visibleItems = when (userRole) {
-        -> if (UserRole.from(it).isViewer) NAV_ITEMS.filter { n -> n.screen == Screen.Perfil }
-        else     -> NAV_ITEMS
+    val role = UserRole.from(userRole)
+    val visibleItems = when {
+        role.isViewer || role.isGod -> NAV_ITEMS.filter { n -> n.screen == Screen.Perfil }
+        else                        -> NAV_ITEMS
     }
 
     NavigationBar {
