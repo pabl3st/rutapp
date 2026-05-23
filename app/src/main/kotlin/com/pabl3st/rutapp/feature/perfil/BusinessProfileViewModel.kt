@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.perfil
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,7 +37,7 @@ class BusinessProfileViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(BusinessProfileUiState(
-        canEditSector = session.userRole in listOf("owner", "admin", "god"),
+        canEditSector = UserRole.from(session.userRole).canEditBusinessProfile,
     ))
     val ui: StateFlow<BusinessProfileUiState> = _ui.asStateFlow()
 

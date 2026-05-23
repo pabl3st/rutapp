@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.importar
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import android.content.Context
 import android.net.Uri
@@ -186,7 +188,7 @@ class ImportarViewModel @Inject constructor(
 
     init {
         val callerRole = session.userRole
-        if (callerRole in listOf("manager", "admin", "owner", "god")) {
+        if (UserRole.from(callerRole).canImport) {
             loadAvailableAgents()
         }
     }
@@ -201,11 +203,11 @@ class ImportarViewModel @Inject constructor(
                     when (session.userRole) {
                         "god", "owner" -> {
                             // Cascada completa: admin → manager → agent
-                            val admins   = all.filter { it.role == "admin" }
-                            val managers = all.filter { it.role == "manager" }
-                            val agents   = all.filter { it.role == "agent" }
+                            val admins   = all.filter { UserRole.from(it.role) == UserRole.ADMIN }
+                            val managers = all.filter { UserRole.from(it.role) == UserRole.MANAGER }
+                            val agents   = all.filter { UserRole.from(it.role) == UserRole.AGENT }
                             _ui.update { it.copy(
-                                availableAgents  = all.filter { u -> u.role in setOf("admin","manager","agent") },
+                                availableAgents  = all.filter { u -> UserRole.from(u.role).level >= UserRole.ADMIN.level },
                                 hierarchyAdmins  = admins,
                                 hierarchyManagers = managers,
                                 hierarchyAgents  = agents,
@@ -214,10 +216,10 @@ class ImportarViewModel @Inject constructor(
                         }
                         "admin" -> {
                             // admin: manager → agent (el servidor ya filtró sus reportadores)
-                            val managers = all.filter { it.role == "manager" }
-                            val agents   = all.filter { it.role == "agent" }
+                            val managers = all.filter { UserRole.from(it.role) == UserRole.MANAGER }
+                            val agents   = all.filter { UserRole.from(it.role) == UserRole.AGENT }
                             _ui.update { it.copy(
-                                availableAgents  = all.filter { u -> u.role in setOf("manager","agent") },
+                                availableAgents  = all.filter { u -> UserRole.from(u.role) in listOf(UserRole.MANAGER, UserRole.AGENT) },
                                 hierarchyManagers = managers,
                                 hierarchyAgents  = agents,
                                 isLoadingAgents  = false,
@@ -226,8 +228,8 @@ class ImportarViewModel @Inject constructor(
                         "manager" -> {
                             // manager: solo sus agents directos (servidor ya filtró)
                             _ui.update { it.copy(
-                                availableAgents = all.filter { it.role == "agent" },
-                                hierarchyAgents = all.filter { it.role == "agent" },
+                                availableAgents = all.filter { UserRole.from(it.role) == UserRole.AGENT },
+                                hierarchyAgents = all.filter { UserRole.from(it.role) == UserRole.AGENT },
                                 isLoadingAgents = false,
                             ) }
                         }

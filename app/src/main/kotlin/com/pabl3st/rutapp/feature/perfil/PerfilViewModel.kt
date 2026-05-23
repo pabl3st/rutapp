@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.perfil
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -63,7 +65,7 @@ class PerfilViewModel @Inject constructor(
             plan             = "free",
             appVersion       = BuildConfig.VERSION_NAME,
             isOwnerOrAdmin   = session.userRole in listOf("owner", "god"),  // solo owner edita empresa
-            canAccessAdmin   = session.userRole in listOf("owner", "admin", "manager", "god"),
+            canAccessAdmin   = UserRole.from(session.userRole).canViewTeam,
             accountNameDraft = session.accountName,
         )
     )

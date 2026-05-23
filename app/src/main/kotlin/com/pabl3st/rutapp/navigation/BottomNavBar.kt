@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.navigation
 
+import com.pabl3st.rutapp.core.UserRole
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -40,7 +42,7 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
     // viewer: solo Perfil — sin acceso a rutas, mapa ni KPIs
     // god: solo Perfil (su dashboard está accesible desde Perfil)
     val visibleItems = when (userRole) {
-        "viewer" -> NAV_ITEMS.filter { it.screen == Screen.Perfil }
+        -> if (UserRole.from(it).isViewer) NAV_ITEMS.filter { n -> n.screen == Screen.Perfil }
         else     -> NAV_ITEMS
     }
 

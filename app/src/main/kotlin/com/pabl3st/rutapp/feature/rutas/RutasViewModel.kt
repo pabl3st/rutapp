@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,8 +47,8 @@ class RutasViewModel @Inject constructor(
     private val _ui = MutableStateFlow(RutasUiState(
         userRole      = session.userRole,
         currentUserId = session.userId,
-        canCreate = session.userRole in listOf("owner", "admin", "manager", "god"),
-        canDelete = session.userRole in listOf("owner", "admin", "god"),
+        canCreate = UserRole.from(session.userRole).canCreateRoutes,
+        canDelete = UserRole.from(session.userRole).canDeleteRoutes,
     ))
     val ui: StateFlow<RutasUiState> = _ui.asStateFlow()
 
@@ -76,7 +78,7 @@ class RutasViewModel @Inject constructor(
     private fun loadAssignableUsers() {
         val role = session.userRole
         // solo roles que pueden asignar a inferiores necesitan la lista
-        if (role !in listOf("owner", "admin", "manager", "god")) return
+        if (!UserRole.from(role).canCreateRoutes) return
         viewModelScope.launch {
             _ui.update { it.copy(loadingUsers = true) }
             when (val r = adminRepo.listUsers()) {
@@ -86,9 +88,9 @@ class RutasViewModel @Inject constructor(
                     // Filtrar: solo usuarios activos de rol inferior que reportan a mí o a mi equipo
                     val assignable = r.data.filter { u ->
                         u.isActive && u.userId != myId && when (myRole) {
-                            "god"   -> u.role in listOf("owner", "admin", "manager", "agent")
-                            "owner" -> u.role in listOf("admin", "manager", "agent")
-                            "admin" -> u.role in listOf("manager", "agent")
+                            "god"   -> UserRole.from(u.role).level >= UserRole.AGENT.level
+                            "owner" -> UserRole.from(u.role) in listOf(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+                            "admin" -> UserRole.from(u.role) in listOf(UserRole.MANAGER, UserRole.AGENT)
                             "manager" -> true  // servidor ya filtró solo los reportadores directos
                             else   -> false
                         }

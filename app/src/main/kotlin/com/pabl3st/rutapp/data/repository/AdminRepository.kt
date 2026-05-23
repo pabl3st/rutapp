@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.data.repository
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.network.AssignManagerRequest
 import com.pabl3st.rutapp.data.network.DeactivateUserRequest
@@ -29,16 +31,16 @@ class AdminRepository @Inject constructor(
     private val session: SessionManager,
 ) {
     val isOwnerOrAdmin: Boolean
-        get() = session.userRole in setOf("owner", "admin")
+        get() = UserRole.from(session.userRole).level >= UserRole.ADMIN.level && !UserRole.from(session.userRole).isGod
 
     val isGod: Boolean
-        get() = session.userRole == "god"
+        get() = UserRole.from(session.userRole).isGod
 
     val canManageUsers: Boolean
-        get() = session.userRole in setOf("god", "owner", "admin")
+        get() = UserRole.from(session.userRole).canAccessAdmin
 
     val isOwner: Boolean
-        get() = session.userRole == "owner"
+        get() = UserRole.from(session.userRole) == UserRole.OWNER
 
     suspend fun listUsers(): AuthResult<List<AccountUserDto>> = runCatching {
         val resp = api.usersList(token = session.token ?: "")
@@ -151,8 +153,8 @@ class AdminRepository @Inject constructor(
 
     val availableRoles: List<String>
         get() = when {
-            isGod          -> listOf("admin", "manager", "agent", "viewer")
-            isOwner        -> listOf("admin", "manager", "agent", "viewer")
+            isGod          -> listOf(UserRole.selectableRoles.filter { it != UserRole.OWNER }.map { it.key })
+            isOwner        -> listOf(UserRole.selectableRoles.filter { it != UserRole.OWNER }.map { it.key })
             isOwnerOrAdmin -> listOf("manager", "agent", "viewer")
             else           -> emptyList()
         }

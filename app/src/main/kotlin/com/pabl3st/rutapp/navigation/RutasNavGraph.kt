@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.navigation
 
+import com.pabl3st.rutapp.core.UserRole
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -92,7 +94,7 @@ fun RutasNavGraph(
                             // Verificar GPS para agent/manager antes de ir al home
                             val ctx      = navController.context
                             val hasGps   = ctx.locationPermissionState() == LocationPermissionState.Granted
-                            val needsGps = userRole in listOf("agent", "manager")
+                            val needsGps = UserRole.from(userRole) in listOf(UserRole.AGENT, UserRole.MANAGER)
                             if (!hasGps && needsGps) {
                                 navController.navigate(Screen.LocationOnboarding.route) {
                                     popUpTo(Screen.Onboarding.route) { inclusive = true }
@@ -135,7 +137,7 @@ fun RutasNavGraph(
 
             composable(Screen.Home.route) {
                 // Guardia: viewer sin acceso a Home
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.navigate(Screen.Perfil.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -151,7 +153,7 @@ fun RutasNavGraph(
                     onRouteClick      = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                     onStopClick       = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                     onNavigateToMapa  = { navController.navigate(Screen.Mapa.route) },
-                    onNavigateToTeam  = if (userRole in listOf("manager", "admin", "owner", "god")) {
+                    onNavigateToTeam  = if (UserRole.from(userRole).canViewTeam) {
                         { navController.navigate(Screen.Team.route) }
                     } else null,
                 )
@@ -159,7 +161,7 @@ fun RutasNavGraph(
 
             composable(Screen.Rutas.route) {
                 // Guardia: viewer sin acceso a Rutas
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.navigate(Screen.Perfil.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -182,7 +184,7 @@ fun RutasNavGraph(
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 // Guardia: viewer sin acceso a RouteDetail
-                if (userRole == "viewer") { navController.popBackStack(); return@composable }
+                if (UserRole.from(userRole).isViewer) { navController.popBackStack(); return@composable }
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteDetailScreen(
                     routeUid        = routeUid,
@@ -203,7 +205,7 @@ fun RutasNavGraph(
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 // Guardia: viewer sin acceso a RouteMap
-                if (userRole == "viewer") { navController.popBackStack(); return@composable }
+                if (UserRole.from(userRole).isViewer) { navController.popBackStack(); return@composable }
                 val routeUid = backStackEntry.arguments?.getString("routeUid") ?: return@composable
                 RouteMapScreen(
                     routeUid    = routeUid,
@@ -221,7 +223,7 @@ fun RutasNavGraph(
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 // Guardia: viewer no puede CrearParada
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -241,7 +243,7 @@ fun RutasNavGraph(
             ) { backStackEntry ->
                 // Guardia: owner/admin/god/manager pueden editar paradas
                 // Manager edita PDVs de sus agentes directos (validación en UI y servidor)
-                if (userRole !in listOf("owner", "admin", "god", "manager")) {
+                if (!UserRole.from(userRole).canImport) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -260,7 +262,7 @@ fun RutasNavGraph(
                 popExitTransition   = { exitPop },
             ) { backStackEntry ->
                 // Guardia: viewer no puede Visita
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -273,7 +275,7 @@ fun RutasNavGraph(
 
             composable(Screen.Mapa.route) {
                 // Guardia: viewer sin acceso a Mapa
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.navigate(Screen.Perfil.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -287,7 +289,7 @@ fun RutasNavGraph(
             }
             composable(Screen.Kpis.route) {
                 // Guardia: viewer sin acceso a KPIs
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.navigate(Screen.Perfil.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -303,7 +305,7 @@ fun RutasNavGraph(
                 // Tab del BottomNav → fade como el resto de tabs
             ) {
                 // Guardia: viewer sin acceso a Calendario
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.navigate(Screen.Perfil.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -328,7 +330,7 @@ fun RutasNavGraph(
                 popExitTransition  = { exitPop },
             ) {
                 // Guardia: solo owner/admin/manager pueden acceder al panel de administración
-                if (userRole !in listOf("owner", "admin", "manager", "god")) {
+                if (!UserRole.from(userRole).canImport) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -342,7 +344,7 @@ fun RutasNavGraph(
             // ── S20: Equipo ──────────────────────────────────────
             composable(Screen.Team.route) {
                 // Guardia: solo manager, admin, owner, god
-                if (userRole !in listOf("manager", "admin", "owner", "god")) {
+                if (!UserRole.from(userRole).canViewTeam) {
                     navController.popBackStack(); return@composable
                 }
                 TeamScreen(
@@ -355,7 +357,7 @@ fun RutasNavGraph(
                 route     = Screen.AgentDetail.route,
                 arguments = listOf(navArgument("agentId") { type = NavType.IntType }),
             ) {
-                if (userRole !in listOf("manager", "admin", "owner", "god")) {
+                if (!UserRole.from(userRole).canViewTeam) {
                     navController.popBackStack(); return@composable
                 }
                 AgentDetailScreen(
@@ -375,7 +377,7 @@ fun RutasNavGraph(
                             popUpTo(Screen.LocationOnboarding.route) { inclusive = true }
                         }
                     },
-                    isAgentRole = userRole == "agent",
+                    isAgentRole = UserRole.from(userRole) == UserRole.AGENT,
                 )
             }
 
@@ -400,12 +402,12 @@ fun RutasNavGraph(
                         }
                     },
                     onNavigateToAdmin = {
-                        if (userRole == "god")
+                        if (UserRole.from(userRole).isGod)
                             navController.navigate(Screen.GodDashboard.route)
                         else
                             navController.navigate(Screen.Admin.route)
                     },
-                    onNavigateToTeam = if (userRole in listOf("manager", "admin", "owner", "god")) {
+                    onNavigateToTeam = if (UserRole.from(userRole).canViewTeam) {
                         { navController.navigate(Screen.Team.route) }
                     } else null,
                 )
@@ -419,7 +421,7 @@ fun RutasNavGraph(
                 popExitTransition  = { exitPop },
             ) {
                 // Guardia: solo owner/admin pueden configurar el perfil de negocio
-                if (userRole !in listOf("owner", "admin", "god")) {
+                if (!UserRole.from(userRole).canAccessAdmin) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -428,7 +430,7 @@ fun RutasNavGraph(
 
             composable(route = Screen.Biblioteca.route) {
                 // Guardia: viewer sin acceso a Biblioteca
-                if (userRole == "viewer") {
+                if (UserRole.from(userRole).isViewer) {
                     navController.navigate(Screen.Perfil.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -444,7 +446,7 @@ fun RutasNavGraph(
             }
             composable(route = Screen.Importar.route) {
                 // Guardia: owner/admin/manager/god pueden acceder al wizard de importación
-                if (userRole !in listOf("manager", "admin", "owner", "god")) {
+                if (!UserRole.from(userRole).canViewTeam) {
                     navController.popBackStack()
                     return@composable
                 }

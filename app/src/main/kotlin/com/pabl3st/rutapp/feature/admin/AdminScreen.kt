@@ -233,7 +233,7 @@ fun AdminScreen(
                             onDeactivate    = { vm.deactivateUser(user) },
                             onReactivate    = { vm.reactivateUser(user) },
                             onAssignManager = { vm.onShowManagerPicker(user) },
-                            canEdit         = ui.userRole == "god" || (ui.userRole in setOf("owner", "admin") && user.role !in setOf("owner", "god")),
+                            canEdit         = ui.userRole == "god" || (UserRole.from(ui.userRole).level >= UserRole.ADMIN.level && user.role !in listOf(UserRole.OWNER.key, UserRole.GOD.key)),
                         )
                     }
                 }
@@ -277,7 +277,7 @@ fun AdminScreen(
             }
 
             // ── Zona de peligro — solo owner/god ────────────
-            if (ui.userRole in listOf("owner", "god")) {
+            if (UserRole.from(ui.userRole) in listOf(UserRole.OWNER, UserRole.GOD)) {
                 item {
                     Spacer(Modifier.height(Spacing.md))
                     HorizontalDivider(color = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))

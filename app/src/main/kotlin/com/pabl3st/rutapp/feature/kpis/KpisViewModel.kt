@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.kpis
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -127,7 +129,7 @@ class KpisViewModel @Inject constructor(
 
     init {
         val role = session.userRole
-        val isManager = role in listOf("manager", "admin", "owner", "god")
+        val isManager = UserRole.from(role).canViewTeam
         _ui.update { it.copy(isManager = isManager) }
         observeData()
         if (isManager) {

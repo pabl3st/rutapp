@@ -32,6 +32,7 @@ fun BibliotecaScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Biblioteca de paradas") },

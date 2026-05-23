@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.rutas
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -71,8 +73,8 @@ class RouteDetailViewModel @Inject constructor(
     private val routeUid: String = checkNotNull(savedStateHandle["routeUid"])
 
     private val _ui = MutableStateFlow(RouteDetailUiState(
-        canEditStops = session.userRole in listOf("owner", "admin", "god", "manager"),
-        canReassign  = session.userRole in listOf("owner", "admin", "manager", "god"),
+        canEditStops = UserRole.from(session.userRole).canEditStops,
+        canReassign  = UserRole.from(session.userRole).canReassignRoutes,
     ))
     val ui: StateFlow<RouteDetailUiState> = _ui.asStateFlow()
 
@@ -238,9 +240,9 @@ class RouteDetailViewModel @Inject constructor(
                     val currentOwnerId = _ui.value.route?.userId
                     val assignable = r.data.filter { u ->
                         u.isActive && u.userId != currentOwnerId && when (myRole) {
-                            "god"     -> u.role in listOf("owner", "admin", "manager", "agent")
-                            "owner"   -> u.role in listOf("admin", "manager", "agent")
-                            "admin"   -> u.role in listOf("manager", "agent")
+                            "god"     -> UserRole.from(u.role).level >= UserRole.AGENT.level
+                            "owner"   -> UserRole.from(u.role) in listOf(UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+                            "admin"   -> UserRole.from(u.role) in listOf(UserRole.MANAGER, UserRole.AGENT)
                             "manager" -> true  // servidor ya filtró solo los reportadores directos
                             else      -> false
                         }

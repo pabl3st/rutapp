@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.calendario
 
+import com.pabl3st.rutapp.core.UserRole
+
 import org.json.JSONArray
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
@@ -54,7 +56,7 @@ class CalendarioViewModel @Inject constructor(
 
     private val fmt = DateTimeFormatter.ISO_LOCAL_DATE
     private val _ui = MutableStateFlow(CalendarioUiState(
-        isManager = session.userRole in listOf("owner", "admin", "manager", "god"),
+        isManager = UserRole.from(session.userRole).canViewTeam,
     ))
     val ui: StateFlow<CalendarioUiState> = _ui.asStateFlow()
 

@@ -48,6 +48,7 @@ fun HomeScreen(
         .replaceFirstChar { it.uppercase() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
 
 
         modifier = Modifier.semantics { testTag = "home-screen" },
@@ -75,7 +76,7 @@ fun HomeScreen(
                         }
                     }
                     // Mapa global — solo roles con rutas asignadas
-                    if (ui.userRole !in listOf("viewer", "god")) {
+                    if (!UserRole.from(ui.userRole).isViewer && !UserRole.from(ui.userRole).isGod) {
                         IconButton(onClick = onNavigateToMapa) {
                             Icon(
                                 Icons.Default.Map,

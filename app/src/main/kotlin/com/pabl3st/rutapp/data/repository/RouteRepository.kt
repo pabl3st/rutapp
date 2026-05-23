@@ -1,4 +1,6 @@
 package com.pabl3st.rutapp.data.repository
+
+import com.pabl3st.rutapp.core.UserRole
 import android.content.Context
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
@@ -45,11 +47,11 @@ class RouteRepository @Inject constructor(
     // ── Roles con visibilidad ampliada ────────────────────────
     /** True solo para roles con visión completa de la cuenta */
     private val isFullAccountView: Boolean
-        get() = session.userRole in listOf("owner", "admin", "god")
+        get() = UserRole.from(session.userRole).canDeleteRoutes
 
     /** Manager ve solo sus agentes directos */
     private val isManagedView: Boolean
-        get() = session.userRole == "manager"
+        get() = UserRole.from(session.userRole) == UserRole.MANAGER
 
     fun observeToday(): Flow<List<RouteEntity>> {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)

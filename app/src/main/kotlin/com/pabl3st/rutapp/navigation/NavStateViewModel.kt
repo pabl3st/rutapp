@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.navigation
 
+import com.pabl3st.rutapp.core.UserRole
+
 import androidx.lifecycle.ViewModel
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,5 +19,5 @@ class NavStateViewModel @Inject constructor(
     private val session: SessionManager,
 ) : ViewModel() {
     val userRole: String get() = session.userRole
-    val isGod:    Boolean get() = session.userRole == "god"
+    val isGod:    Boolean get() = UserRole.from(session.userRole).isGod
 }

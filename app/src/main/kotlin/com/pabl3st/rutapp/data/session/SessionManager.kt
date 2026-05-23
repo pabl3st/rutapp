@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.data.session
 
+import com.pabl3st.rutapp.core.UserRole
+
 import android.content.Context
 import android.content.SharedPreferences
 import android.provider.Settings
@@ -16,6 +18,9 @@ class SessionManager @Inject constructor(
 ) {
     // Lazy — NO se inicializa en el constructor (hilo principal de Hilt)
     // Se inicializa la primera vez que se accede, desde una coroutine
+    // EncryptedSharedPreferences deprecated pero sigue siendo la mejor opción
+    // para almacenamiento seguro de tokens. Migrar a DataStore+EncryptedFile en S18+.
+    @Suppress("DEPRECATION")
     private val securePrefs: SharedPreferences by lazy {
         try {
             val masterKey = MasterKey.Builder(context)
@@ -83,7 +88,7 @@ class SessionManager @Inject constructor(
         set(value) = prefs.edit().putString(KEY_ACCOUNT_NAME, value).apply()
 
     val isCompany: Boolean get() = accountType == "company"
-    val isGod: Boolean     get() = userRole == "god"
+    val isGod: Boolean     get() = UserRole.from(userRole).isGod
 
     var lastSyncTimestamp: String
         get()      = prefs.getString(KEY_LAST_SYNC, "") ?: ""

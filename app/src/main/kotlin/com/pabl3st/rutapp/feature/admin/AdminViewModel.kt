@@ -1,5 +1,7 @@
 package com.pabl3st.rutapp.feature.admin
 
+import com.pabl3st.rutapp.core.UserRole
+
 import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -95,7 +97,7 @@ class AdminViewModel @Inject constructor(
         }
         // Manager y admin ven su panel de reportadores
         val role = session.userRole
-        if (role in setOf("manager", "admin", "owner")) {
+        if (UserRole.from(role).canViewTeam && !UserRole.from(role).isGod) {
             _ui.update { it.copy(showDirectReports = true) }
             loadDirectReports()
             loadReporterKpis()
@@ -145,7 +147,7 @@ class AdminViewModel @Inject constructor(
                     // owner   → todos (admin/manager/agent)
                     // Managers directos de este admin (managerId == myId)
                     val myDirectManagerIds = result.data
-                        .filter { it.managerId == myId && it.role == "manager" && it.isActive }
+                        .filter { it.managerId == myId && it.role == UserRole.MANAGER.key && it.isActive }
                         .map { it.userId }
                         .toSet()
 
@@ -155,9 +157,9 @@ class AdminViewModel @Inject constructor(
                             "manager" -> true
                             // admin: sus managers directos + agentes de esos managers
                             "admin"   -> u.managerId == myId ||
-                                         (u.role == "agent" && u.managerId != null && u.managerId in myDirectManagerIds)
+                                         (u.role == UserRole.AGENT.key && u.managerId != null && u.managerId in myDirectManagerIds)
                             // owner: todos (admin/manager/agent)
-                            "owner"   -> u.role in setOf("admin", "manager", "agent")
+                            "owner"   -> UserRole.from(u.role).level >= UserRole.MANAGER.level
                             else      -> false
                         }
                     }
@@ -213,7 +215,7 @@ class AdminViewModel @Inject constructor(
     fun loadReporterKpis() {
         val token = session.token ?: return
         val myRole = session.userRole
-        if (myRole !in setOf("manager", "admin", "owner", "god")) return
+        if (!UserRole.from(myRole).canViewTeam) return
         viewModelScope.launch {
             _ui.update { it.copy(isLoadingKpis = true) }
             runCatching {

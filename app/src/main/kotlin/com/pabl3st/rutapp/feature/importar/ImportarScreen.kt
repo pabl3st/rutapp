@@ -51,6 +51,7 @@ fun ImportarScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Importar paradas") },

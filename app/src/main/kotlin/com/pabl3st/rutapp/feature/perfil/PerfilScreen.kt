@@ -272,7 +272,7 @@ fun PerfilScreen(
             }
 
             // ── Tags configurables (solo owner/admin/god) ─────
-            if (ui.role in listOf("owner", "admin", "god")) {
+            if (UserRole.from(ui.role).canEditBusinessProfile) {
                 SectionTitle("Etiquetas de paradas")
                 StopTagsSection(
                     tags              = prefs.stopTags,
