@@ -166,6 +166,7 @@ data class ImportarUiState(
     // Multi-selección de rutas en calendario
     val selectedCalendarIndices: Set<Int>            = emptySet(),
     val bulkDate:          java.time.LocalDate?      = null,    // fecha para asignación en bloque
+    val callerRole:        String                    = "agent", // rol del usuario que importa
 )
 
 @HiltViewModel
