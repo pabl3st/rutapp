@@ -61,6 +61,7 @@ fun GlobalMapScreen(
             LocationPermissionState.Granted -> vm.onPermissionGranted()
             else                            -> requestPermission()
         }
+        vm.startAgentPolling()
     }
 
     Scaffold(
@@ -68,6 +69,19 @@ fun GlobalMapScreen(
             TopAppBar(
                 title = { Text("Mapa del día") },
                 actions = {
+                    // Toggle marcadores de agentes
+                    if (ui.agentMarkers.isNotEmpty()) {
+                        IconButton(onClick = vm::toggleAgentMarkers) {
+                            Icon(
+                                imageVector = if (ui.showAgentMarkers)
+                                    Icons.Default.Group else Icons.Default.PeopleAlt,
+                                contentDescription = "Agentes en mapa",
+                                tint = if (ui.showAgentMarkers)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     if (ui.isLocating) {
                         CircularProgressIndicator(
                             modifier    = Modifier.semantics { testTag = "mapa-screen" }

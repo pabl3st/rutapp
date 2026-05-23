@@ -15,6 +15,8 @@ import com.pabl3st.rutapp.data.network.StatsMonthVisits
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.TeamRepository
+import com.pabl3st.rutapp.data.network.AgentOverviewDto
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -97,6 +99,10 @@ data class KpisUiState(
     val serverAgents:    List<StatsMonthAgent> = emptyList(),
     val isManager:       Boolean              = false,
     val isLoadingServer: Boolean              = false,
+    // Selector de agente (solo para manager/admin/owner)
+    val availableAgents:   List<AgentOverviewDto> = emptyList(),
+    val selectedAgentId:   Int?                   = null,   // null = yo mismo
+    val selectedAgentName: String?                = null,
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -106,6 +112,7 @@ data class KpisUiState(
 class KpisViewModel @Inject constructor(
     private val routeRepo:    RouteRepository,
     private val stopRepo:     StopRepository,
+    private val teamRepo:     TeamRepository,
     private val kpiValueDao:  KpiValueDao,
     private val profileRepo:  BusinessProfileRepository,
     private val api:          RutasApiService,
@@ -123,7 +130,10 @@ class KpisViewModel @Inject constructor(
         val isManager = role in listOf("manager", "admin", "owner", "god")
         _ui.update { it.copy(isManager = isManager) }
         observeData()
-        if (isManager) loadServerStats()
+        if (isManager) {
+            loadServerStats()
+            loadAvailableAgents()
+        }
     }
 
     private fun observeData() {
@@ -392,6 +402,22 @@ class KpisViewModel @Inject constructor(
 
     fun refreshServerStats() {
         if (_ui.value.isManager) loadServerStats()
+    }
+
+    private fun loadAvailableAgents() {
+        viewModelScope.launch {
+            teamRepo.teamOverview()
+                .onSuccess { agents -> _ui.update { it.copy(availableAgents = agents) } }
+        }
+    }
+
+    /** Cambia el agente seleccionado. null = volver a ver los KPIs propios */
+    fun onAgentSelected(agentId: Int?, agentName: String?) {
+        _ui.update { it.copy(selectedAgentId = agentId, selectedAgentName = agentName) }
+        // Si se selecciona un agente específico, cargar sus stats del servidor
+        if (agentId != null) {
+            loadServerStats()
+        }
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }

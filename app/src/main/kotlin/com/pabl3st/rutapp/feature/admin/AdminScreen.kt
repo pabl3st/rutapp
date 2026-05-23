@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.pabl3st.rutapp.feature.admin
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -126,6 +127,13 @@ fun AdminScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+                }
+            }
+
+            // ── Gráfica de tendencia semanal ─────────────────────
+            if (ui.reporterServerStats.isNotEmpty()) {
+                item {
+                    WeeklyTeamTrendCard(stats = ui.reporterServerStats)
                 }
             }
 
@@ -853,6 +861,83 @@ private fun DirectReporterCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Gráfica de barras de visitas del mes por agente.
+ * Usa Canvas nativo — sin librerías externas.
+ */
+@Composable
+private fun WeeklyTeamTrendCard(stats: List<com.pabl3st.rutapp.data.network.StatsMonthAgent>) {
+    // Mostrar top agentes por visitas done en el mes
+    val topAgents = stats.sortedByDescending { it.doneStops }.take(6)
+    if (topAgents.isEmpty()) return
+
+    val weekData = topAgents.map { agent ->
+        // Nombre corto: primer nombre
+        val label = agent.name.split(" ").firstOrNull()?.take(4) ?: agent.username.take(4)
+        val value = agent.doneStops
+        val highlight = agent == topAgents.first()
+        Triple(label, value, highlight)
+    }
+
+    val maxVal = weekData.maxOfOrNull { it.second } ?: 1
+
+    Card {
+        Column(Modifier.padding(Spacing.md)) {
+            Text("Visitas del mes — por agente",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(Spacing.md))
+
+            val barColor     = MaterialTheme.colorScheme.primary
+            val todayColor   = MaterialTheme.colorScheme.secondary
+            val textColor    = MaterialTheme.colorScheme.onSurfaceVariant
+            val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+
+            Canvas(Modifier.fillMaxWidth().height(120.dp)) {
+                val w       = size.width
+                val h       = size.height
+                val barW    = w / (weekData.size * 1.8f)
+                val spacing = w / weekData.size
+                val textPaint = android.graphics.Paint().apply {
+                    textSize  = 30f
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    color     = android.graphics.Color.GRAY
+                    isAntiAlias = true
+                }
+
+                weekData.forEachIndexed { idx, (label, value, isToday) ->
+                    val cx      = spacing * idx + spacing / 2
+                    val barH    = if (maxVal > 0) (value.toFloat() / maxVal * (h - 40f)) else 0f
+                    val color   = if (isToday) todayColor else barColor
+
+                    // Barra
+                    drawRoundRect(
+                        color        = color,
+                        topLeft      = androidx.compose.ui.geometry.Offset(cx - barW / 2, h - 30f - barH),
+                        size         = androidx.compose.ui.geometry.Size(barW, barH.coerceAtLeast(2f)),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+                    )
+
+                    // Valor encima de la barra (solo si > 0)
+                    if (value > 0) {
+                        drawContext.canvas.nativeCanvas.drawText(
+                            value.toString(),
+                            cx, h - 35f - barH,
+                            textPaint.apply { textSize = 28f }
+                        )
+                    }
+
+                    // Etiqueta del día debajo
+                    drawContext.canvas.nativeCanvas.drawText(
+                        label, cx, h - 8f,
+                        textPaint.apply { textSize = 30f }
+                    )
                 }
             }
         }

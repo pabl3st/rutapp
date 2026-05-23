@@ -15,6 +15,9 @@ import com.pabl3st.rutapp.data.local.entity.StopTagConfig
 import com.pabl3st.rutapp.data.local.entity.TagCondition
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.TeamRepository
+import com.pabl3st.rutapp.data.network.AgentOverviewDto
+import kotlinx.coroutines.delay
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -78,6 +81,9 @@ data class GlobalMapUiState(
     val stopTags: List<StopTagConfig> = emptyList(),
     // Popup de pin — stop seleccionado al tocar en el mapa
     val selectedPinStop: StopMapMarker? = null,
+    // Marcadores de agentes activos (polling 60s, solo si es manager/admin/owner)
+    val agentMarkers:     List<AgentOverviewDto> = emptyList(),
+    val showAgentMarkers: Boolean                = true,
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -88,6 +94,7 @@ data class GlobalMapUiState(
 class GlobalMapViewModel @Inject constructor(
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
+    private val teamRepo:    TeamRepository,
     private val locationMgr: LocationManager,
     private val prefsRepo:   UserPrefsRepository,
     val mapProvider: MapProvider,
@@ -222,6 +229,23 @@ class GlobalMapViewModel @Inject constructor(
     }
 
     // ── GPS ───────────────────────────────────────────────────
+    /** Inicia polling de posiciones de agentes cada 60s */
+    fun startAgentPolling() {
+        viewModelScope.launch {
+            while (true) {
+                teamRepo.teamOverview()
+                    .onSuccess { agents ->
+                        val withGps = agents.filter { it.lastLat != null && it.lastLng != null }
+                        _ui.update { it.copy(agentMarkers = withGps) }
+                    }
+                delay(60_000L)
+            }
+        }
+    }
+
+    fun toggleAgentMarkers() =
+        _ui.update { it.copy(showAgentMarkers = !it.showAgentMarkers) }
+
     fun onPinTap(stopUid: String) {
         val stop = _ui.value.allStops.firstOrNull { it.uid == stopUid }
         _ui.update { it.copy(selectedPinStop = stop) }

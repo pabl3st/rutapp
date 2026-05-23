@@ -33,6 +33,7 @@ import com.pabl3st.rutapp.data.network.StatsMonthVisits
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
+import com.pabl3st.rutapp.data.network.AgentOverviewDto
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -53,7 +54,16 @@ fun KpisScreen(
         modifier = Modifier.semantics { testTag = "kpis-screen" },
         topBar = {
             TopAppBar(
-                title = { Text("KPIs") },
+                title = {
+                    Column {
+                        Text("KPIs")
+                        if (ui.selectedAgentName != null) {
+                            Text(ui.selectedAgentName!!,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = onNavigateToBiblioteca) {
                         Icon(Icons.AutoMirrored.Filled.LibraryBooks, contentDescription = "Biblioteca de paradas")
@@ -75,6 +85,18 @@ fun KpisScreen(
             contentPadding  = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
+
+            // ── Selector de agente (solo manager/admin/owner) ──
+            if (ui.availableAgents.isNotEmpty()) {
+                item {
+                    AgentSelector(
+                        agents          = ui.availableAgents,
+                        selectedAgentId = ui.selectedAgentId,
+                        selectedAgentName = ui.selectedAgentName,
+                        onSelect        = { id, name -> vm.onAgentSelected(id, name) },
+                    )
+                }
+            }
 
             // ── Selector de período ───────────────────────────
             item {
@@ -703,6 +725,100 @@ private fun RouteFilterChips(
                     )
                 },
             )
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentSelector(
+    agents:           List<AgentOverviewDto>,
+    selectedAgentId:  Int?,
+    selectedAgentName: String?,
+    onSelect:         (Int?, String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded         = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value         = selectedAgentName ?: "Mis KPIs",
+            onValueChange = {},
+            readOnly      = true,
+            label         = { Text("Ver KPIs de", style = MaterialTheme.typography.labelSmall) },
+            trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier      = Modifier.menuAnchor().fillMaxWidth(),
+            singleLine    = true,
+            colors        = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+        )
+        ExposedDropdownMenu(
+            expanded         = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            // Opción "Mis KPIs"
+            DropdownMenuItem(
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.Person, null, Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Column {
+                            Text("Mis KPIs", style = MaterialTheme.typography.bodyMedium)
+                            Text("Ver mis propios indicadores",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
+                onClick = { onSelect(null, null); expanded = false },
+                trailingIcon = if (selectedAgentId == null) ({
+                    Icon(Icons.Default.Check, null, Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary)
+                }) else null,
+            )
+            HorizontalDivider()
+            // Agentes del equipo
+            agents.forEach { agent ->
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Avatar con iniciales
+                            Surface(shape = MaterialTheme.shapes.extraLarge,
+                                color = if (agent.isActive)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(28.dp)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(agent.name.take(2).uppercase(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (agent.isActive)
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Column {
+                                Text(agent.name, style = MaterialTheme.typography.bodyMedium)
+                                val statusLabel = when {
+                                    agent.isActive -> "En ruta · ${agent.stopsDone}/${agent.stopsTotal} hoy"
+                                    agent.isDone   -> "Finalizado · ${agent.stopsDone}/${agent.stopsTotal}"
+                                    else           -> "Sin jornada hoy"
+                                }
+                                Text(statusLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    },
+                    onClick = { onSelect(agent.userId, agent.name); expanded = false },
+                    trailingIcon = if (agent.userId == selectedAgentId) ({
+                        Icon(Icons.Default.Check, null, Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                    }) else null,
+                )
+            }
         }
     }
 }
