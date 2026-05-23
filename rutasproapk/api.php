@@ -686,7 +686,10 @@ if ($action === 'delta_sync') {
                 s.name, s.address, s.lat, s.lng, s.order_index,
                 s.external_id, s.contact_name, s.contact_phone,
                 s.visit_frequency, s.priority, s.segment, s.account_status, s.opening_hours,
-                s.status, s.notes, s.visited_at, s.visit_result, s.next_action, s.pdv_open, s.pdv_inactive,
+                s.pdv_open, s.pdv_inactive,
+                s.status, s.notes, s.visited_at, s.visit_result, s.next_action,
+                s.date_assigned, s.check_in_ts, s.check_out_ts,
+                s.gps_lat_visit, s.gps_lng_visit,
                 s.created_at, s.updated_at, s.deleted_at
          FROM stops s
          JOIN routes r ON r.id = s.route_id
@@ -1050,8 +1053,10 @@ if ($action === 'batch_sync') {
                                      visit_result, next_action, pdv_open, pdv_inactive,
                                      visit_frequency, priority, segment,
                                      date_assigned,
+                                     check_in_ts, check_out_ts,
+                                     gps_lat_visit, gps_lng_visit,
                                      created_at, updated_at)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
                             )->execute([
                                 $clientUid, $routeId, $aid,
                                 san($data['name'] ?? '', 255),
@@ -1073,6 +1078,10 @@ if ($action === 'batch_sync') {
                                 isset($data['priority']) ? (int)$data['priority'] : 0,
                                 san($data['segment'] ?? '', 50) ?: null,
                                 $data['date_assigned'] ?? null,
+                                $data['check_in_ts']   ?? null,
+                                $data['check_out_ts']  ?? null,
+                                isset($data['gps_lat_visit']) ? (float)$data['gps_lat_visit'] : null,
+                                isset($data['gps_lng_visit']) ? (float)$data['gps_lng_visit'] : null,
                                 san($data['created_at'] ?? date('c'), 30),
                                 date('c'),
                             ]);
