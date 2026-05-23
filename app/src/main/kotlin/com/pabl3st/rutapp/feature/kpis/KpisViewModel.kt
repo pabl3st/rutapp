@@ -382,7 +382,12 @@ class KpisViewModel @Inject constructor(
                 return@launch
             }
             runCatching {
-                val resp = api.statsMonth(token = token, month = month)
+                val selectedAgent = _ui.value.selectedAgentId
+                val resp = api.statsMonth(
+                    token          = token,
+                    month          = month,
+                    targetUserId   = selectedAgent,
+                )
                 if (resp.isSuccessful && resp.body()?.ok == true) {
                     val body = resp.body()!!
                     _ui.update { it.copy(

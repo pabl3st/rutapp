@@ -738,9 +738,10 @@ interface RutasApiService {
     // ── stats_month — agregados del mes para manager/owner ───
     @GET(API_PATH)
     suspend fun statsMonth(
-        @Query("action")        action: String = "stats_month",
-        @Header("X-Auth-Token") token:  String,
-        @Query("month")         month:  String,
+        @Query("action")          action:       String = "stats_month",
+        @Header("X-Auth-Token")   token:        String,
+        @Query("month")           month:        String,
+        @Query("target_user_id")  targetUserId: Int?   = null,
     ): Response<StatsMonthResponse>
 
     // ── account_config_save — actualiza nombre/config de cuenta ─

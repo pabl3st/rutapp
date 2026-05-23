@@ -133,16 +133,18 @@ fun GlobalMapScreen(
                 .weight(0.5f)
             ) {
                 vm.mapProvider.MapView(
-                    modifier     = Modifier.fillMaxSize(),
-                    config       = vm.mapConfig,
-                    stops        = ui.visibleStops.filter {
+                    modifier         = Modifier.fillMaxSize(),
+                    config           = vm.mapConfig,
+                    stops            = ui.visibleStops.filter {
                         it.latLng.lat != 0.0 && it.latLng.lng != 0.0
                     },
-                    userLocation = ui.userLocation,
-                    polyline     = ui.routePolyline,
-                    onStopClick  = { stopUid -> vm.onPinTap(stopUid) },
-                    onMapClick   = {},
-                    onCameraIdle = { _, _ -> },
+                    userLocation     = ui.userLocation,
+                    polyline         = ui.routePolyline,
+                    agentMarkers     = ui.agentMarkers,
+                    showAgentMarkers = ui.showAgentMarkers,
+                    onStopClick      = { stopUid -> vm.onPinTap(stopUid) },
+                    onMapClick       = {},
+                    onCameraIdle     = { _, _ -> },
                 )
                 // Badge de conteo sobre el mapa
                 Surface(

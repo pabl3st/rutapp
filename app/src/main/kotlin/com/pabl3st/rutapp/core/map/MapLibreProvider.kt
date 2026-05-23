@@ -103,7 +103,9 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         config: MapConfig,
         stops: List<StopMapMarker>,
         userLocation: MapLatLng?,
-        polyline: List<MapLatLng>,
+        polyline:     List<MapLatLng>,
+        agentMarkers: List<AgentOverviewDto> = emptyList(),
+        showAgentMarkers: Boolean            = false,
         onStopClick: (uid: String) -> Unit,
         onMapClick: (MapLatLng) -> Unit,
         onCameraIdle: (center: MapLatLng, zoom: Float) -> Unit,
@@ -264,6 +266,22 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                     }
                     // Fit bounds lo gestiona LaunchedEffect(stops) con check de style
                     // No hacerlo aquí porque el style puede no estar listo todavía
+                    // ── Markers de agentes activos (si showAgentMarkers) ──
+                    if (showAgentMarkers) {
+                        agentMarkers.forEach { agent ->
+                            val lat = agent.lastLat ?: return@forEach
+                            val lng = agent.lastLng ?: return@forEach
+                            val initials = agent.name.take(2).uppercase()
+                            map.addMarker(
+                                MLMarkerOptions()
+                                    .position(MLLatLng(lat, lng))
+                                    .title(agent.name)
+                                    .snippet("__agent__${agent.userId}")
+                                    .icon(buildAgentIcon(initials, agent.isActive))
+                            )
+                        }
+                    }
+
                     if (false) {  // placeholder para mantener estructura
                         @Suppress("UNUSED_EXPRESSION")
                         didInitialFit  // referencia para evitar warning de variable no usada
@@ -272,6 +290,31 @@ class MapLibreProvider(private val context: Context) : MapProvider {
             }
         )
     }
+
+        /** Bitmap circular con iniciales del agente. Verde si activo, gris si no. */
+        private fun buildAgentIcon(initials: String, isActive: Boolean): org.maplibre.android.annotations.Icon {
+            val size    = 44
+            val bitmap  = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas  = Canvas(bitmap)
+            val bgColor = if (isActive)
+                android.graphics.Color.parseColor("#1D9E75")
+            else
+                android.graphics.Color.parseColor("#6B7280")
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.2f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor; style = Paint.Style.FILL })
+            canvas.drawCircle(size / 2f, size / 2f, size / 2.2f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.WHITE
+                    style = Paint.Style.STROKE; strokeWidth = 3f })
+            val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.WHITE
+                textSize = size * 0.35f
+                textAlign = android.graphics.Paint.Align.CENTER
+                isFakeBoldText = true
+            }
+            canvas.drawText(initials, size / 2f, size / 2f - (tp.descent() + tp.ascent()) / 2, tp)
+            return IconFactory.getInstance(context).fromBitmap(bitmap)
+        }
 
         /** Genera bitmap de pin de parada con color según status.
          *  done=verde, visiting=azul, skipped=gris, pending=naranja/rojo */
