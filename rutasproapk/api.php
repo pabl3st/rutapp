@@ -1637,6 +1637,26 @@ if ($action === 'stats_month') {
     $monthStart = $month . '-01';
     $monthEnd   = date('Y-m-t', strtotime($monthStart)); // último día del mes
 
+    // ── Filtro por agente específico (para KpisScreen selector de agente) ─
+    $targetUid = isset($_GET['target_user_id']) ? (int)$_GET['target_user_id'] : null;
+    if ($targetUid) {
+        // Validar que el caller puede ver este agente
+        if ($role === 'manager') {
+            $chk = db()->prepare('SELECT id FROM users WHERE id=? AND manager_id=? AND account_id=? LIMIT 1');
+            $chk->execute([$targetUid, $uid, $aid]);
+            if (!$chk->fetch()) err('No tienes acceso a este agente', 403);
+        } elseif (roleLevel($role) < 4) {
+            err('Sin permisos para ver stats de otro usuario', 403);
+        }
+        // Verificar que el target pertenece a la cuenta
+        $chk2 = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+        $chk2->execute([$targetUid, $aid]);
+        if (!$chk2->fetch()) err('Usuario no encontrado', 404);
+    }
+    // userFilter: si hay target_user_id filtramos por ese agente, si no por la cuenta
+    $userFilter     = $targetUid ? 'r.user_id = ?' : 'r.account_id = ?';
+    $userFilterVal  = $targetUid ?? $aid;
+
     // ── Totales de visitas del mes ────────────────────────────
     $stVisits = db()->prepare(
         'SELECT
@@ -1652,11 +1672,12 @@ if ($action === 'stats_month') {
             COUNT(DISTINCT r.id)                           AS total_routes,
             SUM(r.status = "done")                         AS done_routes
          FROM stops s
-         JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
-         WHERE r.date_assigned BETWEEN ? AND ?
+         JOIN routes r ON r.uid = s.route_uid
+         WHERE $userFilter
+           AND r.date_assigned BETWEEN ? AND ?
            AND s.deleted_at IS NULL'
     );
-    $stVisits->execute([$aid, $monthStart, $monthEnd]);
+    $stVisits->execute([$userFilterVal, $monthStart, $monthEnd]);
     $visits = $stVisits->fetch();
 
     // ── KPI values agregados del mes (número + boolean) ───────
@@ -1676,14 +1697,14 @@ if ($action === 'stats_month') {
          FROM kpi_values kv
          JOIN kpi_definitions kd ON kd.id = kv.kpi_id
          JOIN stops s            ON s.uid  = kv.stop_uid
-         JOIN routes r           ON r.uid  = s.route_uid AND r.account_id = ?
+         JOIN routes r           ON r.uid  = s.route_uid
          WHERE r.date_assigned BETWEEN ? AND ?
            AND kd.type IN ("number", "boolean")
            AND s.deleted_at IS NULL
          GROUP BY kv.kpi_id, kd.label, kd.type, kd.unit, kd.section
          ORDER BY kd.section ASC, kd.label ASC'
     );
-    $stKpis->execute([$aid, $monthStart, $monthEnd]);
+    $stKpis->execute([$userFilterVal, $monthStart, $monthEnd]);
     $kpiAggregates = $stKpis->fetchAll();
 
     // ── Por agente (para desglose opcional) ──────────────────
@@ -1699,7 +1720,8 @@ if ($action === 'stats_month') {
                 SUM(s.status = "done")             AS done_stops,
                 SUM(s.visit_result = "contactado") AS contacted
              FROM stops s
-             JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
+             JOIN routes r ON r.uid = s.route_uid
+         WHERE $userFilter AND
              JOIN users u  ON u.id = r.user_id AND u.manager_id = ?
              WHERE r.date_assigned BETWEEN ? AND ?
                AND s.deleted_at IS NULL
@@ -1717,14 +1739,15 @@ if ($action === 'stats_month') {
                 SUM(s.status = "done")             AS done_stops,
                 SUM(s.visit_result = "contactado") AS contacted
              FROM stops s
-             JOIN routes r ON r.uid = s.route_uid AND r.account_id = ?
+             JOIN routes r ON r.uid = s.route_uid
+         WHERE $userFilter AND
              JOIN users u  ON u.id = r.user_id
              WHERE r.date_assigned BETWEEN ? AND ?
                AND s.deleted_at IS NULL
              GROUP BY u.id, u.name, u.username
              ORDER BY done_stops DESC'
         );
-        $stAgents->execute([$aid, $monthStart, $monthEnd]);
+        $stAgents->execute([$userFilterVal, $monthStart, $monthEnd]);
     }
     $agents = $stAgents->fetchAll();
 
@@ -2015,6 +2038,8 @@ if ($action === 'team_overview') {
     if (empty($agents)) { ok(['agents' => []]); }
 
     $agentIds = array_column($agents, 'id');
+    if (empty($agentIds)) { ok(['agents' => []]); }  // guard adicional
+
     $ph = implode(',', array_fill(0, count($agentIds), '?'));
 
     // Jornada activa de hoy por agente
@@ -2022,7 +2047,8 @@ if ($action === 'team_overview') {
         "SELECT user_id, state, elapsed_ms, distance_km, last_lat, last_lng, updated_at
          FROM day_sessions WHERE user_id IN ($ph) AND date_str=? ORDER BY updated_at DESC"
     );
-    $stJ->execute([...$agentIds, $today]);
+    $paramsJ = array_merge($agentIds, [$today]);
+    $stJ->execute($paramsJ);
     $jornadas = [];
     foreach ($stJ->fetchAll() as $j) {
         $jornadas[$j['user_id']] = $j;
@@ -2042,7 +2068,8 @@ if ($action === 'team_overview') {
            AND s.deleted_at IS NULL
          GROUP BY r.user_id"
     );
-    $stS->execute([$aid, ...$agentIds, $today, $today]);
+    $paramsS = array_merge([$aid], $agentIds, [$today, $today]);
+    $stS->execute($paramsS);
     $stopsMap = [];
     foreach ($stS->fetchAll() as $s) { $stopsMap[$s['user_id']] = $s; }
 
@@ -2061,7 +2088,8 @@ if ($action === 'team_overview') {
            AND s.deleted_at IS NULL
          GROUP BY r.user_id"
     );
-    $stM->execute([$aid, ...$agentIds, $monthStart, $monthEnd]);
+    $paramsM = array_merge([$aid], $agentIds, [$monthStart, $monthEnd]);
+    $stM->execute($paramsM);
     $monthMap = [];
     foreach ($stM->fetchAll() as $m) { $monthMap[$m['user_id']] = $m; }
 
