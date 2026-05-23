@@ -904,40 +904,36 @@ private fun WeeklyTeamTrendCard(stats: List<com.pabl3st.rutapp.data.network.Stat
                 val h       = size.height
                 val barW    = w / (weekData.size * 1.8f)
                 val spacing = w / weekData.size
+
                 val textPaint = android.graphics.Paint().apply {
-                    textSize  = 30f
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    color     = android.graphics.Color.GRAY
+                    textSize    = 30f
+                    textAlign   = android.graphics.Paint.Align.CENTER
+                    color       = android.graphics.Color.GRAY
                     isAntiAlias = true
                 }
 
                 weekData.forEachIndexed { idx, (label, value, isToday) ->
-                    val cx      = spacing * idx + spacing / 2
-                    val barH    = if (maxVal > 0) (value.toFloat() / maxVal * (h - 40f)) else 0f
-                    val color   = if (isToday) todayColor else barColor
+                    val cx   = spacing * idx + spacing / 2
+                    val barH = if (maxVal > 0) (value.toFloat() / maxVal * (h - 40f)) else 0f
+                    val col  = if (isToday) todayColor else barColor
 
-                    // Barra
                     drawRoundRect(
-                        color        = color,
+                        color        = col,
                         topLeft      = androidx.compose.ui.geometry.Offset(cx - barW / 2, h - 30f - barH),
                         size         = androidx.compose.ui.geometry.Size(barW, barH.coerceAtLeast(2f)),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
                     )
 
-                    // Valor encima de la barra (solo si > 0)
-                    if (value > 0) {
-                        drawContext.canvas.nativeCanvas.drawText(
-                            value.toString(),
-                            cx, h - 35f - barH,
-                            textPaint.apply { textSize = 28f }
-                        )
+                    drawIntoCanvas { canvas ->
+                        if (value > 0) {
+                            canvas.nativeCanvas.drawText(
+                                value.toString(), cx, h - 35f - barH,
+                                textPaint.apply { textSize = 28f })
+                        }
+                        canvas.nativeCanvas.drawText(
+                            label, cx, h - 8f,
+                            textPaint.apply { textSize = 30f })
                     }
-
-                    // Etiqueta del día debajo
-                    drawContext.canvas.nativeCanvas.drawText(
-                        label, cx, h - 8f,
-                        textPaint.apply { textSize = 30f }
-                    )
                 }
             }
         }
