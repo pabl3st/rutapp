@@ -202,6 +202,11 @@ data class StopDto(
     @Json(name = "created_at")       val createdAt: String,
     @Json(name = "updated_at")    val updatedAt: String,
     @Json(name = "deleted_at")    val deletedAt: String?    = null,
+    @Json(name = "date_assigned") val dateAssigned: String?  = null,
+    @Json(name = "check_in_ts")   val checkInTs:  Long?      = null,
+    @Json(name = "check_out_ts")  val checkOutTs: Long?      = null,
+    @Json(name = "gps_lat_visit") val gpsLatVisit: Double?   = null,
+    @Json(name = "gps_lng_visit") val gpsLngVisit: Double?   = null,
 )
 
 @JsonClass(generateAdapter = true)

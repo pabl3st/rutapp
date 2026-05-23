@@ -53,6 +53,11 @@ fun StopDto.toEntity(accountId: Int): StopEntity? {
         createdAt      = createdAt,
         updatedAt    = updatedAt,
         deletedAt    = deletedAt,
+        dateAssigned = dateAssigned,
+        checkInTs    = checkInTs,
+        checkOutTs   = checkOutTs,
+        gpsLatVisit  = gpsLatVisit,
+        gpsLngVisit  = gpsLngVisit,
         syncStatus   = "synced",
         syncedAt     = updatedAt,
     )
