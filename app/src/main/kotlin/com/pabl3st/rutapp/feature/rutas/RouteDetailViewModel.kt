@@ -43,6 +43,7 @@ data class RouteDetailUiState(
     val canEditStops: Boolean                     = false,
     // Reasignación de ruta
     val canReassign:        Boolean              = false,
+    val routeOwnerName:     String?              = null,  // nombre del agente asignado (si != caller)
     val showReassignDialog: Boolean              = false,
     val assignableUsers:    List<AccountUserDto> = emptyList(),
     val selectedAssigneeId: Int?                 = null,
@@ -102,6 +103,16 @@ class RouteDetailViewModel @Inject constructor(
                 route    = route,
                 isLoading = false,
                 error    = if (route == null) "Ruta no encontrada. Comprueba tu conexión y vuelve a intentarlo." else null,
+                routeOwnerName = route?.let { r ->
+                    if (r.userId != session.userId) {
+                        runCatching { adminRepo.listUsers() }.getOrNull()
+                            ?.let { res ->
+                                if (res is com.pabl3st.rutapp.data.repository.AuthResult.Success)
+                                    res.data.firstOrNull { it.userId == r.userId }?.displayName
+                                else null
+                            }
+                    } else null
+                },
             ) }
         }
     }

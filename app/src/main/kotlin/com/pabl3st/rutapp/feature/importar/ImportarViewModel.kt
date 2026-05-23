@@ -692,7 +692,11 @@ class ImportarViewModel @Inject constructor(
                         val scheduledList  = if (allDates.size > 1) allDates.drop(1) else null
 
                         // Upsert real: si existe, actualizar fechas y scheduled_dates
-                        val targetUserId = _ui.value.targetUser?.userId ?: session.userId
+                        // Usar el nivel más específico de la jerarquía seleccionada:
+                        // agent > manager > admin > mí mismo
+                        val targetUserId = (_ui.value.targetUser
+                            ?: _ui.value.selectedManager
+                            ?: _ui.value.selectedAdmin)?.userId ?: session.userId
                         val existingRoute = routeRepo.getByNameAndUser(entry.routeName, targetUserId)
                         val route = if (existingRoute != null) {
                             // Actualizar solo los campos que cambian — no sobreescribir visitas
@@ -707,7 +711,9 @@ class ImportarViewModel @Inject constructor(
                                 name           = entry.routeName,
                                 dateAssigned   = dateAssigned,
                                 scheduledDates = if (allDates.size > 1) allDates.drop(1) else null,
-                                forUserId      = _ui.value.targetUser?.userId,
+                                forUserId      = (_ui.value.targetUser
+                                    ?: _ui.value.selectedManager
+                                    ?: _ui.value.selectedAdmin)?.userId,
                             )
                         }
 

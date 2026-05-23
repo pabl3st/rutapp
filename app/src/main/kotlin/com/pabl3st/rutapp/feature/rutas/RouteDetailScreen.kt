@@ -57,7 +57,21 @@ fun RouteDetailScreen(
         modifier = Modifier.semantics { testTag = "route-detail-screen" },
         topBar = {
             TopAppBar(
-                title = { Text(ui.route?.name ?: "Ruta") },
+                title = {
+                    Column {
+                        Text(ui.route?.name ?: "Ruta",
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        ui.routeOwnerName?.let { name ->
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Icon(Icons.Default.Person, null, Modifier.size(11.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                                Text(name, style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")

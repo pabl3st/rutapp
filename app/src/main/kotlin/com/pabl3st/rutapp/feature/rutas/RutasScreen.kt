@@ -113,10 +113,13 @@ fun RutasScreen(
                 modifier = Modifier.padding(padding),
             ) {
                 itemsIndexed(ui.routes, key = { _, r -> r.uid }) { idx, route ->
+                    val agentName = if (route.userId != ui.currentUserId)
+                        ui.teamMembers[route.userId] else null
                     RouteListItem(
                         route     = route,
                         onClick   = { onRouteClick(route.uid) },
                         testTagId = "route-card-$idx",
+                        agentName = agentName,
                     )
                 }
             }
@@ -235,7 +238,7 @@ private fun StatusChip(status: String) {
     )
 }
 @Composable
-private fun RouteListItem(route: RouteEntity, onClick: () -> Unit, testTagId: String = "") {
+private fun RouteListItem(route: RouteEntity, onClick: () -> Unit, testTagId: String = "", agentName: String? = null) {
 
     Card(modifier = Modifier.fillMaxWidth().semantics { testTag = testTagId }.clickable(onClick = onClick)) {
         Row(
@@ -262,6 +265,17 @@ private fun RouteListItem(route: RouteEntity, onClick: () -> Unit, testTagId: St
                 Text(dateLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                agentName?.let {
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Icon(Icons.Default.Person, null, Modifier.size(11.dp),
+                            tint = MaterialTheme.colorScheme.primary)
+                        Text(it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
                 route.notes?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,

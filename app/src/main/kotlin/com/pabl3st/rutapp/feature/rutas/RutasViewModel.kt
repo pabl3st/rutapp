@@ -23,6 +23,7 @@ data class RutasUiState(
     val newRouteName: String      = "",
     val newRouteDate: String      = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
     val userRole: String          = "agent",
+    val currentUserId: Int        = 0,
     val canCreate: Boolean        = false,
     val canDelete: Boolean        = false,
     val error: String?            = null,
@@ -30,6 +31,8 @@ data class RutasUiState(
     val assignableUsers:    List<AccountUserDto> = emptyList(),
     val selectedAssigneeId: Int?                 = null,
     val loadingUsers:       Boolean              = false,
+    // Map userId → displayName para mostrar etiqueta en cards de ruta
+    val teamMembers:        Map<Int, String>     = emptyMap(),
 )
 
 @HiltViewModel
@@ -40,7 +43,8 @@ class RutasViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(RutasUiState(
-        userRole  = session.userRole,
+        userRole      = session.userRole,
+        currentUserId = session.userId,
         canCreate = session.userRole in listOf("owner", "admin", "manager", "god"),
         canDelete = session.userRole in listOf("owner", "admin", "god"),
     ))
@@ -89,7 +93,8 @@ class RutasViewModel @Inject constructor(
                             else   -> false
                         }
                     }
-                    _ui.update { it.copy(assignableUsers = assignable, loadingUsers = false) }
+                    val teamMap = r.data.associate { it.userId to it.displayName }
+                    _ui.update { it.copy(assignableUsers = assignable, loadingUsers = false, teamMembers = teamMap) }
                 }
                 is com.pabl3st.rutapp.data.repository.AuthResult.Error ->
                     _ui.update { it.copy(loadingUsers = false) }
