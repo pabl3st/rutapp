@@ -1176,10 +1176,10 @@ if ($action === 'users_list') {
                     DATE_FORMAT(u.created_at, \'%Y-%m-%dT%H:%i:%sZ\') AS created_at
              FROM users u
              LEFT JOIN users m ON m.id = u.manager_id AND m.account_id = u.account_id
-             WHERE u.account_id = ? AND u.id != ?
+             WHERE u.account_id = ?
              ORDER BY u.role DESC, u.username ASC'
         );
-        $st->execute([$aid, $uid]);
+        $st->execute([$aid]);
     }
     $users = $st->fetchAll();
 
