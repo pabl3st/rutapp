@@ -164,7 +164,7 @@ interface MapProvider {
         userLocation: MapLatLng?,
         polyline:     List<MapLatLng>        = emptyList(),
         agentMarkers: List<AgentOverviewDto> = emptyList(),
-        showAgentMarkers: Boolean            = false,,
+        showAgentMarkers: Boolean            = false,
         onStopClick: (uid: String) -> Unit,
         onMapClick: (MapLatLng) -> Unit,
         onCameraIdle: (center: MapLatLng, zoom: Float) -> Unit,
