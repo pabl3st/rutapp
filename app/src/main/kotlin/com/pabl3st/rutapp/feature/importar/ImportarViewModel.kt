@@ -153,10 +153,19 @@ data class ImportarUiState(
     val saveProgress:   Int                          = 0,
     val saveTotal:      Int                          = 0,
     val saveError:      String?                      = null,
-    // Agente destino (solo cuando el caller es manager/admin/owner/god)
-    val availableAgents: List<AccountUserDto>        = emptyList(),
-    val targetUser:      AccountUserDto?             = null,    // null = para sí mismo
-    val isLoadingAgents: Boolean                     = false,
+    // Jerarquía de asignación en cascada (owner→admin→manager→agent)
+    val availableAgents:  List<AccountUserDto>       = emptyList(),
+    val targetUser:       AccountUserDto?            = null,    // usuario final que recibe las rutas
+    val isLoadingAgents:  Boolean                    = false,
+    // Selección jerárquica: owner elige admin, luego manager de ese admin, luego agent
+    val hierarchyAdmins:   List<AccountUserDto>      = emptyList(),
+    val hierarchyManagers: List<AccountUserDto>      = emptyList(),
+    val hierarchyAgents:   List<AccountUserDto>      = emptyList(),
+    val selectedAdmin:     AccountUserDto?           = null,
+    val selectedManager:   AccountUserDto?           = null,
+    // Multi-selección de rutas en calendario
+    val selectedCalendarIndices: Set<Int>            = emptySet(),
+    val bulkDate:          java.time.LocalDate?      = null,    // fecha para asignación en bloque
 )
 
 @HiltViewModel
@@ -186,21 +195,42 @@ class ImportarViewModel @Inject constructor(
             _ui.update { it.copy(isLoadingAgents = true) }
             when (val result = adminRepo.listUsers()) {
                 is com.pabl3st.rutapp.data.repository.AuthResult.Success -> {
-                    val callerRole = session.userRole
-                    // Roles que puede recibir rutas según la jerarquía:
-                    // owner/god  → admin + manager + agent
-                    // admin      → manager + agent
-                    // manager    → solo sus agentes directos (managedAgentIds)
-                    // El servidor ya filtra por rol en users_list:
-                    // manager → solo sus agentes directos (manager_id = uid)
-                    // admin/owner/god → todos del account
-                    // Solo excluimos roles que nunca reciben rutas (viewer)
-                    // y al propio caller (no se asigna rutas a sí mismo aquí)
-                    val agents = result.data.filter { u ->
-                        u.isActive && u.userId != session.userId &&
-                        u.role in setOf("admin", "manager", "agent")
+                    val all = result.data.filter { it.isActive && it.userId != session.userId }
+                    when (session.userRole) {
+                        "god", "owner" -> {
+                            // Cascada completa: admin → manager → agent
+                            val admins   = all.filter { it.role == "admin" }
+                            val managers = all.filter { it.role == "manager" }
+                            val agents   = all.filter { it.role == "agent" }
+                            _ui.update { it.copy(
+                                availableAgents  = all.filter { u -> u.role in setOf("admin","manager","agent") },
+                                hierarchyAdmins  = admins,
+                                hierarchyManagers = managers,
+                                hierarchyAgents  = agents,
+                                isLoadingAgents  = false,
+                            ) }
+                        }
+                        "admin" -> {
+                            // admin: manager → agent (el servidor ya filtró sus reportadores)
+                            val managers = all.filter { it.role == "manager" }
+                            val agents   = all.filter { it.role == "agent" }
+                            _ui.update { it.copy(
+                                availableAgents  = all.filter { u -> u.role in setOf("manager","agent") },
+                                hierarchyManagers = managers,
+                                hierarchyAgents  = agents,
+                                isLoadingAgents  = false,
+                            ) }
+                        }
+                        "manager" -> {
+                            // manager: solo sus agents directos (servidor ya filtró)
+                            _ui.update { it.copy(
+                                availableAgents = all.filter { it.role == "agent" },
+                                hierarchyAgents = all.filter { it.role == "agent" },
+                                isLoadingAgents = false,
+                            ) }
+                        }
+                        else -> _ui.update { it.copy(isLoadingAgents = false) }
                     }
-                    _ui.update { it.copy(availableAgents = agents, isLoadingAgents = false) }
                 }
                 is com.pabl3st.rutapp.data.repository.AuthResult.Error ->
                     _ui.update { it.copy(isLoadingAgents = false) }
@@ -208,8 +238,62 @@ class ImportarViewModel @Inject constructor(
         }
     }
 
+    /** Cuando owner selecciona admin → filtrar managers de ese admin */
+    fun onSelectAdmin(admin: AccountUserDto?) {
+        val managers = if (admin == null) _ui.value.hierarchyManagers
+                       else _ui.value.hierarchyManagers.filter { it.managerId == admin.userId }
+        _ui.update { it.copy(
+            selectedAdmin   = admin,
+            selectedManager = null,
+            targetUser      = null,
+            hierarchyManagers = managers,
+        ) }
+    }
+
+    /** Cuando elige manager → filtrar agents de ese manager */
+    fun onSelectManager(manager: AccountUserDto?) {
+        val agents = if (manager == null) _ui.value.hierarchyAgents
+                     else _ui.value.hierarchyAgents.filter { it.managerId == manager.userId }
+        _ui.update { it.copy(
+            selectedManager = manager,
+            targetUser      = null,
+            hierarchyAgents = agents,
+        ) }
+    }
+
     fun onSelectTargetUser(user: AccountUserDto?) =
         _ui.update { it.copy(targetUser = user) }
+
+    // ── Multi-selección en calendario ─────────────────────────
+    fun onToggleCalendarEntry(idx: Int) {
+        val current = _ui.value.selectedCalendarIndices.toMutableSet()
+        if (idx in current) current.remove(idx) else current.add(idx)
+        _ui.update { it.copy(selectedCalendarIndices = current) }
+    }
+
+    fun onSelectAllCalendarEntries() {
+        val all = _ui.value.calendarEntries.indices.toSet()
+        _ui.update { it.copy(selectedCalendarIndices = all) }
+    }
+
+    fun onClearCalendarSelection() = _ui.update { it.copy(selectedCalendarIndices = emptySet()) }
+
+    fun onBulkDateChange(date: java.time.LocalDate) = _ui.update { it.copy(bulkDate = date) }
+
+    fun onApplyBulkDate() {
+        val date    = _ui.value.bulkDate ?: return
+        val indices = _ui.value.selectedCalendarIndices
+        if (indices.isEmpty()) return
+        val entries = _ui.value.calendarEntries.mapIndexed { idx, entry ->
+            if (idx !in indices || entry.datesFromImport) entry
+            else {
+                val existing = entry.scheduledDates.toMutableList()
+                if (!existing.contains(date)) { existing.add(date); existing.sort() }
+                entry.copy(date = existing.firstOrNull(), scheduledDates = existing)
+            }
+        }
+        _ui.update { it.copy(calendarEntries = entries, selectedCalendarIndices = emptySet()) }
+    }
 
     // ── PASO 1 — parsear fichero ──────────────────────────────
 
@@ -605,15 +689,25 @@ class ImportarViewModel @Inject constructor(
                         val dateAssigned   = allDates.firstOrNull() ?: (entry.date?.toString() ?: "")
                         val scheduledList  = if (allDates.size > 1) allDates.drop(1) else null
 
-                        // Upsert de ruta: si ya existe por nombre+usuario, reutilizar
+                        // Upsert real: si existe, actualizar fechas y scheduled_dates
                         val targetUserId = _ui.value.targetUser?.userId ?: session.userId
                         val existingRoute = routeRepo.getByNameAndUser(entry.routeName, targetUserId)
-                        val route = existingRoute ?: routeRepo.createRoute(
-                            name           = entry.routeName,
-                            dateAssigned   = dateAssigned,
-                            scheduledDates = scheduledList,
-                            forUserId      = _ui.value.targetUser?.userId,
-                        )
+                        val route = if (existingRoute != null) {
+                            // Actualizar solo los campos que cambian — no sobreescribir visitas
+                            routeRepo.updateSchedule(
+                                uid            = existingRoute.uid,
+                                dateAssigned   = dateAssigned,
+                                scheduledDates = if (allDates.size > 1) allDates.drop(1) else null,
+                            )
+                            existingRoute
+                        } else {
+                            routeRepo.createRoute(
+                                name           = entry.routeName,
+                                dateAssigned   = dateAssigned,
+                                scheduledDates = if (allDates.size > 1) allDates.drop(1) else null,
+                                forUserId      = _ui.value.targetUser?.userId,
+                            )
+                        }
 
                         // Crear un stop INDEPENDIENTE por cada fecha del schedule
                         // Así cada visita tiene su propio ciclo de vida (como en la web)
@@ -624,22 +718,41 @@ class ImportarViewModel @Inject constructor(
                                 val existingStop = preview.externalId?.let {
                                     stopRepo.getByExternalIdDateAndRoute(route.uid, it, dateForStop)
                                 }
-                                val stop = existingStop ?: stopRepo.createStop(
-                                    routeUid       = route.uid,
-                                    name           = preview.name,
-                                    externalId     = preview.externalId,
-                                    address        = preview.address,
-                                    lat            = preview.lat,
-                                    lng            = preview.lng,
-                                    orderIndex     = dates.indexOf(dateForStop) * 1000 + stopIdx,
-                                    notes          = preview.notes,
-                                    contactName    = preview.contactName,
-                                    contactPhone   = preview.contactPhone,
-                                    visitFrequency = preview.visitFrequency,
-                                    priority       = preview.priority,
-                                    segment        = preview.segment,
-                                    dateAssigned   = dateForStop,
-                                )
+                                val stop = if (existingStop != null) {
+                                    // Upsert real: actualizar campos que pueden haber cambiado
+                                    // pero mantener status, visitResult, notes de visita
+                                    stopRepo.updateImportFields(
+                                        uid           = existingStop.uid,
+                                        name          = preview.name,
+                                        address       = preview.address,
+                                        lat           = preview.lat,
+                                        lng           = preview.lng,
+                                        contactName   = preview.contactName?.takeIf { it.isNotBlank() } ?: existingStop.contactName,
+                                        contactPhone  = preview.contactPhone?.takeIf { it.isNotBlank() } ?: existingStop.contactPhone,
+                                        visitFrequency = preview.visitFrequency,
+                                        priority      = preview.priority,
+                                        segment       = preview.segment,
+                                        orderIndex    = dates.indexOf(dateForStop) * 1000 + stopIdx,
+                                    )
+                                    existingStop
+                                } else {
+                                    stopRepo.createStop(
+                                        routeUid       = route.uid,
+                                        name           = preview.name,
+                                        externalId     = preview.externalId,
+                                        address        = preview.address,
+                                        lat            = preview.lat,
+                                        lng            = preview.lng,
+                                        orderIndex     = dates.indexOf(dateForStop) * 1000 + stopIdx,
+                                        notes          = preview.notes,
+                                        contactName    = preview.contactName,
+                                        contactPhone   = preview.contactPhone,
+                                        visitFrequency = preview.visitFrequency,
+                                        priority       = preview.priority,
+                                        segment        = preview.segment,
+                                        dateAssigned   = dateForStop,
+                                    )
+                                }
                                 // Solo guardar el uid del stop de la primera fecha para KPIs históricos
                                 if (dateForStop == dates.first()) {
                                     preview.externalId?.let { externalIdToStopUid[it] = stop.uid }

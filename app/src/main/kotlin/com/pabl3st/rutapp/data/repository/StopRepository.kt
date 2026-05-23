@@ -70,6 +70,43 @@ class StopRepository @Inject constructor(
             )
         }
 
+
+    /** Actualiza campos de parada que pueden cambiar en reimportación.
+     *  NO toca: status, visitResult, notes (de visita), visitedAt, kpiValues.
+     *  SÍ actualiza: nombre, dirección, GPS, contacto, frecuencia, prioridad, segmento. */
+    suspend fun updateImportFields(
+        uid:           String,
+        name:          String,
+        address:       String?,
+        lat:           Double?,
+        lng:           Double?,
+        contactName:   String?,
+        contactPhone:  String?,
+        visitFrequency: Int?,
+        priority:      Int,
+        segment:       String?,
+        orderIndex:    Int,
+    ) {
+        val stop = stopDao.getByUid(uid) ?: return
+        val now  = Instant.now().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val updated = stop.copy(
+            name           = name,
+            address        = address ?: stop.address,
+            lat            = lat     ?: stop.lat,
+            lng            = lng     ?: stop.lng,
+            contactName    = contactName  ?: stop.contactName,
+            contactPhone   = contactPhone ?: stop.contactPhone,
+            visitFrequency = visitFrequency ?: stop.visitFrequency,
+            priority       = priority,
+            segment        = segment ?: stop.segment,
+            orderIndex     = orderIndex,
+            updatedAt      = now,
+            syncStatus     = "pending",
+        )
+        stopDao.upsert(updated)
+        enqueue("stop", uid, "update", stopToMap(updated))
+    }
+
     suspend fun createStop(
         routeUid:       String,
         name:           String,

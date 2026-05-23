@@ -219,6 +219,22 @@ class RouteRepository @Inject constructor(
     }
 
 
+
+    /** Actualiza solo dateAssigned y scheduledDates de una ruta existente (reimportación). */
+    suspend fun updateSchedule(uid: String, dateAssigned: String, scheduledDates: List<String>?) {
+        val route = routeDao.getByUid(uid) ?: return
+        val now   = Instant.now().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val updated = route.copy(
+            dateAssigned   = dateAssigned,
+            scheduledDates = scheduledDates,
+            updatedAt      = now,
+            syncStatus     = "pending",
+        )
+        routeDao.upsert(updated)
+        enqueue("route", uid, "update", routeToMap(updated))
+        triggerSync()
+    }
+
     /** Reasigna una ruta a un usuario diferente.
      *  Solo permitido para owner/admin/manager (verificado en la capa ViewModel).
      *  El cambio se sincroniza con el servidor vía delta sync. */

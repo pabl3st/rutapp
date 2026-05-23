@@ -743,7 +743,10 @@ if ($action === 'delta_sync') {
     $stKD->execute([$aid]);
     $kpiDefs = $stKD->fetchAll();
 
-    // IDs de agentes bajo supervisión directa del caller (solo si es manager)
+    // IDs de usuarios bajo supervisión directa del caller
+    // manager → sus agents directos
+    // admin   → sus managers directos + los agents de esos managers
+    // owner   → todos (admin/manager/agent) del account
     $managedAgentIds = [];
     if ($role === 'manager') {
         $stMA = db()->prepare(
@@ -751,6 +754,30 @@ if ($action === 'delta_sync') {
         );
         $stMA->execute([$aid, $uid]);
         $managedAgentIds = array_column($stMA->fetchAll(), 'id');
+    } elseif ($role === 'admin') {
+        // Managers que reportan al admin
+        $stMgr = db()->prepare(
+            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND role='manager' AND active=1'
+        );
+        $stMgr->execute([$aid, $uid]);
+        $mgrIds = array_column($stMgr->fetchAll(), 'id');
+        // Agents de esos managers
+        $agentIds = [];
+        if (!empty($mgrIds)) {
+            $placeholders = implode(',', array_fill(0, count($mgrIds), '?'));
+            $stAg = db()->prepare(
+                "SELECT id FROM users WHERE account_id=? AND manager_id IN ($placeholders) AND role='agent' AND active=1"
+            );
+            $stAg->execute(array_merge([$aid], $mgrIds));
+            $agentIds = array_column($stAg->fetchAll(), 'id');
+        }
+        $managedAgentIds = array_merge($mgrIds, $agentIds);
+    } elseif (in_array($role, ['owner', 'god'])) {
+        $stAll = db()->prepare(
+            "SELECT id FROM users WHERE account_id=? AND role IN ('admin','manager','agent') AND active=1 AND id != ?"
+        );
+        $stAll->execute([$aid, $uid]);
+        $managedAgentIds = array_column($stAll->fetchAll(), 'id');
     }
 
     apiLog($action, $uid, $aid);
