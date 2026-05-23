@@ -42,9 +42,31 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
     // viewer: solo Perfil — sin acceso a rutas, mapa ni KPIs
     // god: solo Perfil (su dashboard está accesible desde Perfil)
     val role = UserRole.from(userRole)
-    val visibleItems = when {
-        role.isViewer || role.isGod -> NAV_ITEMS.filter { n -> n.screen == Screen.Perfil }
-        else                        -> NAV_ITEMS
+    // Tabs visibles por rol — cada rol ve exactamente lo que necesita
+    val visibleItems: List<NavItem> = when (role) {
+        UserRole.VIEWER ->
+            // Solo lectura — únicamente puede ver su perfil
+            NAV_ITEMS.filter { it.screen == Screen.Perfil }
+
+        UserRole.GOD ->
+            // Dios — gestión cross-account desde Perfil, no ejecuta rutas
+            NAV_ITEMS.filter { it.screen == Screen.Perfil }
+
+        UserRole.AGENT ->
+            // Comercial en campo — necesita todos los tabs operativos
+            NAV_ITEMS
+
+        UserRole.MANAGER ->
+            // Supervisor — necesita todos los tabs (ve rutas de sus agentes en Rutas/Agenda)
+            NAV_ITEMS
+
+        UserRole.ADMIN ->
+            // Jefe territorial — igual que manager + acceso a gestión
+            NAV_ITEMS
+
+        UserRole.OWNER ->
+            // Empresa cliente — visión completa de la cuenta
+            NAV_ITEMS
     }
 
     NavigationBar {
