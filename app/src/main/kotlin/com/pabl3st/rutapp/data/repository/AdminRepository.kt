@@ -153,8 +153,8 @@ class AdminRepository @Inject constructor(
 
     val availableRoles: List<String>
         get() = when {
-            isGod          -> listOf(UserRole.selectableRoles.filter { it != UserRole.OWNER }.map { it.key })
-            isOwner        -> listOf(UserRole.selectableRoles.filter { it != UserRole.OWNER }.map { it.key })
+            isGod          -> UserRole.selectableRoles.filter { it != UserRole.OWNER }.map { it.key }
+            isOwner        -> UserRole.selectableRoles.filter { it != UserRole.OWNER }.map { it.key }
             isOwnerOrAdmin -> listOf("manager", "agent", "viewer")
             else           -> emptyList()
         }

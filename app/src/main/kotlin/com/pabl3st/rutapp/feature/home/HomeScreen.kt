@@ -44,6 +44,7 @@ fun HomeScreen(
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val ui    by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     val today  = LocalDate.now()
         .format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale("es")))
         .replaceFirstChar { it.uppercase() }

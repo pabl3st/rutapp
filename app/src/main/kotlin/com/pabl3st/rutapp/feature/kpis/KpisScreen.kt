@@ -34,6 +34,7 @@ import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.network.AgentOverviewDto
+import com.pabl3st.rutapp.ui.components.EmptyStateBox
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -49,6 +50,7 @@ fun KpisScreen(
     vm: KpisViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
