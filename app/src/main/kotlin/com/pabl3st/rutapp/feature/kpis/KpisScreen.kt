@@ -305,12 +305,14 @@ fun KpisScreen(
 
             // ── KPIs del sector activo ────────────────────────
             if (ui.sectorKpis.isEmpty() && !ui.isLoading) {
-                EmptyStateBox(
-                    icon        = Icons.Default.BarChart,
-                    title       = "Sin KPIs configurados",
-                    subtitle    = "Configura el sector de tu empresa en Perfil → Perfil de negocio para ver los formularios de visita.",
-                    actionLabel = null,
-                )
+                item {
+                    EmptyStateBox(
+                        icon        = Icons.Default.BarChart,
+                        title       = "Sin KPIs configurados",
+                        subtitle    = "Configura el sector de tu empresa en Perfil → Perfil de negocio para ver los formularios de visita.",
+                        actionLabel = null,
+                    )
+                }
             } else if (ui.sectorKpis.isNotEmpty()) {
                 item {
                     SectionTitle("KPIs del sector")
