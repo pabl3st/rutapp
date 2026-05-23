@@ -37,6 +37,8 @@ import com.pabl3st.rutapp.data.network.AgentOverviewDto
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
 
 // ─────────────────────────────────────────────────────────────
 // KpisScreen — Dashboard de métricas del agente comercial

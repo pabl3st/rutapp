@@ -30,6 +30,7 @@ import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.pabl3st.rutapp.core.UserRole
 
 // ────────────────────────────────────────────────────────────
 // HomeScreen — Lista de rutas de hoy con progreso

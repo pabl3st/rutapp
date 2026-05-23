@@ -41,6 +41,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.graphics.Color
 import java.util.UUID
+import com.pabl3st.rutapp.core.UserRole
 
 @Composable
 fun PerfilScreen(
