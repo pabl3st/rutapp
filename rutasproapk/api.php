@@ -757,7 +757,7 @@ if ($action === 'delta_sync') {
     } elseif ($role === 'admin') {
         // Managers que reportan al admin
         $stMgr = db()->prepare(
-            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND role='manager' AND active=1'
+            "SELECT id FROM users WHERE account_id=? AND manager_id=? AND role='manager' AND active=1"
         );
         $stMgr->execute([$aid, $uid]);
         $mgrIds = array_column($stMgr->fetchAll(), 'id');
