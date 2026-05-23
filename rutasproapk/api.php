@@ -656,7 +656,8 @@ if ($action === 'delta_sync') {
         );
         $stMA->execute([$aid, $uid]);
         $agentIds = array_column($stMA->fetchAll(), 'id');
-        $agentIds[] = $uid;  // también sus propias rutas
+        // manager NO tiene rutas propias — solo supervisa. No añadir $uid.
+        // Si no tiene agentes, devolver vacío para que no vea rutas de otros.
         $placeholders = implode(',', array_fill(0, count($agentIds), '?'));
         $stR = db()->prepare(
             "SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
@@ -665,6 +666,10 @@ if ($action === 'delta_sync') {
                 ORDER BY updated_at ASC LIMIT 200"
         );
         $stR->execute([...$agentIds, $since]);
+        // Sin agentes directos → manager ve lista vacía (no sus propias rutas)
+        if (empty($agentIds)) {
+            ok(['routes' => [], 'stops' => [], 'sessions' => []]);
+        }
         $stopsWhere = "r.user_id IN ($placeholders)";
         $stopsParam = null;  // se pasa el array directamente abajo
     } else {                                         // agent/viewer
