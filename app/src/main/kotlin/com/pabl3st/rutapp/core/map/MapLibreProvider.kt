@@ -77,6 +77,30 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         )
     }
 
+    /** Añade markers de agentes activos al mapa.
+     *  Llamar desde LaunchedEffect en GlobalMapScreen cuando cambian agentMarkers.
+     *  El mapa hace clear() en el siguiente update{}, así que esto es "eventual". */
+    fun addAgentMarkers(
+        agents:       List<com.pabl3st.rutapp.data.network.AgentOverviewDto>,
+        showMarkers:  Boolean,
+    ) {
+        if (!showMarkers || agents.isEmpty()) return
+        mlMap?.let { map ->
+            agents.forEach { agent ->
+                val lat = agent.lastLat ?: return@forEach
+                val lng = agent.lastLng ?: return@forEach
+                val initials = agent.name.take(2).uppercase()
+                map.addMarker(
+                    MLMarkerOptions()
+                        .position(MLLatLng(lat, lng))
+                        .title(agent.name)
+                        .snippet("__agent__${agent.userId}")
+                        .icon(buildAgentIcon(initials, agent.isActive))
+                )
+            }
+        }
+    }
+
     fun fitBoundsToStops(stops: List<StopMapMarker>) {
         val pts = stops.filter { it.latLng.lat != 0.0 && it.latLng.lng != 0.0 }
         if (pts.isEmpty()) return
@@ -103,9 +127,7 @@ class MapLibreProvider(private val context: Context) : MapProvider {
         config: MapConfig,
         stops: List<StopMapMarker>,
         userLocation: MapLatLng?,
-        polyline:     List<MapLatLng>,
-        agentMarkers: List<AgentOverviewDto> = emptyList(),
-        showAgentMarkers: Boolean            = false,
+        polyline: List<MapLatLng>,
         onStopClick: (uid: String) -> Unit,
         onMapClick: (MapLatLng) -> Unit,
         onCameraIdle: (center: MapLatLng, zoom: Float) -> Unit,
@@ -266,22 +288,6 @@ class MapLibreProvider(private val context: Context) : MapProvider {
                     }
                     // Fit bounds lo gestiona LaunchedEffect(stops) con check de style
                     // No hacerlo aquí porque el style puede no estar listo todavía
-                    // ── Markers de agentes activos (si showAgentMarkers) ──
-                    if (showAgentMarkers) {
-                        agentMarkers.forEach { agent ->
-                            val lat = agent.lastLat ?: return@forEach
-                            val lng = agent.lastLng ?: return@forEach
-                            val initials = agent.name.take(2).uppercase()
-                            map.addMarker(
-                                MLMarkerOptions()
-                                    .position(MLLatLng(lat, lng))
-                                    .title(agent.name)
-                                    .snippet("__agent__${agent.userId}")
-                                    .icon(buildAgentIcon(initials, agent.isActive))
-                            )
-                        }
-                    }
-
                     if (false) {  // placeholder para mantener estructura
                         @Suppress("UNUSED_EXPRESSION")
                         didInitialFit  // referencia para evitar warning de variable no usada
