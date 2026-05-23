@@ -1,83 +1,106 @@
 -- ══════════════════════════════════════════════════════════════
--- APLICAR MIGRACIONES v12 y v13 EN PRODUCCIÓN
--- Ejecutar en MySQL como: mysql -u user -p db_name < migration_apply_v12_v13.sql
--- Es idempotente — no falla si las columnas ya existen
+-- MIGRACIONES v12 + v13 — sin INFORMATION_SCHEMA
+-- Compatible con hosting compartido (cPanel, Plesk, etc.)
+-- Ejecutar en MySQL como:
+--   mysql -u user -p db_name < migration_apply_v12_v13.sql
 -- ══════════════════════════════════════════════════════════════
 
--- Crear tabla de control de migraciones si no existe
+-- Tabla de control de migraciones aplicadas
 CREATE TABLE IF NOT EXISTS schema_migrations (
-    version     INT         NOT NULL PRIMARY KEY,
-    applied_at  DATETIME    NOT NULL DEFAULT NOW(),
+    version     INT          NOT NULL PRIMARY KEY,
+    applied_at  DATETIME     NOT NULL DEFAULT NOW(),
     description VARCHAR(255)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ── v12: check-in/out timestamps y GPS de visita ─────────────
-SET @v12 = (SELECT COUNT(*) FROM schema_migrations WHERE version = 12);
-SET @sql_v12a = IF(@v12 = 0 AND NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='stops' AND COLUMN_NAME='check_in_ts'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE stops ADD COLUMN check_in_ts BIGINT NULL COMMENT ''Epoch ms — cuando el agente abrió el formulario''', 'SELECT 1');
-PREPARE stmt FROM @sql_v12a; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+-- ── v12: check-in/out timestamps + GPS de visita ─────────────
+-- ALTER TABLE IGNORE no existe en MySQL — usamos stored procedure
+DROP PROCEDURE IF EXISTS apply_migration_v12;
+DELIMITER $$
+CREATE PROCEDURE apply_migration_v12()
+BEGIN
+    -- check_in_ts
+    IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 12) THEN
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR SQLSTATE '42S21' BEGIN END; -- Duplicate column
+            ALTER TABLE stops ADD COLUMN check_in_ts BIGINT NULL
+                COMMENT 'Epoch ms — cuando el agente abrió el formulario';
+        END;
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR SQLSTATE '42S21' BEGIN END;
+            ALTER TABLE stops ADD COLUMN check_out_ts BIGINT NULL
+                COMMENT 'Epoch ms — cuando se guardó la visita';
+        END;
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR SQLSTATE '42S21' BEGIN END;
+            ALTER TABLE stops ADD COLUMN gps_lat_visit DOUBLE NULL
+                COMMENT 'Latitud GPS del agente al check-in';
+        END;
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR SQLSTATE '42S21' BEGIN END;
+            ALTER TABLE stops ADD COLUMN gps_lng_visit DOUBLE NULL
+                COMMENT 'Longitud GPS del agente al check-in';
+        END;
+        INSERT IGNORE INTO schema_migrations (version, description)
+        VALUES (12, 'check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit en stops');
+        SELECT 'v12 aplicada' AS resultado;
+    ELSE
+        SELECT 'v12 ya estaba aplicada' AS resultado;
+    END IF;
+END$$
+DELIMITER ;
 
-SET @sql_v12b = IF(@v12 = 0 AND NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='stops' AND COLUMN_NAME='check_out_ts'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE stops ADD COLUMN check_out_ts BIGINT NULL COMMENT ''Epoch ms — cuando se guardó la visita''', 'SELECT 1');
-PREPARE stmt FROM @sql_v12b; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+CALL apply_migration_v12();
+DROP PROCEDURE IF EXISTS apply_migration_v12;
 
-SET @sql_v12c = IF(@v12 = 0 AND NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='stops' AND COLUMN_NAME='gps_lat_visit'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE stops ADD COLUMN gps_lat_visit DOUBLE NULL COMMENT ''Latitud GPS del agente al check-in''', 'SELECT 1');
-PREPARE stmt FROM @sql_v12c; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+-- ── v13: date_assigned en stops ───────────────────────────────
+DROP PROCEDURE IF EXISTS apply_migration_v13;
+DELIMITER $$
+CREATE PROCEDURE apply_migration_v13()
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 13) THEN
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR SQLSTATE '42S21' BEGIN END;
+            ALTER TABLE stops ADD COLUMN date_assigned DATE NULL
+                COMMENT 'Fecha de esta visita concreta — 1 stop por fecha por PDV';
+        END;
+        INSERT IGNORE INTO schema_migrations (version, description)
+        VALUES (13, 'date_assigned en stops');
+        SELECT 'v13 aplicada' AS resultado;
+    ELSE
+        SELECT 'v13 ya estaba aplicada' AS resultado;
+    END IF;
+END$$
+DELIMITER ;
 
-SET @sql_v12d = IF(@v12 = 0 AND NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='stops' AND COLUMN_NAME='gps_lng_visit'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE stops ADD COLUMN gps_lng_visit DOUBLE NULL COMMENT ''Longitud GPS del agente al check-in''', 'SELECT 1');
-PREPARE stmt FROM @sql_v12d; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+CALL apply_migration_v13();
+DROP PROCEDURE IF EXISTS apply_migration_v13;
 
-INSERT IGNORE INTO schema_migrations (version, description)
-VALUES (12, 'check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit en stops');
+-- ── manager_id en users ───────────────────────────────────────
+DROP PROCEDURE IF EXISTS apply_migration_mgr;
+DELIMITER $$
+CREATE PROCEDURE apply_migration_mgr()
+BEGIN
+    BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLSTATE '42S21' BEGIN END;
+        ALTER TABLE users ADD COLUMN manager_id INT NULL
+            COMMENT 'FK → users.id del supervisor directo';
+    END;
+    BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+        ALTER TABLE users ADD INDEX idx_users_manager (manager_id);
+    END;
+    SELECT 'manager_id listo' AS resultado;
+END$$
+DELIMITER ;
 
--- ── v13: date_assigned en stops (informes diarios independientes) ─
-SET @v13 = (SELECT COUNT(*) FROM schema_migrations WHERE version = 13);
-SET @sql_v13 = IF(@v13 = 0 AND NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='stops' AND COLUMN_NAME='date_assigned'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE stops ADD COLUMN date_assigned DATE NULL COMMENT ''Fecha de esta visita concreta'' AFTER gps_lng_visit', 'SELECT 1');
-PREPARE stmt FROM @sql_v13; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-INSERT IGNORE INTO schema_migrations (version, description)
-VALUES (13, 'date_assigned en stops');
-
--- ── manager_id en users (si no existe) ───────────────────────
-SET @sql_mgr = IF(NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME='users' AND COLUMN_NAME='manager_id'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE users ADD COLUMN manager_id INT NULL REFERENCES users(id)', 'SELECT 1');
-PREPARE stmt FROM @sql_mgr; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- ── Índice en manager_id para queries de reportadores ────────
-SET @sql_idx = IF(NOT EXISTS (
-    SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-    WHERE TABLE_NAME='users' AND INDEX_NAME='idx_users_manager'
-    AND TABLE_SCHEMA=DATABASE()
-), 'ALTER TABLE users ADD INDEX idx_users_manager (manager_id)', 'SELECT 1');
-PREPARE stmt FROM @sql_idx; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+CALL apply_migration_mgr();
+DROP PROCEDURE IF EXISTS apply_migration_mgr;
 
 -- ── Verificar resultado ───────────────────────────────────────
 SELECT version, applied_at, description FROM schema_migrations ORDER BY version;
-SELECT
-    COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
-FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_NAME='stops'
-    AND COLUMN_NAME IN ('check_in_ts','check_out_ts','gps_lat_visit','gps_lng_visit','date_assigned')
-    AND TABLE_SCHEMA=DATABASE()
-ORDER BY ORDINAL_POSITION;
+SHOW COLUMNS FROM stops LIKE 'check_in_ts';
+SHOW COLUMNS FROM stops LIKE 'check_out_ts';
+SHOW COLUMNS FROM stops LIKE 'gps_lat_visit';
+SHOW COLUMNS FROM stops LIKE 'gps_lng_visit';
+SHOW COLUMNS FROM stops LIKE 'date_assigned';
+SHOW COLUMNS FROM users LIKE 'manager_id';
