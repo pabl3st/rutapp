@@ -26,7 +26,7 @@ enum class UserRole(val key: String, val level: Int) {
     val canAccessAdmin: Boolean get() = level >= ADMIN.level && this != GOD
 
     /** Puede ver el equipo (Mi equipo / KPIs equipo) */
-    val canViewTeam: Boolean get() = level >= MANAGER.level
+    val canViewTeam: Boolean get() = level >= MANAGER.level && this != GOD
 
     /** Puede invitar usuarios */
     val canInviteUsers: Boolean get() = level >= ADMIN.level
