@@ -191,6 +191,7 @@ class ImportarViewModel @Inject constructor(
     }
 
     private fun loadAvailableAgents() {
+        _ui.update { it.copy(callerRole = session.userRole) }
         viewModelScope.launch {
             _ui.update { it.copy(isLoadingAgents = true) }
             when (val result = adminRepo.listUsers()) {

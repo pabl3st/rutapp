@@ -18,6 +18,10 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.foundation.layout.FlowRow
@@ -149,50 +153,15 @@ private fun StepDot(label: String, state: StepState, modifier: Modifier = Modifi
 private fun StepPickFile(ui: ImportarUiState, vm: ImportarViewModel) {
     var pendingUri: Pair<Uri, String>? by remember { mutableStateOf(null) }
 
-    // Si hay agentes disponibles, mostrar selector de agente antes del fichero
-    if (ui.availableAgents.isNotEmpty()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
-            Text(
-                "Asignar rutas a:",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(Spacing.xs))
-            // Opción: para mí mismo
-            FilterChip(
-                selected = ui.targetUser == null,
-                onClick  = { vm.onSelectTargetUser(null) },
-                label    = { Text("Para mí mismo") },
-                leadingIcon = if (ui.targetUser == null) {
-                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                } else null,
-            )
-            Spacer(Modifier.height(Spacing.xs))
-            // Agentes disponibles
-            ui.availableAgents.forEach { agent ->
-                val selected = ui.targetUser?.userId == agent.userId
-                FilterChip(
-                    selected = selected,
-                    onClick  = { vm.onSelectTargetUser(agent) },
-                    label    = {
-                        Text("${agent.displayName} (@${agent.username})")
-                    },
-                    leadingIcon = if (selected) {
-                        { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                    } else null,
-                )
-                Spacer(Modifier.height(2.dp))
-            }
-            ui.targetUser?.let { agent ->
-                Spacer(Modifier.height(Spacing.xs))
-                Text(
-                    "Las rutas se crearán para ${agent.displayName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.md))
-        }
+    // Selector de asignado en cascada según rol del caller
+    if (ui.availableAgents.isNotEmpty() || ui.isLoadingAgents) {
+        AssigneePickerCascade(
+            ui      = ui,
+            onSelf        = { vm.onSelectTargetUser(null) },
+            onSelectAdmin   = vm::onSelectAdmin,
+            onSelectManager = vm::onSelectManager,
+            onSelectAgent   = vm::onSelectTargetUser,
+        )
     }
 
     val launcher = rememberLauncherForActivityResult(
@@ -753,12 +722,29 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
             Spacer(Modifier.height(Spacing.sm))
         }
 
+        // ── Barra de selección masiva ─────────────────────
+        item {
+            MultiSelectBar(
+                totalCount    = ui.calendarEntries.size,
+                selectedCount = ui.selectedCalendarIndices.size,
+                bulkDate      = ui.bulkDate,
+                onSelectAll   = vm::onSelectAllCalendarEntries,
+                onClear       = vm::onClearCalendarSelection,
+                onDateChange  = vm::onBulkDateChange,
+                onApply       = vm::onApplyBulkDate,
+                fmtDay        = fmtDay,
+            )
+        }
+
         // ── Una card por ruta ────────────────────────────────
         itemsIndexed(ui.calendarEntries) { idx, entry ->
+            val isSelected = idx in ui.selectedCalendarIndices
             RouteCalendarCard(
                 entry          = entry,
                 selectedMonth  = ui.selectedMonth,
                 fmtDay         = fmtDay,
+                isSelected     = isSelected,
+                onToggleSelect = { vm.onToggleCalendarEntry(idx) },
                 onDateChange   = { date -> vm.onCalendarDateChange(idx, date) },
                 onAddDate      = { vm.onCalendarAddDate(idx, it) },
                 onRemoveDate   = { vm.onCalendarRemoveDate(idx, it) },
@@ -804,12 +790,14 @@ private fun StepCalendar(ui: ImportarUiState, vm: ImportarViewModel) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RouteCalendarCard(
-    entry:         com.pabl3st.rutapp.feature.importar.RouteCalendarEntry,
-    selectedMonth: java.time.YearMonth,
-    fmtDay:        java.time.format.DateTimeFormatter,
-    onDateChange:  (LocalDate) -> Unit,
-    onAddDate:     (LocalDate) -> Unit,
-    onRemoveDate:  (LocalDate) -> Unit,
+    entry:          com.pabl3st.rutapp.feature.importar.RouteCalendarEntry,
+    selectedMonth:  java.time.YearMonth,
+    fmtDay:         java.time.format.DateTimeFormatter,
+    isSelected:     Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onDateChange:   (LocalDate) -> Unit,
+    onAddDate:      (LocalDate) -> Unit,
+    onRemoveDate:   (LocalDate) -> Unit,
 ) {
     // Fechas del mes seleccionado
     val datesThisMonth = entry.scheduledDates
@@ -820,6 +808,7 @@ private fun RouteCalendarCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        border   = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
         colors = if (sinFecha)
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
         else
@@ -833,6 +822,13 @@ private fun RouteCalendarCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically,
             ) {
+                // Checkbox de selección masiva
+                Checkbox(
+                    checked         = isSelected,
+                    onCheckedChange = { onToggleSelect() },
+                    modifier        = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(Spacing.xs))
                 Column(Modifier.weight(1f)) {
                     Text(
                         entry.routeName,
@@ -1128,3 +1124,230 @@ private fun StepDone(ui: ImportarUiState, onDone: () -> Unit) {
 
 
 
+
+// ─────────────────────────────────────────────────────────────
+// AssigneePickerCascade — selector jerárquico owner→admin→manager→agent
+// ─────────────────────────────────────────────────────────────
+@Composable
+private fun AssigneePickerCascade(
+    ui:             ImportarUiState,
+    onSelf:         () -> Unit,
+    onSelectAdmin:   (AccountUserDto?) -> Unit,
+    onSelectManager: (AccountUserDto?) -> Unit,
+    onSelectAgent:   (AccountUserDto?) -> Unit,
+) {
+    val callerRole = ui.callerRole  // "owner","admin","manager","god"
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+    ) {
+        Text(
+            "Asignar rutas a:",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.xs))
+
+        // Opción "para mí mismo" siempre primera
+        FilterChip(
+            selected    = ui.targetUser == null && ui.selectedAdmin == null && ui.selectedManager == null,
+            onClick     = { onSelf(); onSelectAdmin(null); onSelectManager(null) },
+            label       = { Text("Para mí mismo") },
+            leadingIcon = if (ui.targetUser == null && ui.selectedAdmin == null) {
+                { Icon(Icons.Default.Person, null, Modifier.size(16.dp)) }
+            } else null,
+        )
+
+        if (ui.isLoadingAgents) {
+            Spacer(Modifier.height(Spacing.xs))
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Text("Cargando equipo…", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            // ── Nivel 1: Admin (solo visible para owner/god) ──────────
+            if (ui.hierarchyAdmins.isNotEmpty()) {
+                Spacer(Modifier.height(Spacing.sm))
+                Text("Admin", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(2.dp))
+                ui.hierarchyAdmins.forEach { admin ->
+                    val sel = ui.selectedAdmin?.userId == admin.userId
+                    FilterChip(
+                        selected = sel,
+                        onClick  = { onSelectAdmin(admin); onSelectManager(null) },
+                        label    = { Text(admin.displayName) },
+                        leadingIcon = if (sel) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
+            }
+
+            // ── Nivel 2: Manager (visible cuando hay managers en scope) ─
+            if (ui.hierarchyManagers.isNotEmpty()) {
+                Spacer(Modifier.height(Spacing.sm))
+                Text("Manager", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(2.dp))
+                ui.hierarchyManagers.forEach { manager ->
+                    val sel = ui.selectedManager?.userId == manager.userId
+                    FilterChip(
+                        selected = sel,
+                        onClick  = { onSelectManager(manager) },
+                        label    = { Text(manager.displayName) },
+                        leadingIcon = if (sel) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
+            }
+
+            // ── Nivel 3: Agent ────────────────────────────────────────
+            if (ui.hierarchyAgents.isNotEmpty()) {
+                Spacer(Modifier.height(Spacing.sm))
+                Text("Agente", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(2.dp))
+                ui.hierarchyAgents.forEach { agent ->
+                    val sel = ui.targetUser?.userId == agent.userId
+                    FilterChip(
+                        selected = sel,
+                        onClick  = { onSelectAgent(agent) },
+                        label    = {
+                            Column {
+                                Text(agent.displayName,
+                                    style = MaterialTheme.typography.labelMedium)
+                                if (agent.role != "agent") Text(agent.role,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        leadingIcon = if (sel) { { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) } } else null,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
+            }
+
+            // ── Resumen de selección ──────────────────────────────────
+            val summary = when {
+                ui.targetUser != null ->
+                    "Rutas para: ${ui.targetUser!!.displayName} (${ui.targetUser!!.role})"
+                ui.selectedManager != null ->
+                    "Equipo de ${ui.selectedManager!!.displayName} — elige un agente"
+                ui.selectedAdmin != null ->
+                    "Cuenta de ${ui.selectedAdmin!!.displayName} — elige manager/agente"
+                else -> null
+            }
+            summary?.let {
+                Spacer(Modifier.height(Spacing.xs))
+                Text(it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.md))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// MultiSelectBar — barra de selección masiva en el paso Calendario
+// ─────────────────────────────────────────────────────────────
+@Composable
+private fun MultiSelectBar(
+    totalCount:    Int,
+    selectedCount: Int,
+    bulkDate:      java.time.LocalDate?,
+    onSelectAll:   () -> Unit,
+    onClear:       () -> Unit,
+    onDateChange:  (java.time.LocalDate) -> Unit,
+    onApply:       () -> Unit,
+    fmtDay:        java.time.format.DateTimeFormatter,
+) {
+    if (totalCount == 0) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors   = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+        ),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    if (selectedCount == 0) "Selección masiva"
+                    else "$selectedCount / $totalCount rutas seleccionadas",
+                    style     = MaterialTheme.typography.labelMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    if (selectedCount < totalCount) {
+                        OutlinedButton(
+                            onClick       = onSelectAll,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier      = Modifier.height(32.dp),
+                        ) { Text("Todas", style = MaterialTheme.typography.labelSmall) }
+                    }
+                    if (selectedCount > 0) {
+                        OutlinedButton(
+                            onClick       = onClear,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier      = Modifier.height(32.dp),
+                        ) { Text("Limpiar", style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
+            }
+
+            // Selector de fecha + aplicar — solo visible si hay selección
+            if (selectedCount > 0) {
+                Spacer(Modifier.height(Spacing.sm))
+                HorizontalDivider()
+                Spacer(Modifier.height(Spacing.sm))
+                Text("Aplicar misma fecha a las ${selectedCount} rutas seleccionadas:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(Spacing.xs))
+                Row(
+                    modifier          = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    val pivot = bulkDate ?: java.time.LocalDate.now()
+                    OutlinedIconButton(
+                        onClick  = { onDateChange(pivot.minusDays(1)) },
+                        modifier = Modifier.size(32.dp),
+                    ) { Icon(Icons.Default.ChevronLeft, null, Modifier.size(16.dp)) }
+                    Surface(
+                        shape    = MaterialTheme.shapes.small,
+                        color    = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            pivot.format(fmtDay),
+                            style    = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                    OutlinedIconButton(
+                        onClick  = { onDateChange(pivot.plusDays(1)) },
+                        modifier = Modifier.size(32.dp),
+                    ) { Icon(Icons.Default.ChevronRight, null, Modifier.size(16.dp)) }
+                    FilledTonalButton(
+                        onClick        = onApply,
+                        modifier       = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                    ) {
+                        Icon(Icons.Default.Done, null, Modifier.size(14.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("Aplicar", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+    }
+}
