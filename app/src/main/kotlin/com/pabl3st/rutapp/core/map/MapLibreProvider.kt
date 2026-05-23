@@ -25,6 +25,7 @@ import android.graphics.Paint
 import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.MarkerOptions as MLMarkerOptions
 import org.maplibre.android.annotations.PolylineOptions as MLPolylineOptions
+import com.pabl3st.rutapp.data.network.AgentOverviewDto
 
 /**
  * MapLibre Provider — OpenStreetMap
@@ -81,13 +82,13 @@ class MapLibreProvider(private val context: Context) : MapProvider {
      *  Llamar desde LaunchedEffect en GlobalMapScreen cuando cambian agentMarkers.
      *  El mapa hace clear() en el siguiente update{}, así que esto es "eventual". */
     fun addAgentMarkers(
-        agents:       List<com.pabl3st.rutapp.data.network.AgentOverviewDto>,
+        agents:       List<AgentOverviewDto>,
         showMarkers:  Boolean,
     ) {
         if (!showMarkers || agents.isEmpty()) return
-        mlMap?.let { map ->
+        _mapReadyRef?.let { map ->
             agents.forEach { agent ->
-                val lat = agent.lastLat ?: return@forEach
+            val lat = agent.lastLat ?: return@forEach
                 val lng = agent.lastLng ?: return@forEach
                 val initials = agent.name.take(2).uppercase()
                 map.addMarker(
