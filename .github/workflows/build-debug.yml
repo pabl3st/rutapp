@@ -49,16 +49,17 @@ jobs:
           echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "apk_name=RutasApp-${VERSION_NAME}-build${VERSION_CODE}-${SHORT_SHA}-debug" >> $GITHUB_OUTPUT
 
-      - name: Clean old artifacts
+      - name: Clean old artifacts (>7 days)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Borrar todos los artifacts existentes para liberar quota antes de subir el nuevo
-          ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/artifacts --paginate -q '.artifacts[].id' 2>/dev/null || echo "")
-          for id in $ARTIFACTS; do
-            gh api --method DELETE repos/${{ github.repository }}/actions/artifacts/$id 2>/dev/null && echo "  Deleted $id" || true
-          done
-          echo "✅ Artifacts limpiados"
+          # Borrar solo artifacts con más de 7 días — mantener los recientes accesibles
+          CUTOFF=$(date -d '7 days ago' --utc +%Y-%m-%dT%H:%M:%SZ)
+          echo "Borrando artifacts anteriores a: $CUTOFF"
+          gh api repos/${{ github.repository }}/actions/artifacts --paginate             -q ".artifacts[] | select(.created_at < \"$CUTOFF\") | .id" 2>/dev/null             | while read id; do
+                gh api --method DELETE repos/${{ github.repository }}/actions/artifacts/$id 2>/dev/null                   && echo "  Deleted artifact $id" || true
+              done
+          echo "✅ Limpieza completada (artifacts <7 días conservados)"
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --build-cache --parallel
