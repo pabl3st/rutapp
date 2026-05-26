@@ -16,7 +16,7 @@ android {
         applicationId = "com.pabl3st.rutapp"
         minSdk        = libs.versions.minSdk.get().toInt()
         targetSdk     = libs.versions.targetSdk.get().toInt()
-        versionCode   = 116
+        versionCode   = 117
         versionName   = "1.0.0-s28"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

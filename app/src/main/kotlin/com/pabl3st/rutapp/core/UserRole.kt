@@ -47,7 +47,7 @@ enum class UserRole(val key: String, val level: Int) {
     val isViewer: Boolean get() = this == VIEWER
 
     /** Puede acceder al wizard de importación */
-    val canImport: Boolean get() = level >= MANAGER.level
+    val canImport: Boolean get() = level >= AGENT.level
 
     /** Usuarios de nivel inferior al que puede asignar como supervisados */
     val assignableRoles: Set<UserRole> get() = when (this) {

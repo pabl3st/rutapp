@@ -258,7 +258,7 @@ fun RutasNavGraph(
             ) { backStackEntry ->
                 // Guardia: owner/admin/god/manager pueden editar paradas
                 // Manager edita PDVs de sus agentes directos (validación en UI y servidor)
-                if (!UserRole.from(userRole).canImport) {
+                if (!UserRole.from(userRole).canEditStops) {
                     navController.popBackStack()
                     return@composable
                 }
@@ -344,8 +344,8 @@ fun RutasNavGraph(
                 popEnterTransition = { enterPop },
                 popExitTransition  = { exitPop },
             ) {
-                // Guardia: solo owner/admin/manager pueden acceder al panel de administración
-                if (!UserRole.from(userRole).canImport) {
+                // Guardia: solo admin/owner — coincide con canAccessAdmin del botón en Perfil
+                if (!UserRole.from(userRole).canAccessAdmin) {
                     navController.popBackStack()
                     return@composable
                 }

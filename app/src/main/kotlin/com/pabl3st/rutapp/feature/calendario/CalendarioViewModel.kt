@@ -131,6 +131,13 @@ class CalendarioViewModel @Inject constructor(
         fetchHolidaysForYear(newMonth.year)
     }
 
+    /** Vuelve al mes actual y selecciona el día de hoy */
+    fun goToToday() {
+        val now = java.time.YearMonth.now()
+        _ui.update { it.copy(currentMonth = now, selectedDay = java.time.LocalDate.now()) }
+        fetchHolidaysForYear(now.year)
+    }
+
     private fun fetchHolidaysForYear(year: Int) {
         if (holidayCache.containsKey(year)) {
             _ui.update { it.copy(holidays = mergeHolidays(it.holidays, holidayCache[year]!!)) }

@@ -71,6 +71,16 @@ fun CalendarioScreen(
                 } else {
                     {}  // slot vacío — sin flecha atrás cuando es tab del BottomNav
                 },
+                actions = {
+                    // Botón "Hoy" — solo visible si no estamos ya en el mes actual
+                    if (ui.currentMonth != java.time.YearMonth.now()) {
+                        TextButton(onClick = vm::goToToday) {
+                            Icon(Icons.Default.Today, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Hoy")
+                        }
+                    }
+                },
             )
         }
     ) { padding ->
