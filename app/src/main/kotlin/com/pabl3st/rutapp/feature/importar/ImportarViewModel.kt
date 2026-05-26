@@ -348,8 +348,9 @@ class ImportarViewModel @Inject constructor(
                         //   a) hoja "CALENDARIO" formato largo (Ruta, Fecha, Día)
                         //   b) varias hojas "CALENDARIO_*" (ABRIL, MAYO…) — se concatenan
                         //   c) formato ancho (route_name, date_1, date_2, date_3) — se normaliza a largo
-                        val calSheetNames = multiSheet.keys.filter {
-                            it.uppercase().startsWith("CALENDARIO") || it.uppercase().startsWith("CSV_CALENDARIO")
+                        val calSheetNames = multiSheet.sheets.keys.filter { sheetName ->
+                            val up = sheetName.uppercase()
+                            up.startsWith("CALENDARIO") || up.startsWith("CSV_CALENDARIO")
                         }
                         val normalizedCal = mutableListOf<Map<String, String>>()
                         for (sheetName in calSheetNames) {
