@@ -415,6 +415,11 @@ class KpisViewModel @Inject constructor(
         viewModelScope.launch {
             teamRepo.teamOverview()
                 .onSuccess { agents -> _ui.update { it.copy(availableAgents = agents) } }
+                .onFailure { e ->
+                    // No bloquea la pantalla — el selector simplemente no aparece.
+                    // Pero logueamos para no perder el error silenciosamente.
+                    android.util.Log.w("KpisViewModel", "teamOverview falló: ${e.message}")
+                }
         }
     }
 

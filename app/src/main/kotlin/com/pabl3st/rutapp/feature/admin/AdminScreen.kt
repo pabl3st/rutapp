@@ -136,9 +136,35 @@ fun AdminScreen(
             }
 
             // ── Gráfica de tendencia semanal ─────────────────────
-            if (ui.reporterServerStats.isNotEmpty()) {
-                item {
-                    WeeklyTeamTrendCard(stats = ui.reporterServerStats)
+            // Tres estados: cargando / con datos / vacío — nunca desaparece sin avisar
+            item {
+                when {
+                    ui.isLoadingKpis -> Card(Modifier.fillMaxWidth()) {
+                        Box(
+                            Modifier.fillMaxWidth().padding(32.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+                        }
+                    }
+                    ui.reporterServerStats.isNotEmpty() ->
+                        WeeklyTeamTrendCard(stats = ui.reporterServerStats)
+                    else -> Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Icon(Icons.Default.BarChart, null, Modifier.size(32.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                            Spacer(Modifier.height(8.dp))
+                            Text("Sin datos de actividad este mes",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("La gráfica aparecerá cuando tu equipo registre visitas",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                        }
+                    }
                 }
             }
 

@@ -75,8 +75,9 @@ fun GlobalMapScreen(
             TopAppBar(
                 title = { Text("Mapa del día") },
                 actions = {
-                    // Toggle marcadores de agentes
-                    if (ui.agentMarkers.isNotEmpty()) {
+                    // Toggle marcadores de agentes — solo si el provider los soporta.
+                    // mapLibreProvider != null garantiza que addAgentMarkers() funcionará.
+                    if (ui.agentMarkers.isNotEmpty() && mapLibreProvider != null) {
                         IconButton(onClick = vm::toggleAgentMarkers) {
                             Icon(
                                 imageVector = if (ui.showAgentMarkers)

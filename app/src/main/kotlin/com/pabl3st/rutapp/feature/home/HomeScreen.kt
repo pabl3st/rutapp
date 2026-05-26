@@ -147,10 +147,12 @@ private fun RouteListContent(
             item { ManagerTeamSummary(routes = ui.routes) }
         }
 
-        // ── JornadaBar para todas las rutas de hoy operativas ──
+        // ── JornadaBar — SOLO para agent (ejecuta rutas en campo) ──
+        // manager/admin/owner/god supervisan pero no tienen jornada propia.
         // La jornada se gestiona via DaySessionEntity (idle/running/paused/done)
-        // independientemente del route.status — no filtrar por "active"
-        val jornadaRoutes = ui.routes.filter {
+        // independientemente del route.status — no filtrar por "active".
+        val isAgent = UserRole.from(ui.userRole) == UserRole.AGENT
+        val jornadaRoutes = if (!isAgent) emptyList() else ui.routes.filter {
             it.route.status !in listOf("cancelled", "done")
         }
         if (jornadaRoutes.isNotEmpty()) {
