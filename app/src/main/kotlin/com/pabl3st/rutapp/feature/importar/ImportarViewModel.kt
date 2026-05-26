@@ -388,9 +388,15 @@ class ImportarViewModel @Inject constructor(
         }
     }
 
+    /** Normaliza un texto para comparar: minúsculas, sin acentos, sin espacios extra. */
+    private fun normalizeHeader(s: String): String =
+        java.text.Normalizer.normalize(s.lowercase().trim(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")   // quita los diacríticos (tildes, diéresis)
+
     private fun autoMap(headers: List<String>): Map<StopField, String?> {
-        val h = headers.map { it.lowercase().trim() }
-        // exact() busca coincidencia exacta primero, luego contains
+        val h = headers.map { normalizeHeader(it) }
+        // exact() busca coincidencia exacta primero, luego contains.
+        // Las keywords ya van sin acentos — h también está normalizado.
         fun best(vararg kw: String): String? {
             // 1. exact match
             for (k in kw) {
@@ -425,7 +431,7 @@ class ImportarViewModel @Inject constructor(
     }
 
     private fun autoMapKpi(headers: List<String>): Map<KpiField, String?> {
-        val h = headers.map { it.lowercase().trim() }
+        val h = headers.map { normalizeHeader(it) }
         // Igual que autoMap: exact match primero, luego contains.
         // Evita que "id" haga match con "id pdv", "id externo" a la vez.
         fun best(vararg kw: String): String? {
