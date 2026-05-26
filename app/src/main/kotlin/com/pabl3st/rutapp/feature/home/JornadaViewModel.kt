@@ -22,6 +22,18 @@ data class JornadaUiState(
     val distanceKm:       Double            = 0.0,
     val isLocating:       Boolean           = false,
     val showReopenDialog: Boolean           = false,
+    // Resumen de jornada — se muestra al finalizar
+    val summary:          JornadaSummary?   = null,
+)
+
+/** Datos del resumen mostrado al cerrar la jornada */
+data class JornadaSummary(
+    val elapsedMs:     Long,
+    val distanceKm:    Double,
+    val stopsTotal:    Int,
+    val stopsDone:     Int,
+    val stopsSkipped:  Int,
+    val stopsPending:  Int,
 )
 
 @HiltViewModel
@@ -95,15 +107,38 @@ class JornadaViewModel @Inject constructor(
 
     fun finish() {
         viewModelScope.launch {
+            // Capturar métricas ANTES de cerrar — la sesión sigue accesible
+            val current     = _ui.value
+            val elapsedNow  = current.session?.let { jornadaRepo.elapsedMs(it) } ?: current.elapsedMs
+            val distanceNow = current.session?.distanceKm ?: current.distanceKm
+
             jornadaRepo.finish(routeUid, jornadaRepo.todayStr())
             stopGpsService()
-            // Sincronizar route.status: si todos los stops están done/skipped → marcar ruta done
+
             val stops = stopRepo.getByRoute(routeUid)
+            val done    = stops.count { it.status == "done" }
+            val skipped = stops.count { it.status == "skipped" }
+            val pending = stops.count { it.status == "pending" || it.status == "visiting" }
+
+            // Sincronizar route.status: si todos done/skipped → ruta done
             if (stops.isNotEmpty() && stops.all { it.status == "done" || it.status == "skipped" }) {
                 routeRepo.markDone(routeUid)
             }
+
+            // Mostrar resumen de jornada
+            _ui.update { it.copy(summary = JornadaSummary(
+                elapsedMs    = elapsedNow,
+                distanceKm   = distanceNow,
+                stopsTotal   = stops.size,
+                stopsDone    = done,
+                stopsSkipped = skipped,
+                stopsPending = pending,
+            )) }
         }
     }
+
+    /** Cierra el diálogo de resumen */
+    fun dismissSummary() = _ui.update { it.copy(summary = null) }
 
     fun onReopenRequest() = _ui.update { it.copy(showReopenDialog = true) }
     fun onReopenDismiss() = _ui.update { it.copy(showReopenDialog = false) }

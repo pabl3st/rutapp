@@ -130,4 +130,80 @@ fun JornadaBar(
             },
         )
     }
+
+    // ── Resumen de jornada — al finalizar ─────────────────────
+    ui.summary?.let { summary ->
+        AlertDialog(
+            onDismissRequest = vm::dismissSummary,
+            icon  = { Icon(Icons.Default.FlagCircle, null,
+                tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Jornada finalizada") },
+            text  = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Métricas principales en fila
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        SummaryMetric(
+                            value = vm.formatElapsed(summary.elapsedMs),
+                            label = "Tiempo",
+                            icon  = Icons.Default.Timer,
+                        )
+                        SummaryMetric(
+                            value = "%.1f km".format(summary.distanceKm),
+                            label = "Recorrido",
+                            icon  = Icons.Default.Route,
+                        )
+                        SummaryMetric(
+                            value = "${summary.stopsDone}/${summary.stopsTotal}",
+                            label = "Visitadas",
+                            icon  = Icons.Default.CheckCircle,
+                        )
+                    }
+                    HorizontalDivider()
+                    // Desglose de paradas
+                    SummaryRow("Paradas completadas", summary.stopsDone,
+                        MaterialTheme.colorScheme.primary)
+                    if (summary.stopsSkipped > 0) {
+                        SummaryRow("Paradas omitidas", summary.stopsSkipped,
+                            MaterialTheme.colorScheme.tertiary)
+                    }
+                    if (summary.stopsPending > 0) {
+                        SummaryRow("Paradas pendientes", summary.stopsPending,
+                            MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = vm::dismissSummary) { Text("Entendido") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SummaryMetric(value: String, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(4.dp))
+        Text(value, style = MaterialTheme.typography.titleMedium,
+            fontFamily = FontFamily.Monospace)
+        Text(label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, count: Int, color: androidx.compose.ui.graphics.Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Text("$count", style = MaterialTheme.typography.bodyMedium,
+            color = color,
+            fontFamily = FontFamily.Monospace)
+    }
 }
