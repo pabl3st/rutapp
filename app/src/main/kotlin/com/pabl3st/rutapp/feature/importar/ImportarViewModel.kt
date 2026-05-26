@@ -55,6 +55,8 @@ enum class StopField(val label: String, val required: Boolean) {
     VISIT_FREQUENCY( "Frecuencia visita (días)", false),
     PRIORITY(        "Prioridad (1-5)",      false),
     SEGMENT(         "Segmento (A/B/C)",     false),
+    POSTAL_CODE(     "Código postal",        false),
+    LOCALITY(        "Población / localidad", false),
 }
 
 // ── Preview de una parada ─────────────────────────────────────
@@ -335,18 +337,28 @@ class ImportarViewModel @Inject constructor(
                         val stopSheet  = multiSheet["PARADAS"]
                             ?: multiSheet["CSV_PARADAS"]
                             ?: multiSheet.values.first()
-                        val calSheet   = multiSheet["CALENDARIO"] ?: multiSheet["CSV_CALENDARIO"]
                         val kpiSheet   = multiSheet["KPI_VISITAS"] ?: multiSheet["CSV_KPI_VISITAS"]
 
-                        // KPI sheet del XLSX (opcional)
-                        if (kpiSheet != null) {
+                        // KPI sheet del XLSX (opcional) — ignorar si solo tiene cabecera
+                        if (kpiSheet != null && kpiSheet.rows.isNotEmpty()) {
                             _kpiRawRows = kpiSheet.rows
                             _ui.update { it.copy(hasKpiSheet = true, kpiHeaders = kpiSheet.headers) }
                         }
-                        // Calendar sheet: pre-leer fechas si existe
-                        if (calSheet != null) {
-                            _calRows = calSheet.rows
-                            _ui.update { it.copy(hasCalendarSheet = calSheet.rows.isNotEmpty()) }
+                        // Calendario — soporta 3 formatos:
+                        //   a) hoja "CALENDARIO" formato largo (Ruta, Fecha, Día)
+                        //   b) varias hojas "CALENDARIO_*" (ABRIL, MAYO…) — se concatenan
+                        //   c) formato ancho (route_name, date_1, date_2, date_3) — se normaliza a largo
+                        val calSheetNames = multiSheet.keys.filter {
+                            it.uppercase().startsWith("CALENDARIO") || it.uppercase().startsWith("CSV_CALENDARIO")
+                        }
+                        val normalizedCal = mutableListOf<Map<String, String>>()
+                        for (sheetName in calSheetNames) {
+                            val sheet = multiSheet[sheetName] ?: continue
+                            normalizedCal += normalizeCalendarSheet(sheet.headers, sheet.rows)
+                        }
+                        if (normalizedCal.isNotEmpty()) {
+                            _calRows = normalizedCal
+                            _ui.update { it.copy(hasCalendarSheet = true) }
                         }
                         stopSheet
                     } else {
@@ -406,23 +418,36 @@ class ImportarViewModel @Inject constructor(
             StopField.VISIT_FREQUENCY to best("visit_frequency","frecuencia","frequency","informes"),
             StopField.PRIORITY      to best("priority","prioridad"),
             StopField.SEGMENT       to best("segment","segmento"),
+            StopField.POSTAL_CODE   to best("postal_code","codigo_postal","cp","zip","c.p."),
+            StopField.LOCALITY      to best("locality","poblacion","localidad","municipio","ciudad","city"),
         )
     }
 
     private fun autoMapKpi(headers: List<String>): Map<KpiField, String?> {
         val h = headers.map { it.lowercase().trim() }
-        fun best(vararg kw: String): String? =
-            headers.getOrNull(kw.firstNotNullOfOrNull { k -> h.indexOfFirst { it.contains(k) }.takeIf { it >= 0 } } ?: -1)
+        // Igual que autoMap: exact match primero, luego contains.
+        // Evita que "id" haga match con "id pdv", "id externo" a la vez.
+        fun best(vararg kw: String): String? {
+            for (k in kw) {
+                val idx = h.indexOfFirst { it == k }
+                if (idx >= 0) return headers[idx]
+            }
+            for (k in kw) {
+                val idx = h.indexOfFirst { it.contains(k) }
+                if (idx >= 0) return headers[idx]
+            }
+            return null
+        }
         return mapOf(
-            KpiField.STOP_ID      to best("stop_uid","external_id","id externo","id_externo","id","stop_id","uid"),
+            KpiField.STOP_ID      to best("external_id","id externo","id_externo","id pdv","stop_uid","stop_id","uid","codigo"),
             KpiField.DATE         to best("fecha","date","last_visit","visited_at"),
             KpiField.ACTIVACIONES to best("activaciones","kpi_activaciones","acts"),
-            KpiField.PRIMER_BONO  to best("primer_bono","kpi_primer_bono","primerbono"),
-            KpiField.MEDIA_BONO   to best("media_bono","kpi_media_bono","mediabono"),
-            KpiField.RECARGAS     to best("recargas","kpi_recargas"),
-            KpiField.NRO_TV       to best("nro_tv","kpi_nro_tv","tv"),
+            KpiField.PRIMER_BONO  to best("primer bono €","primer_bono","kpi_primer_bono","primerbono","€ 1ª bono"),
+            KpiField.MEDIA_BONO   to best("media bono €","media_bono","kpi_media_bono","mediabono","media 1er bono"),
+            KpiField.RECARGAS     to best("recargas","kpi_recargas","recargas cartera"),
+            KpiField.NRO_TV       to best("nº tv","nro_tv","kpi_nro_tv","tv"),
             KpiField.PLUS         to best("plus","plus_activo"),
-            KpiField.PDV_INACTIVO to best("pdv_inactivo","pdvinactivo","inactivo"),
+            KpiField.PDV_INACTIVO to best("pdv inactivo","pdv_inactivo","pdvinactivo","inactivo"),
         )
     }
 
@@ -439,6 +464,12 @@ class ImportarViewModel @Inject constructor(
             _ui.update { it.copy(mappingError = "El campo 'Nombre del PDV' es obligatorio") }
             return
         }
+        // Detectar duplicados de external_id para avisar en el preview
+        val extIdCol = mapping[StopField.EXTERNAL_ID]
+        val extIdCounts: Map<String, Int> = if (extIdCol == null) emptyMap()
+            else rawRows.mapNotNull { it[extIdCol]?.trim()?.takeIf { id -> id.isNotBlank() } }
+                .groupingBy { it }.eachCount()
+
         val previews = rawRows.mapIndexed { idx, row ->
             val name   = row[nameCol]?.takeIf { it.isNotBlank() } ?: "Fila ${idx + 2}"
             val lat    = row[mapping[StopField.LAT]]?.toDoubleOrNull()
@@ -446,8 +477,11 @@ class ImportarViewModel @Inject constructor(
             val freq   = row[mapping[StopField.VISIT_FREQUENCY]]?.trim()?.toIntOrNull()
             val prio   = row[mapping[StopField.PRIORITY]]?.trim()?.toIntOrNull()?.coerceIn(1, 5) ?: 3
             val seg    = row[mapping[StopField.SEGMENT]]?.trim()?.uppercase()?.takeIf { it.length == 1 }
+            val extId = row[extIdCol]?.trim()?.takeIf { it.isNotBlank() }
+            val isDuplicate = extId != null && (extIdCounts[extId] ?: 0) > 1
             val warning = when {
-                name == "Fila ${idx + 2}" -> "Sin nombre"
+                name == "Fila ${idx + 2}"  -> "Sin nombre"
+                isDuplicate                -> "ID externo duplicado en el fichero"
                 lat == null || lng == null -> "Sin GPS — no se incluirá en clustering"
                 else                       -> null
             }
@@ -455,7 +489,11 @@ class ImportarViewModel @Inject constructor(
                 rowIndex       = idx,
                 name           = name,
                 externalId     = row[mapping[StopField.EXTERNAL_ID]]?.takeIf { it.isNotBlank() },
-                address        = row[mapping[StopField.ADDRESS]]?.takeIf { it.isNotBlank() },
+                address        = buildFullAddress(
+                    base     = row[mapping[StopField.ADDRESS]]?.takeIf { it.isNotBlank() },
+                    cp       = row[mapping[StopField.POSTAL_CODE]]?.takeIf { it.isNotBlank() },
+                    locality = row[mapping[StopField.LOCALITY]]?.takeIf { it.isNotBlank() },
+                ),
                 lat            = lat, lng = lng,
                 contactName    = row[mapping[StopField.CONTACT_NAME]]?.takeIf { it.isNotBlank() },
                 contactPhone   = row[mapping[StopField.CONTACT_PHONE]]?.takeIf { it.isNotBlank() },
@@ -850,6 +888,64 @@ class ImportarViewModel @Inject constructor(
 
     /** Lee un valor de una fila del CALENDARIO probando múltiples nombres de columna posibles.
      *  El fichero puede tener "Ruta", "route_name", "RUTA" etc. — aceptamos todos. */
+    /**
+     * Normaliza una hoja de calendario a filas uniformes {route_name, date}.
+     * Soporta:
+     *   - Formato largo: columnas Ruta + Fecha (1 fila por fecha)
+     *   - Formato ancho: columnas route_name + date_1, date_2, date_3… (1 fila por ruta)
+     */
+    /**
+     * Combina dirección base + CP + población en un único string de dirección.
+     * Ej: ("Calle Colón 12", "46001", "Valencia") → "Calle Colón 12, 46001 Valencia"
+     * Si la base ya contiene el CP, no lo duplica.
+     */
+    private fun buildFullAddress(base: String?, cp: String?, locality: String?): String? {
+        val parts = mutableListOf<String>()
+        base?.trim()?.takeIf { it.isNotBlank() }?.let { parts += it }
+        // CP + localidad como un solo segmento "46001 Valencia"
+        val cpLoc = listOfNotNull(
+            cp?.trim()?.takeIf { it.isNotBlank() },
+            locality?.trim()?.takeIf { it.isNotBlank() },
+        ).joinToString(" ")
+        // Evitar duplicar el CP si ya está en la base
+        if (cpLoc.isNotBlank() && base?.contains(cp?.trim().orEmpty()) != true) {
+            parts += cpLoc
+        }
+        return parts.joinToString(", ").takeIf { it.isNotBlank() }
+    }
+
+    private fun normalizeCalendarSheet(
+        headers: List<String>,
+        rows:    List<Map<String, String>>,
+    ): List<Map<String, String>> {
+        val hLower = headers.map { it.lowercase().trim() }
+        // Columnas de fecha tipo date_1, date_2, fecha1… (formato ancho)
+        val wideDateCols = headers.filter {
+            val l = it.lowercase().trim()
+            Regex("""(date|fecha)[_ ]?\d+""").matches(l)
+        }
+        val routeColName = headers.firstOrNull {
+            val l = it.lowercase().trim()
+            l == "route_name" || l == "ruta" || l == "route"
+        }
+
+        return if (wideDateCols.isNotEmpty() && routeColName != null) {
+            // Formato ANCHO → expandir a una fila por fecha
+            rows.flatMap { row ->
+                val routeName = row[routeColName]?.trim().orEmpty()
+                if (routeName.isBlank()) return@flatMap emptyList()
+                wideDateCols.mapNotNull { dateCol ->
+                    val dateRaw = row[dateCol]?.trim().orEmpty()
+                    if (dateRaw.isBlank() || dateRaw.equals("null", ignoreCase = true)) null
+                    else mapOf("route_name" to routeName, "date" to dateRaw)
+                }
+            }
+        } else {
+            // Formato LARGO → ya está bien, solo se devuelve tal cual
+            rows
+        }
+    }
+
     private fun calRowGet(row: Map<String, String>, vararg keys: String): String? {
         // Exact match first
         for (k in keys) if (row.containsKey(k)) return row[k]?.trim()

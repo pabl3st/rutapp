@@ -109,8 +109,9 @@ private fun StepIndicator(current: ImportStep, modifier: Modifier = Modifier) {
             }
             StepDot(label = label, state = state, modifier = Modifier.weight(1f))
             if (idx < steps.size - 1) {
+                // Divider estrecho — no roba ancho a los dots/labels
                 HorizontalDivider(
-                    modifier  = Modifier.weight(1f),
+                    modifier  = Modifier.width(8.dp),
                     color     = if (state == StepState.DONE) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.outlineVariant,
                     thickness = 2.dp,
@@ -144,7 +145,15 @@ private fun StepDot(label: String, state: StepState, modifier: Modifier = Modifi
             }
         }
         Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+        Text(
+            text      = label,
+            style     = MaterialTheme.typography.labelSmall,
+            color     = color,
+            maxLines  = 1,
+            overflow  = androidx.compose.ui.text.style.TextOverflow.Visible,
+            softWrap  = false,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 
