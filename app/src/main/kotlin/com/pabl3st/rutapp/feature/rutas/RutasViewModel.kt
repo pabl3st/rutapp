@@ -23,7 +23,6 @@ data class RutasUiState(
     val isSyncing: Boolean        = false,
     val showCreateDialog: Boolean = false,
     val newRouteName: String      = "",
-    val newRouteDate: String      = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
     val userRole: String          = "agent",
     val currentUserId: Int        = 0,
     val canCreate: Boolean        = false,
@@ -71,7 +70,6 @@ class RutasViewModel @Inject constructor(
     }
     fun onDismissCreateDialog()         = _ui.update { it.copy(showCreateDialog = false, newRouteName = "", error = null, selectedAssigneeId = null, assignableUsers = emptyList()) }
     fun onNewRouteNameChange(v: String) = _ui.update { it.copy(newRouteName = v) }
-    fun onNewRouteDateChange(v: String) = _ui.update { it.copy(newRouteDate = v) }
 
     fun onSelectAssignee(userId: Int?) = _ui.update { it.copy(selectedAssigneeId = userId) }
 
@@ -111,16 +109,14 @@ class RutasViewModel @Inject constructor(
             return
         }
         // Fecha por defecto = hoy. Se asigna al calendario manualmente después.
-        val date = _ui.value.newRouteDate.ifBlank {
-            java.time.LocalDate.now().toString()
-        }
+        val date = java.time.LocalDate.now().toString()
         viewModelScope.launch {
             routeRepo.createRoute(
                 name         = name,
                 dateAssigned = date,
                 forUserId    = _ui.value.selectedAssigneeId,
             )
-            _ui.update { it.copy(showCreateDialog = false, newRouteName = "", newRouteDate = "", selectedAssigneeId = null) }
+            _ui.update { it.copy(showCreateDialog = false, newRouteName = "", selectedAssigneeId = null) }
         }
     }
 

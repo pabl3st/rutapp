@@ -276,6 +276,18 @@ class RouteDetailViewModel @Inject constructor(
         }
     }
 
+    fun removeStop(stopUid: String) {
+        viewModelScope.launch { stopRepo.removeFromRoute(stopUid) }
+    }
+
+    fun clearRouteStops() {
+        val routeUid = _ui.value.route?.uid ?: return
+        viewModelScope.launch {
+            stopRepo.clearRoute(routeUid)
+            _ui.update { it.copy(snackbar = "Ruta vaciada") }
+        }
+    }
+
     fun clearError() = _ui.update { it.copy(error = null) }
 
     fun onDateSelected(date: String) {

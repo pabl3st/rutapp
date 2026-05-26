@@ -30,6 +30,9 @@ sealed class Screen(val route: String) {
         fun createRoute(agentId: Int) = "agent/$agentId"
     }
     object BusinessProfile : Screen("business-profile")
+    object AddStops    : Screen("add-stops/{routeUid}") {
+        fun createRoute(routeUid: String) = "add-stops/$routeUid"
+    }
     object Biblioteca      : Screen("biblioteca")
     object Importar        : Screen("importar")
     object GodDashboard    : Screen("god-dashboard")

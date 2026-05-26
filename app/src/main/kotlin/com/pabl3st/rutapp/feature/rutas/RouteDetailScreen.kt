@@ -84,6 +84,30 @@ fun RouteDetailScreen(
                             Icon(Icons.Default.PersonAdd, contentDescription = "Reasignar ruta")
                         }
                     }
+                    if (ui.stops.isNotEmpty() && ui.canEditStops) {
+                        var showClearConfirm by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showClearConfirm = true }) {
+                            Icon(Icons.Default.DeleteSweep, "Vaciar ruta",
+                                tint = MaterialTheme.colorScheme.error)
+                        }
+                        if (showClearConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { showClearConfirm = false },
+                                title = { Text("Vaciar ruta") },
+                                text  = { Text("Se quitarán todas las paradas. Los datos de visita no se pierden.") },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = { vm.clearRouteStops(); showClearConfirm = false },
+                                        colors  = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error)
+                                    ) { Text("Vaciar") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showClearConfirm = false }) { Text("Cancelar") }
+                                },
+                            )
+                        }
+                    }
                     IconButton(onClick = { onNavigateToMap(routeUid) }) {
                         Icon(Icons.Default.Map, contentDescription = "Ver en mapa")
                     }
@@ -162,9 +186,17 @@ fun RouteDetailScreen(
                         Text("Sin paradas", style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(4.dp))
-                        Text("Pulsa + para añadir la primera",
+                        Text("Pulsa + para añadir paradas de tu biblioteca",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        if (ui.canEditStops) {
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = { onAddStop(routeUid) }) {
+                                Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Añadir paradas")
+                            }
+                        }
                     }
                 }
                 else -> LazyColumn(
@@ -173,10 +205,9 @@ fun RouteDetailScreen(
                 ) {
                     itemsIndexed(ui.stops, key = { _, s -> s.uid }) { idx, stop ->
                         StopCard(
-                            modifier     = Modifier.semantics { testTag = "stop-card-$idx" },
-                            stop         = stop,
-                            onOpenVisita = { onStopClick(stop.uid) },
-                            onEdit       = if (ui.canEditStops) ({ onEditStop(stop.uid) }) else null,
+                            modifier = Modifier.semantics { testTag = "stop-card-$idx" },
+                            stop     = stop,
+                            onRemove = if (ui.canEditStops) ({ vm.removeStop(stop.uid) }) else null,
                         )
                     }
                 }
@@ -356,10 +387,9 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun StopCard(
-    stop:         StopEntity,
-    onOpenVisita: () -> Unit    = {},
-    onEdit:       (() -> Unit)? = null,
-    modifier:     Modifier      = Modifier,
+    stop:     StopEntity,
+    onRemove: (() -> Unit)? = null,
+    modifier: Modifier      = Modifier,
 ) {
     val isDone = stop.status == "done"
     Card(modifier = modifier.fillMaxWidth()) {
@@ -485,23 +515,11 @@ private fun StopCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                if (!isDone) {
-                    IconButton(onClick = onOpenVisita) {
-                        Icon(Icons.Default.Edit, "Registrar visita",
-                            tint = MaterialTheme.colorScheme.primary)
-                    }
-                } else {
-                    Icon(Icons.Default.CheckCircle, null,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.padding(12.dp))
-                }
-                if (onEdit != null) {
-                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Tune, "Editar datos del PDV",
-                            Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+            if (onRemove != null) {
+                IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.RemoveCircleOutline, "Quitar de ruta",
+                        Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                 }
             }
         }

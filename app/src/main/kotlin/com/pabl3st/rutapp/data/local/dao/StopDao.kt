@@ -193,6 +193,46 @@ interface StopDao {
         pdvOpen: Boolean, pdvInactive: Boolean, accountStatus: String, at: String
     )
 
+    // ── Quitar / vincular paradas ─────────────────────────────
+    @Query("""
+        UPDATE stops SET
+            deletedAt  = :now,
+            updatedAt  = :now,
+            syncStatus = 'pending'
+        WHERE uid = :stopUid
+    """)
+    suspend fun softDelete(stopUid: String, now: String)
+
+    @Query("""
+        UPDATE stops SET
+            deletedAt  = :now,
+            updatedAt  = :now,
+            syncStatus = 'pending'
+        WHERE routeUid = :routeUid AND deletedAt IS NULL
+    """)
+    suspend fun softDeleteByRoute(routeUid: String, now: String)
+
+    @Query("""
+        UPDATE stops SET
+            routeUid     = :routeUid,
+            dateAssigned = :dateAssigned,
+            orderIndex   = :orderIndex,
+            deletedAt    = NULL,
+            updatedAt    = :now,
+            syncStatus   = 'pending'
+        WHERE uid = :stopUid
+    """)
+    suspend fun linkToRoute(
+        stopUid:      String,
+        routeUid:     String,
+        dateAssigned: String,
+        orderIndex:   Int,
+        now:          String,
+    )
+
+    @Query("SELECT COALESCE(MAX(orderIndex), -1) + 1 FROM stops WHERE routeUid = :routeUid AND deletedAt IS NULL")
+    suspend fun nextOrderIndex(routeUid: String): Int
+
     // ── Reordenación bulk ─────────────────────────────────────
     @Query("UPDATE stops SET orderIndex = :orderIndex, updatedAt = :at, syncStatus = 'pending' WHERE uid = :uid")
     suspend fun updateOrderIndex(uid: String, orderIndex: Int, at: String)

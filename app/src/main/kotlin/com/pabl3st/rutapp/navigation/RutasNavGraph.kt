@@ -29,6 +29,7 @@ import com.pabl3st.rutapp.feature.home.HomeScreen
 import com.pabl3st.rutapp.feature.perfil.BusinessProfileScreen
 import com.pabl3st.rutapp.feature.perfil.PerfilScreen
 import com.pabl3st.rutapp.feature.biblioteca.BibliotecaScreen
+import com.pabl3st.rutapp.feature.rutas.AddStopsScreen
 import com.pabl3st.rutapp.feature.rutas.CrearParadaScreen
 import com.pabl3st.rutapp.feature.rutas.EditarParadaScreen
 import com.pabl3st.rutapp.feature.rutas.RouteDetailScreen
@@ -191,7 +192,7 @@ fun RutasNavGraph(
                     onBack          = { navController.popBackStack() },
                     onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
                     onStopClick     = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
-                    onAddStop       = { uid -> navController.navigate(Screen.CrearParada.createRoute(uid)) },
+                    onAddStop       = { uid -> navController.navigate(Screen.AddStops.createRoute(uid)) },
                     onEditStop      = { uid -> navController.navigate(Screen.EditarParada.createRoute(uid)) },
                 )
             }
@@ -212,6 +213,20 @@ fun RutasNavGraph(
                     onBack      = { navController.popBackStack() },
                     onStopClick = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                 )
+            }
+
+            composable(
+                route               = Screen.AddStops.route,
+                arguments           = listOf(navArgument("routeUid") { type = NavType.StringType }),
+                enterTransition     = { enterPush },
+                exitTransition      = { exitPush },
+                popEnterTransition  = { enterPop },
+                popExitTransition   = { exitPop },
+            ) {
+                if (UserRole.from(userRole).isViewer) {
+                    navController.popBackStack(); return@composable
+                }
+                AddStopsScreen(onBack = { navController.popBackStack() })
             }
 
             composable(

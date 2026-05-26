@@ -298,6 +298,23 @@ class StopRepository @Inject constructor(
 
     // ── Reordenación de paradas ───────────────────────────────
 
+    suspend fun removeFromRoute(stopUid: String) {
+        val now = java.time.Instant.now().toString()
+        stopDao.softDelete(stopUid, now)
+    }
+
+    suspend fun clearRoute(routeUid: String) {
+        val now = java.time.Instant.now().toString()
+        stopDao.softDeleteByRoute(routeUid, now)
+    }
+
+    /** Vincula un stop de la biblioteca a una ruta concreta */
+    suspend fun addToRoute(stopUid: String, routeUid: String, dateAssigned: String) {
+        val nextIdx = stopDao.nextOrderIndex(routeUid)
+        val now     = java.time.Instant.now().toString()
+        stopDao.linkToRoute(stopUid, routeUid, dateAssigned, nextIdx, now)
+    }
+
     /** Persiste el orden actual de la lista en Room (bulk update) */
     @androidx.room.Transaction
     suspend fun reorderStops(stops: List<StopEntity>) {

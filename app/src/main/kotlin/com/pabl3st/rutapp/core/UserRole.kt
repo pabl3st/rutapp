@@ -17,7 +17,7 @@ enum class UserRole(val key: String, val level: Int) {
     // ── Permisos funcionales ──────────────────────────────────
 
     /** Puede crear/gestionar rutas */
-    val canCreateRoutes: Boolean get() = level >= MANAGER.level
+    val canCreateRoutes: Boolean get() = level >= AGENT.level
 
     /** Puede eliminar rutas (borrado masivo) */
     val canDeleteRoutes: Boolean get() = level >= ADMIN.level
