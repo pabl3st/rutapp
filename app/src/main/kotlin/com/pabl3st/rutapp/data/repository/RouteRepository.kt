@@ -270,12 +270,19 @@ class RouteRepository @Inject constructor(
     // ── Delta sync desde servidor ──────────────────────────────
     private val lastFetchMs = AtomicLong(0L)
 
-    suspend fun fetchDelta(): Result<Unit> = runCatching {
+    /**
+     * @param forceFull si true, ignora el timestamp incremental y descarga
+     *   todo desde la época. Útil en pull-to-refresh para recuperar cambios
+     *   hechos directamente en BD que el sync incremental se saltaría.
+     */
+    suspend fun fetchDelta(forceFull: Boolean = false): Result<Unit> = runCatching {
         val now = System.currentTimeMillis()
-        if (now - lastFetchMs.get() < 10_000L) return@runCatching
+        // El throttle de 10s no aplica a un full-sync explícito del usuario
+        if (!forceFull && now - lastFetchMs.get() < 10_000L) return@runCatching
         lastFetchMs.set(now)
         val token = session.token ?: return@runCatching
-        val since = session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" }
+        val since = if (forceFull) "2000-01-01T00:00:00Z"
+                    else session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" }
         val resp  = api.deltaSync(token = token, since = since)
         if (!resp.isSuccessful || resp.body()?.ok != true) return@runCatching
 

@@ -72,10 +72,21 @@ class SyncRepository @Inject constructor(
         syncQueueDao.purgeOlderThan(cutoff)
 
         val uploaded = uploadPending(token)
-        val downloaded = downloadDelta(
-            token = token,
-            since = session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" },
-        )
+
+        // Full-sync periódico: cada 12h se ignora el 'since' y se descarga
+        // todo. Recupera cambios hechos directamente en BD (migraciones,
+        // correcciones por SQL) que el sync incremental se saltaría para
+        // siempre, ya que delta_sync filtra por updated_at > since.
+        val now            = System.currentTimeMillis()
+        val fullSyncEveryMs = 12L * 60 * 60 * 1000  // 12 horas
+        val needFullSync   = now - session.lastFullSyncMs > fullSyncEveryMs
+        val since = if (needFullSync) "2000-01-01T00:00:00Z"
+                    else session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" }
+
+        val downloaded = downloadDelta(token = token, since = since)
+        if (downloaded && needFullSync) {
+            session.lastFullSyncMs = now
+        }
 
         // Subir fotos pendientes en background — fallo no bloquea el sync de datos
         val photosOk = runCatching { photoRepo.uploadPending() }.getOrDefault(false)

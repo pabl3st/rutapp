@@ -124,7 +124,9 @@ class RutasViewModel @Inject constructor(
         if (_ui.value.isSyncing) return
         viewModelScope.launch {
             _ui.update { it.copy(isSyncing = true) }
-            routeRepo.fetchDelta()
+            // Pull-to-refresh manual → full-sync: el usuario espera ver TODO
+            // actualizado, incluidos cambios hechos directamente en BD.
+            routeRepo.fetchDelta(forceFull = true)
             _ui.update { it.copy(isSyncing = false) }
         }
     }

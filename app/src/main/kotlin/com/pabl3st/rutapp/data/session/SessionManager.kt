@@ -94,6 +94,13 @@ class SessionManager @Inject constructor(
         get()      = prefs.getString(KEY_LAST_SYNC, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LAST_SYNC, value).apply()
 
+    /** Epoch ms del último full-sync (delta_sync con since=época).
+     *  Sirve para forzar periódicamente una descarga completa y recuperar
+     *  cambios hechos directamente en BD que el sync incremental se salta. */
+    var lastFullSyncMs: Long
+        get()      = prefs.getLong(KEY_LAST_FULL_SYNC, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_FULL_SYNC, value).apply()
+
     /** IDs de agentes que reportan directamente a este manager.
      *  Vacío para roles distintos de manager. */
     var managedAgentIds: List<Int>
@@ -147,6 +154,7 @@ class SessionManager @Inject constructor(
         private const val KEY_ACCOUNT_TYPE      = "account_type"
         private const val KEY_ACCOUNT_NAME      = "account_name"
         private const val KEY_LAST_SYNC         = "last_sync"
+        private const val KEY_LAST_FULL_SYNC    = "last_full_sync"
         private const val KEY_MANAGED_AGENTS    = "managed_agent_ids"
     }
 }
