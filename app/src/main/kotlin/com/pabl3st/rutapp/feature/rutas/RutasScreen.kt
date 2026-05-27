@@ -7,7 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -162,7 +164,9 @@ fun RutasScreen(
                 CircularProgressIndicator()
             }
             ui.routes.isEmpty() -> Box(
-                Modifier.fillMaxSize(),
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -179,6 +183,23 @@ fun RutasScreen(
                     Text("Pulsa + para crear la primera",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    Spacer(Modifier.height(20.dp))
+                    OutlinedButton(
+                        onClick = vm::syncNow,
+                        enabled = !ui.isSyncing,
+                    ) {
+                        if (ui.isSyncing) {
+                            CircularProgressIndicator(
+                                Modifier.size(16.dp), strokeWidth = 2.dp,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sincronizando…")
+                        } else {
+                            Icon(Icons.Default.Sync, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sincronizar ahora")
+                        }
+                    }
                 }
             }
             else -> LazyColumn(
