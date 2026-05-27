@@ -2054,6 +2054,29 @@ if ($action === 'assign_route') {
     db()->prepare('UPDATE stops s JOIN routes r ON r.id=s.route_id SET s.updated_at=NOW() WHERE r.uid=? AND r.account_id=?')
         ->execute([$routeUid, $aid]);
 
+    // ── Registrar en el historial de reasignaciones (append-only) ──
+    // Nombre del agente anterior — puede ser NULL si la ruta no tenía asignación
+    $fromName = null;
+    if (!empty($routeRow['user_id'])) {
+        $fu = db()->prepare('SELECT name FROM users WHERE id=? LIMIT 1');
+        $fu->execute([(int)$routeRow['user_id']]);
+        $fromName = $fu->fetchColumn() ?: null;
+    }
+    $reason = isset($body['reason']) ? san($body['reason'], 255) : null;
+    db()->prepare(
+        'INSERT INTO route_assignments
+            (account_id, route_uid, route_name,
+             from_user_id, from_user_name, to_user_id, to_user_name,
+             assigned_by_id, assigned_by_name, reason)
+         VALUES (?,?,?,?,?,?,?,?,?,?)'
+    )->execute([
+        $aid, $routeUid, $routeRow['name'],
+        $routeRow['user_id'] ?: null, $fromName,
+        $newUserId, $targetRow['name'],
+        $callerId, ($sess['name'] ?? 'Usuario'),
+        $reason,
+    ]);
+
     // FCM push al nuevo agente
     $fcmToken = db()->prepare('SELECT fcm_token FROM users WHERE id=? AND fcm_token IS NOT NULL LIMIT 1');
     $fcmToken->execute([$newUserId]);
