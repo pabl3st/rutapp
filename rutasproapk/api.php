@@ -2094,6 +2094,32 @@ if ($action === 'assign_route') {
     ok(['assigned' => true, 'route_uid' => $routeUid, 'new_user_id' => $newUserId]);
 }
 
+// ══════════════════════════════════════════════════════════════
+// route_history — historial de reasignaciones de una ruta.
+// Roles: manager+ (mismo umbral que assign_route).
+// ══════════════════════════════════════════════════════════════
+if ($action === 'route_history') {
+    $sess = requireAuth();
+    $aid  = (int)$sess['account_id'];
+    $role = $sess['role'];
+    if (roleLevel($role) < 3) err('Sin permisos', 403, $action);
+
+    $routeUid = san($_GET['route_uid'] ?? ($body['route_uid'] ?? ''), 50);
+    if ($routeUid === '') err('route_uid requerido', 400, $action);
+
+    $st = db()->prepare(
+        'SELECT id, route_uid, route_name,
+                from_user_id, from_user_name, to_user_id, to_user_name,
+                assigned_by_id, assigned_by_name, reason, created_at
+         FROM route_assignments
+         WHERE account_id=? AND route_uid=?
+         ORDER BY created_at DESC, id DESC
+         LIMIT 100'
+    );
+    $st->execute([$aid, $routeUid]);
+    ok(['history' => $st->fetchAll(PDO::FETCH_ASSOC)]);
+}
+
 // ─── S20: team_overview ────────────────────────────────────────────────────
 if ($action === 'team_overview') {
     $sess = requireAuth();
