@@ -162,7 +162,7 @@ fun RutasScreen(
                 CircularProgressIndicator()
             }
             ui.routes.isEmpty() -> Box(
-                Modifier.fillMaxSize().padding(padding),
+                Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -182,9 +182,11 @@ fun RutasScreen(
                 }
             }
             else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(padding),
+                modifier = Modifier.fillMaxSize(),
             ) {
                 itemsIndexed(ui.routes, key = { _, r -> r.uid }) { idx, route ->
                     val agentName = if (route.userId != ui.currentUserId)
@@ -497,7 +499,8 @@ private fun RouteListItem(
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(50)),
                                 color     = MaterialTheme.colorScheme.secondary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant,
+                                drawStopIndicator = {},
                             )
                             Text(
                                 "${stopCount.done} / ${stopCount.total} paradas",
