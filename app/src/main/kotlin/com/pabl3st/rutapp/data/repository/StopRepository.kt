@@ -93,6 +93,7 @@ class StopRepository @Inject constructor(
         visitFrequency: Int?,
         priority:      Int,
         segment:       String?,
+        openingHours:  String?,
         orderIndex:    Int,
     ) {
         val stop = stopDao.getByUid(uid) ?: return
@@ -109,6 +110,7 @@ class StopRepository @Inject constructor(
             visitFrequency = visitFrequency ?: stop.visitFrequency,
             priority       = priority,
             segment        = segment ?: stop.segment,
+            openingHours   = openingHours ?: stop.openingHours,
             orderIndex     = orderIndex,
             updatedAt      = now,
             syncStatus     = "pending",
@@ -133,7 +135,8 @@ class StopRepository @Inject constructor(
         visitFrequency: Int?    = null,
         priority:       Int     = 3,
         segment:        String? = null,
-        dateAssigned:   String? = null,  // fecha de esta visita concreta
+        openingHours:   String? = null,
+        dateAssigned:   String? = null,
     ): StopEntity {
         require(name.isNotBlank())     { "Nombre de parada vacío" }
         require(routeUid.isNotBlank()) { "routeUid vacío" }
@@ -157,6 +160,7 @@ class StopRepository @Inject constructor(
             visitFrequency = visitFrequency,
             priority       = priority,
             segment        = segment,
+            openingHours   = openingHours,
             dateAssigned   = dateAssigned,
             createdAt      = now,
             updatedAt      = now,
@@ -353,6 +357,7 @@ class StopRepository @Inject constructor(
         "street"       to s.street,
         "postal_code"  to s.postalCode,
         "city"         to s.city,
+        "opening_hours" to s.openingHours,
         "lat"          to s.lat,
         "lng"          to s.lng,
         "order_index"  to s.orderIndex,

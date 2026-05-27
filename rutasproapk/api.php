@@ -1007,6 +1007,7 @@ if ($action === 'batch_sync') {
                                     visit_result=?, next_action=?,
                                     pdv_open=?, pdv_inactive=?,
                                     visit_frequency=?, priority=?, segment=?,
+                                    opening_hours=COALESCE(?,opening_hours),
                                     date_assigned=COALESCE(?,date_assigned),
                                     account_status=IF(?=1,\'inactive\',account_status),
                                     check_in_ts=COALESCE(?,check_in_ts),
@@ -1037,6 +1038,7 @@ if ($action === 'batch_sync') {
                                 san($data['visit_frequency'] ?? '', 20) ?: null,
                                 isset($data['priority']) ? (int)$data['priority'] : 0,
                                 san($data['segment'] ?? '', 50) ?: null,
+                                $data['opening_hours'] ?? null,
                                 $data['date_assigned'] ?? null,
                                 isset($data['pdv_inactive']) ? (int)(bool)$data['pdv_inactive'] : 0,
                                 $data['check_in_ts']   ?? null,
@@ -1054,12 +1056,12 @@ if ($action === 'batch_sync') {
                                      order_index, status, notes, visited_at,
                                      external_id, contact_name, contact_phone,
                                      visit_result, next_action, pdv_open, pdv_inactive,
-                                     visit_frequency, priority, segment,
+                                     visit_frequency, priority, segment, opening_hours,
                                      date_assigned,
                                      check_in_ts, check_out_ts,
                                      gps_lat_visit, gps_lng_visit,
                                      created_at, updated_at)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
                             )->execute([
                                 $clientUid, $routeId, $aid,
                                 san($data['name'] ?? '', 255),
@@ -1083,6 +1085,7 @@ if ($action === 'batch_sync') {
                                 san($data['visit_frequency'] ?? '', 20) ?: null,
                                 isset($data['priority']) ? (int)$data['priority'] : 0,
                                 san($data['segment'] ?? '', 50) ?: null,
+                                $data['opening_hours'] ?? null,
                                 $data['date_assigned'] ?? null,
                                 $data['check_in_ts']   ?? null,
                                 $data['check_out_ts']  ?? null,

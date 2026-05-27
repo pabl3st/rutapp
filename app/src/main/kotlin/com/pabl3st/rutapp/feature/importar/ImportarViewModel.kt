@@ -57,6 +57,7 @@ enum class StopField(val label: String, val required: Boolean) {
     SEGMENT(         "Segmento (A/B/C)",     false),
     POSTAL_CODE(     "Código postal",        false),
     LOCALITY(        "Población / localidad", false),
+    OPENING_HOURS(   "Horario de apertura",   false),
 }
 
 // ── Preview de una parada ─────────────────────────────────────
@@ -76,6 +77,7 @@ data class StopPreview(
     val visitFrequency: Int?,
     val priority:       Int,
     val segment:        String?,
+    val openingHours:   String?,
     val hasGps:         Boolean,
     val warning:        String?,
 )
@@ -428,7 +430,8 @@ class ImportarViewModel @Inject constructor(
             StopField.PRIORITY      to best("priority","prioridad"),
             StopField.SEGMENT       to best("segment","segmento"),
             StopField.POSTAL_CODE   to best("postal_code","codigo_postal","cp","zip","c.p."),
-            StopField.LOCALITY      to best("locality","poblacion","localidad","municipio","ciudad","city"),
+            StopField.LOCALITY      to best("locality","poblacion","localidad","municipio","ciudad","city","town"),
+            StopField.OPENING_HOURS to best("opening_hours","horario","hours","apertura","horarios"),
         )
     }
 
@@ -523,6 +526,7 @@ class ImportarViewModel @Inject constructor(
                 notes          = row[mapping[StopField.NOTES]]?.takeIf { it.isNotBlank() },
                 routeName      = row[mapping[StopField.ROUTE_NAME]]?.takeIf { it.isNotBlank() },
                 visitFrequency = freq, priority = prio, segment = seg,
+                openingHours   = row[mapping[StopField.OPENING_HOURS]]?.takeIf { it.isNotBlank() },
                 hasGps         = lat != null && lng != null,
                 warning        = warning,
             )
@@ -800,6 +804,7 @@ class ImportarViewModel @Inject constructor(
                                     visitFrequency = preview.visitFrequency,
                                     priority       = preview.priority,
                                     segment        = preview.segment,
+                                    openingHours   = preview.openingHours ?: existingStop.openingHours,
                                     orderIndex     = stopIdx,
                                 )
                                 existingStop
@@ -820,6 +825,7 @@ class ImportarViewModel @Inject constructor(
                                     visitFrequency = preview.visitFrequency,
                                     priority       = preview.priority,
                                     segment        = preview.segment,
+                                    openingHours   = preview.openingHours,
                                     dateAssigned   = dateAssigned,
                                 )
                             }
