@@ -218,18 +218,52 @@ class UserPrefsRepository @Inject constructor(
 
     // ── Restaurar prefs desde el servidor al hacer login ─────────
     // Llama /me → prefs y persiste en DataStore local.
-    // Si el servidor no tiene vacation_days (primer login), DataStore gana.
+    // El servidor es la fuente de verdad tras una reinstalación: cada
+    // preferencia presente en el JSON del servidor sobrescribe la local.
+    // Las claves ausentes (primer login, JSON parcial) conservan el valor
+    // local/por defecto. vacation_days es la excepción: se fusiona (unión),
+    // porque días marcados offline antes del login también son válidos.
     suspend fun restoreFromServer(serverPrefs: Map<String, Any>?) {
         if (serverPrefs == null) return
         val current = prefs.first()
-        // Restaurar vacation_days desde el servidor (fuente de verdad tras reinstalación)
-        val serverVacations = (serverPrefs["vacation_days"] as? List<*>)?.filterIsInstance<String>()?.toSet()
-            ?: emptySet()
-        // Merge: unión de días locales y del servidor (ambos son válidos)
-        val merged = current.vacationDays + serverVacations
-        if (merged != current.vacationDays) {
-            persist(current.copy(vacationDays = merged))
-        }
+
+        fun str(key: String, fallback: String): String =
+            (serverPrefs[key] as? String)?.takeIf { it.isNotBlank() } ?: fallback
+
+        fun bool(key: String, fallback: Boolean): Boolean =
+            when (val v = serverPrefs[key]) {
+                is Boolean -> v
+                is Number  -> v.toInt() != 0          // tolera 0/1 desde JSON
+                is String  -> v.equals("true", true) || v == "1"
+                else       -> fallback
+            }
+
+        fun int(key: String, fallback: Int): Int =
+            when (val v = serverPrefs[key]) {
+                is Number -> v.toInt()
+                is String -> v.toIntOrNull() ?: fallback
+                else      -> fallback
+            }
+
+        // vacation_days: unión local + servidor (ambos conjuntos son válidos)
+        val serverVacations = (serverPrefs["vacation_days"] as? List<*>)
+            ?.filterIsInstance<String>()?.toSet() ?: emptySet()
+
+        val restored = current.copy(
+            language            = str("language",  current.language),
+            timezone            = str("timezone",  current.timezone),
+            showVisitDuration   = bool("show_visit_duration",   current.showVisitDuration),
+            showNextAction      = bool("show_next_action",      current.showNextAction),
+            showPhotos          = bool("show_photos",           current.showPhotos),
+            requireResult       = bool("require_result",        current.requireResult),
+            pushEnabled         = bool("push_enabled",          current.pushEnabled),
+            autoSync            = bool("auto_sync",             current.autoSync),
+            jornadaReminder     = bool("jornada_reminder",      current.jornadaReminder),
+            jornadaReminderHour = int("jornada_reminder_hour",  current.jornadaReminderHour),
+            vacationDays        = current.vacationDays + serverVacations,
+        )
+
+        if (restored != current) persist(restored)
     }
 }
 
