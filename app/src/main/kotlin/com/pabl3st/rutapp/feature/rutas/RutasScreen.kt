@@ -3,9 +3,11 @@ package com.pabl3st.rutapp.feature.rutas
 
 import com.pabl3st.rutapp.core.ui.theme.RouteStatusTokens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -389,16 +391,16 @@ fun RutasScreen(
 @Composable
 private fun StatusChip(status: String) {
     val st = RouteStatusTokens.of(status)
-    val color = st.color; val icon = st.icon; val label = st.label
-    SuggestionChip(
-        onClick = {},
-        label   = { Text(label, style = MaterialTheme.typography.labelSmall) },
-        icon    = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
-        colors  = SuggestionChipDefaults.suggestionChipColors(
-            labelColor         = color,
-            iconContentColor   = color,
-        ),
-    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .background(st.container, RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Icon(st.icon, contentDescription = null, modifier = Modifier.size(13.dp), tint = st.color)
+        Text(st.label, style = MaterialTheme.typography.labelMedium, color = st.color)
+    }
 }
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -411,11 +413,10 @@ private fun RouteListItem(
     selected: Boolean = false,
     onLongClick: () -> Unit = {},
 ) {
+    val statusTokens = RouteStatusTokens.of(route.status)
 
     val cardColors = if (selected) {
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-        )
+        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     } else CardDefaults.cardColors()
 
     Card(
@@ -425,61 +426,121 @@ private fun RouteListItem(
             .semantics { testTag = testTagId }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
-        Row(
-            modifier          = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (selectionMode) {
-                Checkbox(
-                    checked         = selected,
-                    onCheckedChange = { onClick() },
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(route.name, style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(2.dp))
-                val today = LocalDate.now().toString()
-                val dateLabel = if (route.dateAssigned == "1970-01-01" || route.dateAssigned.isBlank()) {
-                    "Sin fecha"
-                } else {
-                    runCatching {
-                        val d = LocalDate.parse(route.dateAssigned)
-                        when (route.dateAssigned) {
-                            today -> "Hoy"
-                            LocalDate.now().minusDays(1).toString() -> "Ayer"
-                            LocalDate.now().plusDays(1).toString()  -> "Mañana"
-                            else  -> d.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es")))
-                        }
-                    }.getOrDefault(route.dateAssigned)
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+            // Acento lateral — color del estado de la ruta
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(statusTokens.color),
+            )
+            Row(
+                modifier          = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (selectionMode) {
+                    Checkbox(checked = selected, onCheckedChange = { onClick() })
+                    Spacer(Modifier.width(8.dp))
                 }
-                Text(dateLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                agentName?.let {
-                    Spacer(Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Icon(Icons.Default.Person, null, Modifier.size(11.dp),
-                            tint = MaterialTheme.colorScheme.primary)
-                        Text(it,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    // Fila 1 — nombre + chip de estado
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            route.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        StatusChip(status = route.status)
                     }
-                }
-                route.notes?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis)
-                }
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                StatusChip(status = route.status)
-                if (route.syncStatus == "pending") {
-                    Icon(Icons.Default.CloudOff, null, Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // Fila 2 — fecha con distancia relativa
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarToday, null, Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            routeDateLabel(route.dateAssigned),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    // Fila 3 — agente + estado de sync
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        agentName?.let {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            ) {
+                                Icon(Icons.Default.Person, null, Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                                Text(it, style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        if (route.syncStatus != "synced") {
+                            val syncError = route.syncStatus == "error"
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            ) {
+                                Icon(
+                                    if (syncError) Icons.Default.SyncProblem else Icons.Default.CloudOff,
+                                    null, Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                                Text(
+                                    if (syncError) "Error de sync" else "Sin sincronizar",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+
+                    route.notes?.takeIf { it.isNotBlank() }?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(it, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }
     }
+}
+
+/** Etiqueta de fecha de ruta: "Hoy", "Mañana · en 1 día", "3 jun 2026 · en 7 días". */
+private fun routeDateLabel(dateAssigned: String): String {
+    if (dateAssigned == "1970-01-01" || dateAssigned.isBlank()) return "Sin fecha"
+    return runCatching {
+        val d     = LocalDate.parse(dateAssigned)
+        val today = LocalDate.now()
+        val days  = java.time.temporal.ChronoUnit.DAYS.between(today, d)
+        val pretty = d.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es")))
+        when {
+            days == 0L  -> "Hoy"
+            days == 1L  -> "Mañana · en 1 día"
+            days == -1L -> "Ayer"
+            days > 1L   -> "$pretty · en $days días"
+            else        -> "$pretty · hace ${-days} días"
+        }
+    }.getOrDefault(dateAssigned)
 }
