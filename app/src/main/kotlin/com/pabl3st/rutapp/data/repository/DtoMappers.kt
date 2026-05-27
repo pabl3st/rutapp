@@ -53,6 +53,7 @@ fun StopDto.toEntity(accountId: Int): StopEntity? {
         priority       = priority ?: 0,                   // StopDto:Int?   → StopEntity:Int
         segment        = segment,
         accountStatus  = accountStatus ?: "active",       // StopDto:String? → StopEntity:String
+        openingHours   = openingHours,
         createdAt      = createdAt,
         updatedAt    = updatedAt,
         deletedAt    = deletedAt,

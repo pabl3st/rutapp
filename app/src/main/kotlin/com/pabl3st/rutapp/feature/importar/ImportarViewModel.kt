@@ -946,8 +946,11 @@ class ImportarViewModel @Inject constructor(
         val match = Regex("""\b(\d{5})\b""").find(full)
             ?: return Triple(full.trim(), null, null)
         val cp = match.value
-        val before = full.substring(0, match.range.first).trimEnd(' ', ',', '-')
-        val after  = full.substring(match.range.last + 1).trimStart(' ', ',', '-')
+        // trim() en ambos lados además del trim de separadores
+        val before = full.substring(0, match.range.first)
+            .trim(' ', ',', '-', '\t')
+        val after  = full.substring(match.range.last + 1)
+            .trim(' ', ',', '-', '\t')
         val street = before.takeIf { it.isNotBlank() }
         val city   = after.takeIf { it.isNotBlank() }
         return Triple(street, cp, city)

@@ -202,6 +202,7 @@ data class StopDto(
     val priority: Int?               = null,
     val segment: String?             = null,
     @Json(name = "account_status")   val accountStatus: String?  = null,
+    @Json(name = "opening_hours")    val openingHours: String?   = null,
     @Json(name = "created_at")       val createdAt: String,
     @Json(name = "updated_at")    val updatedAt: String,
     @Json(name = "deleted_at")    val deletedAt: String?    = null,
