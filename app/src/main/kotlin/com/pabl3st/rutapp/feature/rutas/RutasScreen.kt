@@ -4,6 +4,8 @@ package com.pabl3st.rutapp.feature.rutas
 import com.pabl3st.rutapp.core.ui.theme.RouteStatusTokens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -41,36 +43,105 @@ fun RutasScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Mostrar errores de reasignación masiva (y otros) vía snackbar.
+    // El diálogo de crear ruta gestiona su propio error inline, así que
+    // solo se muestra el snackbar cuando no hay diálogo de creación abierto.
+    LaunchedEffect(ui.error) {
+        val err = ui.error
+        if (err != null && !ui.showCreateDialog) {
+            snackbarHostState.showSnackbar(err)
+            vm.clearError()
+        }
+    }
+
+    // Salir del modo selección con el botón atrás del sistema
+    androidx.activity.compose.BackHandler(enabled = ui.selectionMode) {
+        vm.exitSelectionMode()
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Rutas") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                },
-                actions = {
-                    if (ui.isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp).padding(end = 4.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                    }
-                    // Importar: owner, admin y manager pueden importar rutas
-                    if (ui.canCreate) {
-                        IconButton(onClick = onImport) {
-                            Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
+            if (ui.selectionMode) {
+                TopAppBar(
+                    title = { Text("${ui.selectedRouteUids.size} seleccionada(s)") },
+                    navigationIcon = {
+                        IconButton(onClick = vm::exitSelectionMode) {
+                            Icon(Icons.Default.Close, contentDescription = "Salir de selección")
+                        }
+                    },
+                    actions = {
+                        val allSelected = ui.routes.isNotEmpty() &&
+                            ui.selectedRouteUids.size == ui.routes.size
+                        IconButton(onClick = {
+                            if (allSelected) vm.clearSelection() else vm.selectAllRoutes()
+                        }) {
+                            Icon(
+                                if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
+                                contentDescription = if (allSelected) "Deseleccionar todo"
+                                                     else "Seleccionar todo",
+                            )
+                        }
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Rutas") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        }
+                    },
+                    actions = {
+                        if (ui.isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp).padding(end = 4.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                        }
+                        // Reasignación masiva: solo manager+ (canCreate cubre owner/admin/manager)
+                        if (ui.canCreate && ui.routes.isNotEmpty()) {
+                            IconButton(onClick = vm::enterSelectionMode) {
+                                Icon(Icons.Default.Checklist,
+                                    contentDescription = "Seleccionar rutas")
+                            }
+                        }
+                        // Importar: owner, admin y manager pueden importar rutas
+                        if (ui.canCreate) {
+                            IconButton(onClick = onImport) {
+                                Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
-            if (ui.canCreate) {
+            if (ui.canCreate && !ui.selectionMode) {
                 FloatingActionButton(onClick = vm::onShowCreateDialog) {
                     Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+                }
+            }
+        },
+        bottomBar = {
+            if (ui.selectionMode) {
+                BottomAppBar {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "${ui.selectedRouteUids.size} ruta(s)",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Button(
+                        onClick = vm::onShowBulkDialog,
+                        enabled = ui.selectedRouteUids.isNotEmpty(),
+                    ) {
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null,
+                            modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Reasignar")
+                    }
+                    Spacer(Modifier.width(8.dp))
                 }
             }
         },
@@ -116,10 +187,21 @@ fun RutasScreen(
                     val agentName = if (route.userId != ui.currentUserId)
                         ui.teamMembers[route.userId] else null
                     RouteListItem(
-                        route     = route,
-                        onClick   = { onRouteClick(route.uid) },
-                        testTagId = "route-card-$idx",
-                        agentName = agentName,
+                        route         = route,
+                        onClick       = {
+                            if (ui.selectionMode) vm.toggleRouteSelection(route.uid)
+                            else onRouteClick(route.uid)
+                        },
+                        testTagId     = "route-card-$idx",
+                        agentName     = agentName,
+                        selectionMode = ui.selectionMode,
+                        selected      = route.uid in ui.selectedRouteUids,
+                        onLongClick   = {
+                            if (!ui.selectionMode && ui.canCreate) {
+                                vm.enterSelectionMode()
+                                vm.toggleRouteSelection(route.uid)
+                            }
+                        },
                     )
                 }
             }
@@ -212,6 +294,95 @@ fun RutasScreen(
             },
         )
     }
+
+    // ── Diálogo reasignación masiva ───────────────────────────
+    if (ui.showBulkDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!ui.isBulkAssigning) vm.onDismissBulkDialog() },
+            title = { Text("Reasignar ${ui.selectedRouteUids.size} ruta(s)") },
+            text = {
+                var expanded by remember { mutableStateOf(false) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (ui.assignableUsers.isEmpty() && ui.loadingUsers) {
+                        Row(
+                            verticalAlignment    = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Text("Cargando equipo…",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        val selectedName = ui.assignableUsers
+                            .firstOrNull { it.userId == ui.bulkAssigneeId }
+                            ?.let { "${it.displayName} (${it.role})" }
+                            ?: "Selecciona destinatario"
+                        ExposedDropdownMenuBox(
+                            expanded         = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                        ) {
+                            OutlinedTextField(
+                                value         = selectedName,
+                                onValueChange = {},
+                                readOnly      = true,
+                                label         = { Text("Reasignar a") },
+                                trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                                modifier      = Modifier.fillMaxWidth().menuAnchor(),
+                            )
+                            ExposedDropdownMenu(
+                                expanded         = expanded,
+                                onDismissRequest = { expanded = false },
+                            ) {
+                                ui.assignableUsers.forEach { user ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(user.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium)
+                                                Text(
+                                                    "${user.role} · @${user.username}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        },
+                                        onClick = { vm.onBulkAssigneeChange(user.userId); expanded = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value         = ui.bulkReason,
+                        onValueChange = vm::onBulkReasonChange,
+                        label         = { Text("Motivo (opcional)") },
+                        singleLine    = false,
+                        minLines      = 2,
+                        modifier      = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = vm::reassignSelectedRoutes,
+                    enabled = !ui.isBulkAssigning && ui.bulkAssigneeId != null,
+                ) {
+                    if (ui.isBulkAssigning) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Reasignar")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = vm::onDismissBulkDialog,
+                    enabled = !ui.isBulkAssigning,
+                ) { Text("Cancelar") }
+            },
+        )
+    }
 }
 
 
@@ -229,14 +400,42 @@ private fun StatusChip(status: String) {
         ),
     )
 }
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RouteListItem(route: RouteEntity, onClick: () -> Unit, testTagId: String = "", agentName: String? = null) {
+private fun RouteListItem(
+    route: RouteEntity,
+    onClick: () -> Unit,
+    testTagId: String = "",
+    agentName: String? = null,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onLongClick: () -> Unit = {},
+) {
 
-    Card(modifier = Modifier.fillMaxWidth().semantics { testTag = testTagId }.clickable(onClick = onClick)) {
+    val cardColors = if (selected) {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        )
+    } else CardDefaults.cardColors()
+
+    Card(
+        colors = cardColors,
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { testTag = testTagId }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
         Row(
             modifier          = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selectionMode) {
+                Checkbox(
+                    checked         = selected,
+                    onCheckedChange = { onClick() },
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text(route.name, style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(2.dp))

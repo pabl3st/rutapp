@@ -34,6 +34,13 @@ data class RutasUiState(
     val loadingUsers:       Boolean              = false,
     // Map userId → displayName para mostrar etiqueta en cards de ruta
     val teamMembers:        Map<Int, String>     = emptyMap(),
+    // Modo selección múltiple — reasignación masiva (manager+)
+    val selectionMode:      Boolean              = false,
+    val selectedRouteUids:  Set<String>          = emptySet(),
+    val showBulkDialog:     Boolean              = false,
+    val bulkAssigneeId:     Int?                 = null,
+    val bulkReason:         String               = "",
+    val isBulkAssigning:    Boolean              = false,
 )
 
 @HiltViewModel
@@ -72,6 +79,70 @@ class RutasViewModel @Inject constructor(
     fun onNewRouteNameChange(v: String) = _ui.update { it.copy(newRouteName = v) }
 
     fun onSelectAssignee(userId: Int?) = _ui.update { it.copy(selectedAssigneeId = userId) }
+
+    // ---- Modo selección múltiple / reasignación masiva ----
+
+    fun enterSelectionMode() {
+        loadAssignableUsers()
+        _ui.update { it.copy(selectionMode = true, selectedRouteUids = emptySet()) }
+    }
+
+    fun exitSelectionMode() = _ui.update {
+        it.copy(selectionMode = false, selectedRouteUids = emptySet(), showBulkDialog = false)
+    }
+
+    fun toggleRouteSelection(uid: String) = _ui.update {
+        val next = if (uid in it.selectedRouteUids) it.selectedRouteUids - uid
+                   else it.selectedRouteUids + uid
+        it.copy(selectedRouteUids = next)
+    }
+
+    fun selectAllRoutes() = _ui.update {
+        it.copy(selectedRouteUids = it.routes.map { r -> r.uid }.toSet())
+    }
+
+    fun clearSelection() = _ui.update { it.copy(selectedRouteUids = emptySet()) }
+
+    fun onShowBulkDialog() = _ui.update {
+        it.copy(showBulkDialog = true, bulkAssigneeId = null, bulkReason = "")
+    }
+
+    fun onDismissBulkDialog() = _ui.update {
+        it.copy(showBulkDialog = false, bulkAssigneeId = null, bulkReason = "")
+    }
+
+    fun onBulkAssigneeChange(userId: Int?) = _ui.update { it.copy(bulkAssigneeId = userId) }
+    fun onBulkReasonChange(v: String)      = _ui.update { it.copy(bulkReason = v) }
+
+    fun reassignSelectedRoutes() {
+        val uids   = _ui.value.selectedRouteUids.toList()
+        val target = _ui.value.bulkAssigneeId
+        if (uids.isEmpty()) { _ui.update { it.copy(error = "No hay rutas seleccionadas") }; return }
+        if (target == null) { _ui.update { it.copy(error = "Selecciona un destinatario") }; return }
+        viewModelScope.launch {
+            _ui.update { it.copy(isBulkAssigning = true) }
+            routeRepo.reassignRoutesBulk(
+                routeUids = uids,
+                newUserId = target,
+                reason    = _ui.value.bulkReason.trim().ifBlank { null },
+            ).fold(
+                onSuccess = { count ->
+                    _ui.update {
+                        it.copy(
+                            isBulkAssigning   = false,
+                            showBulkDialog    = false,
+                            selectionMode     = false,
+                            selectedRouteUids = emptySet(),
+                            error             = if (count > 0) null else "No se reasignó ninguna ruta",
+                        )
+                    }
+                },
+                onFailure = { t ->
+                    _ui.update { it.copy(isBulkAssigning = false, error = t.message ?: "Error al reasignar") }
+                },
+            )
+        }
+    }
 
     private fun loadAssignableUsers() {
         val role = session.userRole
