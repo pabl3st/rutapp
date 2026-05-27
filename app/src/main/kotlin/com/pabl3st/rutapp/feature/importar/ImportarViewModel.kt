@@ -733,7 +733,7 @@ class ImportarViewModel @Inject constructor(
 
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val externalIdAndDateToStopUid = mutableMapOf<String, String>()
+                val externalIdToStopUid = mutableMapOf<String, String>()
                 var saved = 0
 
                 try {
@@ -752,12 +752,11 @@ class ImportarViewModel @Inject constructor(
                     entriesToProcess.forEach { entry ->
                         val stops = clusters.getOrNull(entry.clusterIndex) ?: return@forEach
                         // scheduledDates = TODAS las fechas del XLS, ordenadas
-                        // Modelo: 1 stop por (PDV, fecha) — informe diario independiente.
+                        // dateAssigned = primera fecha cronológica del XLS
+                        // Si no hay fechas del XLS → dateAssigned queda sin fecha real
                         val allDates = entry.scheduledDates.map { it.toString() }.sorted()
-                        // La ruta guarda dateAssigned = primera fecha y el resto en scheduledDates
-                        // (para que el modelo siga siendo válido con apps antiguas).
-                        val routeDateAssigned = allDates.firstOrNull() ?: (entry.date?.toString() ?: "")
-                        val routeScheduledRest = if (allDates.size > 1) allDates.drop(1) else null
+                        val dateAssigned   = allDates.firstOrNull() ?: (entry.date?.toString() ?: "")
+                        val scheduledList  = if (allDates.size > 1) allDates.drop(1) else null
 
                         // Upsert real: si existe, actualizar fechas y scheduled_dates
                         // Usar el nivel más específico de la jerarquía seleccionada:
@@ -770,80 +769,69 @@ class ImportarViewModel @Inject constructor(
                             // Actualizar solo los campos que cambian — no sobreescribir visitas
                             routeRepo.updateSchedule(
                                 uid            = existingRoute.uid,
-                                dateAssigned   = routeDateAssigned,
-                                scheduledDates = routeScheduledRest,
+                                dateAssigned   = dateAssigned,
+                                scheduledDates = if (allDates.size > 1) allDates.drop(1) else null,
                             )
                             existingRoute
                         } else {
                             routeRepo.createRoute(
                                 name           = entry.routeName,
-                                dateAssigned   = routeDateAssigned,
-                                scheduledDates = routeScheduledRest,
+                                dateAssigned   = dateAssigned,
+                                scheduledDates = if (allDates.size > 1) allDates.drop(1) else null,
                                 forUserId      = (_ui.value.targetUser
                                     ?: _ui.value.selectedManager
                                     ?: _ui.value.selectedAdmin)?.userId,
                             )
                         }
 
-                        // Si no hay fechas del XLS, una sola pasada con la fecha por defecto.
-                        // Si hay N fechas, se crea 1 stop por PDV y por fecha (modelo informes diarios).
-                        val datesForStops = allDates.ifEmpty { listOf(routeDateAssigned) }
-
-                        datesForStops.forEach { stopDate ->
-                            stops.forEachIndexed { stopIdx, preview ->
-                                // Dedup por (routeUid, externalId, dateAssigned): si reimportas
-                                // el mismo XLS, no se duplican stops.
-                                val existingStop = preview.externalId?.let { extId ->
-                                    stopRepo.getByExternalIdDateAndRoute(route.uid, extId, stopDate)
-                                }
-                                val stop = if (existingStop != null) {
-                                    stopRepo.updateImportFields(
-                                        uid            = existingStop.uid,
-                                        name           = preview.name,
-                                        address        = preview.address,
-                                        postalCode     = preview.postalCode ?: existingStop.postalCode,
-                                        city           = preview.city ?: existingStop.city,
-                                        lat            = preview.lat,
-                                        lng            = preview.lng,
-                                        contactName    = preview.contactName?.takeIf { it.isNotBlank() } ?: existingStop.contactName,
-                                        contactPhone   = preview.contactPhone?.takeIf { it.isNotBlank() } ?: existingStop.contactPhone,
-                                        visitFrequency = preview.visitFrequency,
-                                        priority       = preview.priority,
-                                        segment        = preview.segment,
-                                        openingHours   = preview.openingHours ?: existingStop.openingHours,
-                                        orderIndex     = stopIdx,
-                                    )
-                                    existingStop
-                                } else {
-                                    stopRepo.createStop(
-                                        routeUid       = route.uid,
-                                        name           = preview.name,
-                                        externalId     = preview.externalId,
-                                        address        = preview.address,
-                                        postalCode     = preview.postalCode,
-                                        city           = preview.city,
-                                        lat            = preview.lat,
-                                        lng            = preview.lng,
-                                        orderIndex     = stopIdx,
-                                        notes          = preview.notes,
-                                        contactName    = preview.contactName,
-                                        contactPhone   = preview.contactPhone,
-                                        visitFrequency = preview.visitFrequency,
-                                        priority       = preview.priority,
-                                        segment        = preview.segment,
-                                        openingHours   = preview.openingHours,
-                                        dateAssigned   = stopDate,
-                                    )
-                                }
-                                // Mapa para KPIs: clave (externalId, fecha) → stopUid.
-                                // Los KPIs del XLS vienen con (stopExternalId, date), así que
-                                // cada KPI se asigna al stop concreto de esa fecha.
-                                preview.externalId?.let { extId ->
-                                    externalIdAndDateToStopUid["$extId|$stopDate"] = stop.uid
-                                }
-                                saved++
-                                _ui.update { it.copy(saveProgress = saved) }
+                        // 1 stop por PDV — las fechas van en route.scheduledDates
+                        // No se duplica un stop por cada fecha del calendario
+                        stops.forEachIndexed { stopIdx, preview ->
+                            val existingStop = preview.externalId?.let {
+                                stopRepo.getByExternalIdAndRoute(route.uid, it)
                             }
+                            val stop = if (existingStop != null) {
+                                stopRepo.updateImportFields(
+                                    uid            = existingStop.uid,
+                                    name           = preview.name,
+                                    address        = preview.address,
+                                    postalCode     = preview.postalCode ?: existingStop.postalCode,
+                                    city           = preview.city ?: existingStop.city,
+                                    lat            = preview.lat,
+                                    lng            = preview.lng,
+                                    contactName    = preview.contactName?.takeIf { it.isNotBlank() } ?: existingStop.contactName,
+                                    contactPhone   = preview.contactPhone?.takeIf { it.isNotBlank() } ?: existingStop.contactPhone,
+                                    visitFrequency = preview.visitFrequency,
+                                    priority       = preview.priority,
+                                    segment        = preview.segment,
+                                    openingHours   = preview.openingHours ?: existingStop.openingHours,
+                                    orderIndex     = stopIdx,
+                                )
+                                existingStop
+                            } else {
+                                stopRepo.createStop(
+                                    routeUid       = route.uid,
+                                    name           = preview.name,
+                                    externalId     = preview.externalId,
+                                    address        = preview.address,
+                                    postalCode     = preview.postalCode,
+                                    city           = preview.city,
+                                    lat            = preview.lat,
+                                    lng            = preview.lng,
+                                    orderIndex     = stopIdx,
+                                    notes          = preview.notes,
+                                    contactName    = preview.contactName,
+                                    contactPhone   = preview.contactPhone,
+                                    visitFrequency = preview.visitFrequency,
+                                    priority       = preview.priority,
+                                    segment        = preview.segment,
+                                    openingHours   = preview.openingHours,
+                                    dateAssigned   = dateAssigned,
+                                )
+                            }
+                            preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
+                            saved++
+                            _ui.update { it.copy(saveProgress = saved) }
                         }
                     }
                 } catch (e: Exception) {
@@ -857,11 +845,7 @@ class ImportarViewModel @Inject constructor(
                 // Guardar KPI reports históricos como kpi_values
                 if (kpiReports.isNotEmpty()) {
                     val kpiEntities = kpiReports.flatMap { report ->
-                        // Buscar el stop concreto por (externalId, fecha): el modelo es
-                        // 1 stop por (PDV, fecha), así que el KPI se ancla a la visita
-                        // real de ese día.
-                        val stopUid = externalIdAndDateToStopUid["${report.stopExternalId}|${report.date}"]
-                            ?: return@flatMap emptyList()
+                        val stopUid = externalIdToStopUid[report.stopExternalId] ?: return@flatMap emptyList()
                         buildList {
                             if (report.kpiActivaciones.isNotBlank())
                                 add(KpiValueEntity(stopUid, "telco_activaciones",  report.kpiActivaciones, "synced"))
