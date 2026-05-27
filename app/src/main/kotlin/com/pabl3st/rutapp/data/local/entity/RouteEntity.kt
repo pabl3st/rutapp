@@ -18,10 +18,6 @@ data class RouteEntity(
     val deletedAt: String? = null,
     val syncStatus: String = "pending",    // pending|synced|error
     val syncedAt: String?  = null,
-    /** Nº de paradas de la ruta — calculado por el servidor, llega en routes_list. 0 si aún no sincronizada. */
-    val stopCount: Int     = 0,
-    /** Nº de paradas completadas — calculado por el servidor. */
-    val doneCount: Int     = 0,
     /** Fechas de visita programadas — convertido automáticamente a/desde JSON por RutasTypeConverters */
     val scheduledDates: List<String>? = null,
 )

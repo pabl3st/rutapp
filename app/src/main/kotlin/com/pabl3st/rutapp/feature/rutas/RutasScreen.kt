@@ -191,6 +191,7 @@ fun RutasScreen(
                         ui.teamMembers[route.userId] else null
                     RouteListItem(
                         route         = route,
+                        stopCount     = ui.stopCounts[route.uid],
                         onClick       = {
                             if (ui.selectionMode) vm.toggleRouteSelection(route.uid)
                             else onRouteClick(route.uid)
@@ -408,6 +409,7 @@ private fun StatusChip(status: String) {
 private fun RouteListItem(
     route: RouteEntity,
     onClick: () -> Unit,
+    stopCount: com.pabl3st.rutapp.data.local.dao.RouteStopCount? = null,
     testTagId: String = "",
     agentName: String? = null,
     selectionMode: Boolean = false,
@@ -479,10 +481,10 @@ private fun RouteListItem(
                         )
                     }
 
-                    // Fila 3 — progreso de paradas (solo si el servidor ya envió el conteo)
-                    if (route.stopCount > 0) {
+                    // Fila 3 — progreso de paradas (solo si la ruta tiene paradas en local)
+                    if (stopCount != null && stopCount.total > 0) {
                         Spacer(Modifier.height(8.dp))
-                        val fraction = (route.doneCount.toFloat() / route.stopCount)
+                        val fraction = (stopCount.done.toFloat() / stopCount.total)
                             .coerceIn(0f, 1f)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -498,7 +500,7 @@ private fun RouteListItem(
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                             )
                             Text(
-                                "${route.doneCount} / ${route.stopCount} paradas",
+                                "${stopCount.done} / ${stopCount.total} paradas",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

@@ -33,7 +33,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 15,
+    version      = 14,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -177,15 +177,6 @@ abstract class RutasDatabase : RoomDatabase() {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 // Fecha de visita concreta del stop (un stop por fecha del schedule)
                 db.execSQL("ALTER TABLE stops ADD COLUMN dateAssigned TEXT")
-            }
-        }
-
-        val MIGRATION_14_15 = object : Migration(14, 15) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // Conteo de paradas por ruta — lo calcula el servidor y llega en routes_list.
-                // Default 0: rutas existentes y rutas locales aún sin sync no rompen.
-                db.execSQL("ALTER TABLE routes ADD COLUMN stopCount INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE routes ADD COLUMN doneCount INTEGER NOT NULL DEFAULT 0")
             }
         }
 

@@ -34,6 +34,8 @@ data class RutasUiState(
     val loadingUsers:       Boolean              = false,
     // Map userId → displayName para mostrar etiqueta en cards de ruta
     val teamMembers:        Map<Int, String>     = emptyMap(),
+    // Conteo de paradas por ruta (routeUid → total/done) para la barra de progreso
+    val stopCounts:         Map<String, com.pabl3st.rutapp.data.local.dao.RouteStopCount> = emptyMap(),
     // Modo selección múltiple — reasignación masiva (manager+)
     val selectionMode:      Boolean              = false,
     val selectedRouteUids:  Set<String>          = emptySet(),
@@ -64,9 +66,14 @@ class RutasViewModel @Inject constructor(
 
     private fun observeRoutes() {
         viewModelScope.launch {
-            routeRepo.observeAll()
+            combine(
+                routeRepo.observeAll(),
+                routeRepo.observeStopCounts(),
+            ) { routes, counts -> routes to counts }
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
-                .collect { routes -> _ui.update { it.copy(routes = routes, isLoading = false) } }
+                .collect { (routes, counts) ->
+                    _ui.update { it.copy(routes = routes, stopCounts = counts, isLoading = false) }
+                }
         }
     }
 

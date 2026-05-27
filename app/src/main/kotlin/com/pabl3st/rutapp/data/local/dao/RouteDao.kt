@@ -4,6 +4,13 @@ import androidx.room.*
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import kotlinx.coroutines.flow.Flow
 
+/** Proyección de conteo de paradas por ruta — resultado de observeStopCounts(). */
+data class RouteStopCount(
+    val routeUid: String,
+    val total: Int,
+    val done: Int,
+)
+
 @Dao
 interface RouteDao {
 
@@ -59,6 +66,21 @@ interface RouteDao {
 
     @Query("SELECT * FROM routes WHERE uid = :uid LIMIT 1")
     suspend fun getByUid(uid: String): RouteEntity?
+
+    /**
+     * Conteo de paradas por ruta — total y completadas — calculado en vivo
+     * sobre la tabla stops local. Refleja el estado real al instante: marcar
+     * una parada como visitada actualiza el contador sin esperar al servidor.
+     */
+    @Query("""
+        SELECT routeUid AS routeUid,
+               COUNT(*) AS total,
+               COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) AS done
+        FROM stops
+        WHERE deletedAt IS NULL
+        GROUP BY routeUid
+    """)
+    fun observeStopCounts(): Flow<List<RouteStopCount>>
 
     @Query("SELECT * FROM routes WHERE name = :name AND userId = :userId AND deletedAt IS NULL LIMIT 1")
     suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity?

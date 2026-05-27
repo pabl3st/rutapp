@@ -21,8 +21,6 @@ fun RouteDto.toEntity(userId: Int, accountId: Int) = RouteEntity(
     deletedAt       = deletedAt,
     syncStatus      = "synced",
     syncedAt        = updatedAt,
-    stopCount       = stopCount,
-    doneCount       = doneCount,
 )
 
 // ── StopDto → StopEntity ──────────────────────────────────────

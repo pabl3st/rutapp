@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
+import com.pabl3st.rutapp.data.local.dao.RouteStopCount
 import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
@@ -21,6 +22,7 @@ import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -79,6 +81,10 @@ class RouteRepository @Inject constructor(
 
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)
+
+    /** Conteo de paradas (total/completadas) por ruta, indexado por routeUid. */
+    fun observeStopCounts(): Flow<Map<String, RouteStopCount>> =
+        routeDao.observeStopCounts().map { list -> list.associateBy { it.routeUid } }
 
     suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity? =
         routeDao.getByNameAndUser(name, userId)
