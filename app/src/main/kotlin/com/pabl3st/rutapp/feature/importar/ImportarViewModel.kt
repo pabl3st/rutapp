@@ -880,18 +880,15 @@ class ImportarViewModel @Inject constructor(
         val month = _ui.value.selectedMonth
         val first = firstWorkdayOfImportWeek(java.time.LocalDate.now(), month)
         val entries = _ui.value.calendarEntries.mapIndexed { i, entry ->
-            // Fechas del XLSX para este mes
-            val datesInMonth = entry.scheduledDates.filter { d ->
-                java.time.YearMonth.from(d) == month
-            }
             when {
-                // Si hay fechas del XLSX para este mes → usarlas, no tocar nada
-                datesInMonth.isNotEmpty() -> entry.copy(
-                    date           = datesInMonth.first(),
-                    scheduledDates = datesInMonth,
+                // Si tiene fechas del XLSX → respetarlas TODAS, sin filtrar por mes.
+                // El XLS puede traer un calendario multi-mes (abril+mayo+junio…) y
+                // todas las fechas son válidas. La 'date' principal es la primera
+                // cronológica. El selector de mes solo afecta a rutas SIN fechas.
+                entry.datesFromImport && entry.scheduledDates.isNotEmpty() -> entry.copy(
+                    date           = entry.scheduledDates.first(),
+                    scheduledDates = entry.scheduledDates,
                 )
-                // Si tiene fechas del XLSX pero no de este mes → conservar el array original
-                entry.datesFromImport -> entry
                 // Sin fechas del XLSX → asignar primer día laborable del mes + índice
                 else -> {
                     var d = first.plusDays(i.toLong())
