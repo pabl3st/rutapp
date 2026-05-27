@@ -424,7 +424,7 @@ class ImportarViewModel @Inject constructor(
             StopField.CONTACT_PHONE to best("contact_phone","telefono","phone","tel","movil"),
             StopField.NOTES         to best("notes","notas","observaciones","comentario"),
             StopField.ROUTE_NAME    to best("route_name","ruta","route"),
-            StopField.VISIT_FREQUENCY to best("visit_frequency","frecuencia","frequency","informes"),
+            StopField.VISIT_FREQUENCY to best("visit_frequency","frecuencia","frequency","frec","informes"),
             StopField.PRIORITY      to best("priority","prioridad"),
             StopField.SEGMENT       to best("segment","segmento"),
             StopField.POSTAL_CODE   to best("postal_code","codigo_postal","cp","zip","c.p."),
