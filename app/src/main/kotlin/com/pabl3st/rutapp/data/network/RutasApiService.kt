@@ -285,6 +285,38 @@ data class KpiValueDto(
     @Json(name = "updated_at")  val updatedAt: String?,
 )
 
+// ── Historial de reasignación de rutas ──────────────────────
+
+@JsonClass(generateAdapter = true)
+data class RouteAssignmentDto(
+    val id:                                 Long    = 0,
+    @Json(name = "route_uid")        val routeUid:       String  = "",
+    @Json(name = "route_name")       val routeName:      String  = "",
+    @Json(name = "from_user_id")     val fromUserId:     Int?    = null,
+    @Json(name = "from_user_name")   val fromUserName:   String? = null,
+    @Json(name = "to_user_id")       val toUserId:       Int     = 0,
+    @Json(name = "to_user_name")     val toUserName:     String  = "",
+    @Json(name = "assigned_by_id")   val assignedById:   Int     = 0,
+    @Json(name = "assigned_by_name") val assignedByName: String  = "",
+    val reason:                              String? = null,
+    @Json(name = "created_at")       val createdAt:      String  = "",
+)
+
+@JsonClass(generateAdapter = true)
+data class RouteHistoryResponse(
+    val ok:      Boolean,
+    val history: List<RouteAssignmentDto> = emptyList(),
+    val error:   String?                  = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class BulkAssignResponse(
+    val ok:         Boolean,
+    val reassigned: Int          = 0,
+    val skipped:    List<String> = emptyList(),
+    val error:      String?      = null,
+)
+
 
 // ── S14 Admin DTOs ───────────────────────────────────────────
 
@@ -664,6 +696,20 @@ interface RutasApiService {
         @Header("X-Auth-Token") token: String,
         @Body body: Map<String, @JvmSuppressWildcards Any>,
     ): retrofit2.Response<BaseResponse>
+
+    @GET(API_PATH)
+    suspend fun routeHistory(
+        @Query("action")        action: String = "route_history",
+        @Query("route_uid")     routeUid: String,
+        @Header("X-Auth-Token") token: String,
+    ): retrofit2.Response<RouteHistoryResponse>
+
+    @POST(API_PATH)
+    suspend fun assignRoutesBulk(
+        @Query("action")        action: String = "assign_routes_bulk",
+        @Header("X-Auth-Token") token: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): retrofit2.Response<BulkAssignResponse>
 
     @POST(API_PATH)
     suspend fun kpiDefSave(
