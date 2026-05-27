@@ -1681,7 +1681,7 @@ if ($action === 'stats_month') {
             COUNT(DISTINCT r.id)                           AS total_routes,
             SUM(r.status = "done")                         AS done_routes
          FROM stops s
-         JOIN routes r ON r.uid = s.route_uid
+         JOIN routes r ON r.id = s.route_id
          WHERE $userFilter
            AND r.date_assigned BETWEEN ? AND ?
            AND s.deleted_at IS NULL'
@@ -1706,7 +1706,7 @@ if ($action === 'stats_month') {
          FROM kpi_values kv
          JOIN kpi_definitions kd ON kd.id = kv.kpi_id
          JOIN stops s            ON s.uid  = kv.stop_uid
-         JOIN routes r           ON r.uid  = s.route_uid
+         JOIN routes r           ON r.id  = s.route_id
          WHERE r.date_assigned BETWEEN ? AND ?
            AND kd.type IN ("number", "boolean")
            AND s.deleted_at IS NULL
@@ -1729,7 +1729,7 @@ if ($action === 'stats_month') {
                 SUM(s.status = "done")             AS done_stops,
                 SUM(s.visit_result = "contactado") AS contacted
              FROM stops s
-             JOIN routes r ON r.uid = s.route_uid
+             JOIN routes r ON r.id = s.route_id
          WHERE $userFilter AND
              JOIN users u  ON u.id = r.user_id AND u.manager_id = ?
              WHERE r.date_assigned BETWEEN ? AND ?
@@ -1748,7 +1748,7 @@ if ($action === 'stats_month') {
                 SUM(s.status = "done")             AS done_stops,
                 SUM(s.visit_result = "contactado") AS contacted
              FROM stops s
-             JOIN routes r ON r.uid = s.route_uid
+             JOIN routes r ON r.id = s.route_id
          WHERE $userFilter AND
              JOIN users u  ON u.id = r.user_id
              WHERE r.date_assigned BETWEEN ? AND ?
@@ -1938,10 +1938,10 @@ if ($action === 'clear_routes') {
     // Borrar en orden correcto por FK: kpi_values → stops → routes → sync_queue
     db()->prepare('DELETE kv FROM kpi_values kv
         JOIN stops s ON s.uid = kv.stop_uid
-        JOIN routes r ON r.uid = s.route_uid
+        JOIN routes r ON r.id = s.route_id
         WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE s FROM stops s
-        JOIN routes r ON r.uid = s.route_uid
+        JOIN routes r ON r.id = s.route_id
         WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE FROM routes WHERE account_id = ?')->execute([$aid]);
     // sync_log registra operaciones — no hay sync_queue en este esquema
@@ -1993,7 +1993,7 @@ if ($action === 'assign_route') {
         ->execute([$newUserId, $routeUid, $aid]);
 
     // Actualizar también los stops de esa ruta para que el nuevo agente los vea
-    db()->prepare('UPDATE stops s JOIN routes r ON r.uid=s.route_uid SET s.updated_at=NOW() WHERE r.uid=? AND r.account_id=?')
+    db()->prepare('UPDATE stops s JOIN routes r ON r.id=s.route_id SET s.updated_at=NOW() WHERE r.uid=? AND r.account_id=?')
         ->execute([$routeUid, $aid]);
 
     // FCM push al nuevo agente
@@ -2102,7 +2102,7 @@ if ($action === 'team_overview') {
                 SUM(s.status='skipped')             AS skipped,
                 SUM(s.visit_result='contactado')    AS contacted
          FROM stops s
-         JOIN routes r ON r.uid=s.route_uid AND r.account_id=?
+         JOIN routes r ON r.id=s.route_id AND r.account_id=?
          WHERE r.user_id IN ($ph)
            AND (r.date_assigned=? OR r.scheduled_dates LIKE CONCAT('%',?,'%'))
            AND s.deleted_at IS NULL
@@ -2122,7 +2122,7 @@ if ($action === 'team_overview') {
                 SUM(s.status='done')                AS done_month,
                 SUM(s.visit_result='contactado')    AS contacted_month
          FROM stops s
-         JOIN routes r ON r.uid=s.route_uid AND r.account_id=?
+         JOIN routes r ON r.id=s.route_id AND r.account_id=?
          WHERE r.user_id IN ($ph)
            AND r.date_assigned BETWEEN ? AND ?
            AND s.deleted_at IS NULL
@@ -2211,7 +2211,7 @@ if ($action === 'agent_detail') {
                 SUM(s.status="skipped")   AS skipped_stops,
                 SUM(s.status="pending")   AS pending_stops
          FROM routes r
-         LEFT JOIN stops s ON s.route_uid=r.uid AND s.deleted_at IS NULL
+         LEFT JOIN stops s ON s.route_id=r.id AND s.deleted_at IS NULL
          WHERE r.user_id=? AND r.account_id=?
            AND (r.date_assigned=? OR r.scheduled_dates LIKE CONCAT("%",?,"%"))
            AND r.deleted_at IS NULL
@@ -2224,7 +2224,7 @@ if ($action === 'agent_detail') {
     $stV = db()->prepare(
         'SELECT s.uid, s.name, s.visit_result, s.visited_at, s.next_action,
                 s.gps_lat_visit, s.gps_lng_visit, r.name AS route_name
-         FROM stops s JOIN routes r ON r.uid=s.route_uid
+         FROM stops s JOIN routes r ON r.id=s.route_id
          WHERE r.user_id=? AND r.account_id=? AND s.status="done" AND s.deleted_at IS NULL
          ORDER BY s.visited_at DESC LIMIT 10'
     );
@@ -2237,7 +2237,7 @@ if ($action === 'agent_detail') {
                 SUM(s.visit_result="contactado") AS contacted,
                 SUM(s.visit_result="no_estaba") AS not_home,
                 SUM(s.visit_result="rechazado") AS rejected
-         FROM stops s JOIN routes r ON r.uid=s.route_uid AND r.account_id=?
+         FROM stops s JOIN routes r ON r.id=s.route_id AND r.account_id=?
          WHERE r.user_id=? AND r.date_assigned BETWEEN ? AND ? AND s.deleted_at IS NULL'
     );
     $stKpi->execute([$aid, $targetId, $monthStart, $monthEnd]);
