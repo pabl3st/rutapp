@@ -2009,6 +2009,25 @@ if ($action === 'clear_routes') {
     ok(['cleared' => true]);
 }
 
+/**
+ * Valida que el caller puede reasignar a $targetUserId dentro de $aid.
+ * Devuelve la fila del usuario destino, o llama a err() y corta la ejecución.
+ * Reglas: manager solo a sus agentes directos; admin a cualquiera salvo owner/god.
+ */
+function validateAssignTarget(int $targetUserId, int $aid, string $callerRole, int $callerId): array {
+    $st = db()->prepare('SELECT id, name, role, manager_id FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
+    $st->execute([$targetUserId, $aid]);
+    $row = $st->fetch();
+    if (!$row) err('Usuario destino no encontrado', 404);
+    if ($callerRole === 'manager' && (int)$row['manager_id'] !== $callerId) {
+        err('Solo puedes asignar rutas a tus agentes directos', 403);
+    }
+    if ($callerRole === 'admin' && in_array($row['role'], ['owner', 'god'], true)) {
+        err('No puedes asignar rutas a owner o god', 403);
+    }
+    return $row;
+}
+
 if ($action === 'assign_route') {
     $sess     = requireAuth();
     $callerId = (int)$sess['uid'];
@@ -2029,22 +2048,8 @@ if ($action === 'assign_route') {
     $routeRow = $route->fetch();
     if (!$routeRow) err('Ruta no encontrada', 404);
 
-    // Verificar que el destinatario existe y el caller puede asignarle
-    $target = db()->prepare('SELECT id, name, role, manager_id FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
-    $target->execute([$newUserId, $aid]);
-    $targetRow = $target->fetch();
-    if (!$targetRow) err('Usuario destino no encontrado', 404);
-
-    // Regla: manager solo puede asignar a sus agentes directos
-    if ($callerRole === 'manager') {
-        if ((int)$targetRow['manager_id'] !== $callerId) {
-            err('Solo puedes asignar rutas a tus agentes directos', 403);
-        }
-    }
-    // admin puede asignar a cualquiera de la cuenta excepto owner/god
-    if ($callerRole === 'admin' && in_array($targetRow['role'], ['owner', 'god'])) {
-        err('No puedes asignar rutas a owner o god', 403);
-    }
+    // Verificar destinatario + permisos de jerarquía (helper compartido)
+    $targetRow = validateAssignTarget($newUserId, $aid, $callerRole, $callerId);
 
     // Actualizar user_id en la ruta
     db()->prepare('UPDATE routes SET user_id=?, updated_at=NOW() WHERE uid=? AND account_id=?')
@@ -2118,6 +2123,64 @@ if ($action === 'route_history') {
     );
     $st->execute([$aid, $routeUid]);
     ok(['history' => $st->fetchAll(PDO::FETCH_ASSOC)]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// assign_routes_bulk — reasigna varias rutas al mismo usuario.
+// Roles: manager+. Cada ruta genera su fila en route_assignments.
+// ══════════════════════════════════════════════════════════════
+if ($action === 'assign_routes_bulk') {
+    $sess       = requireAuth();
+    $callerId   = (int)$sess['uid'];
+    $callerRole = $sess['role'];
+    $aid        = (int)$sess['account_id'];
+    if (roleLevel($callerRole) < 3) err('Sin permisos para reasignar rutas', 403, $action);
+
+    $routeUids = $body['route_uids'] ?? [];
+    $newUserId = (int)($body['new_user_id'] ?? 0);
+    $reason    = isset($body['reason']) ? san($body['reason'], 255) : null;
+    if (!is_array($routeUids) || count($routeUids) === 0) err('route_uids requerido', 400, $action);
+    if (!$newUserId) err('new_user_id requerido', 400, $action);
+    if (count($routeUids) > 200) err('Máximo 200 rutas por lote', 400, $action);
+
+    // Validar destino UNA vez — mismas reglas que la reasignación individual
+    $targetRow  = validateAssignTarget($newUserId, $aid, $callerRole, $callerId);
+    $callerName = $sess['name'] ?? 'Usuario';
+
+    $reassigned = 0; $skipped = [];
+    foreach ($routeUids as $ru) {
+        $ru = san($ru, 50);
+        if ($ru === '') { continue; }
+        $r = db()->prepare('SELECT id, user_id, name FROM routes WHERE uid=? AND account_id=? AND deleted_at IS NULL LIMIT 1');
+        $r->execute([$ru, $aid]);
+        $routeRow = $r->fetch();
+        if (!$routeRow) { $skipped[] = $ru; continue; }
+
+        db()->prepare('UPDATE routes SET user_id=?, updated_at=NOW() WHERE uid=? AND account_id=?')
+            ->execute([$newUserId, $ru, $aid]);
+        db()->prepare('UPDATE stops s JOIN routes r ON r.id=s.route_id SET s.updated_at=NOW() WHERE r.uid=? AND r.account_id=?')
+            ->execute([$ru, $aid]);
+
+        $fromName = null;
+        if (!empty($routeRow['user_id'])) {
+            $fu = db()->prepare('SELECT name FROM users WHERE id=? LIMIT 1');
+            $fu->execute([(int)$routeRow['user_id']]);
+            $fromName = $fu->fetchColumn() ?: null;
+        }
+        db()->prepare(
+            'INSERT INTO route_assignments
+                (account_id, route_uid, route_name, from_user_id, from_user_name,
+                 to_user_id, to_user_name, assigned_by_id, assigned_by_name, reason)
+             VALUES (?,?,?,?,?,?,?,?,?,?)'
+        )->execute([
+            $aid, $ru, $routeRow['name'], $routeRow['user_id'] ?: null, $fromName,
+            $newUserId, $targetRow['name'], $callerId, $callerName, $reason,
+        ]);
+        $reassigned++;
+    }
+
+    apiLog($action, $callerId, $aid);
+    ok(['reassigned' => $reassigned, 'skipped' => $skipped]);
 }
 
 // ─── S20: team_overview ────────────────────────────────────────────────────
