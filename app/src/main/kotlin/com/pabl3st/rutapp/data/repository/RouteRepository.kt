@@ -14,6 +14,7 @@ import com.pabl3st.rutapp.data.local.dao.StopDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
+import com.pabl3st.rutapp.data.network.RouteAssignmentDto
 import com.pabl3st.rutapp.data.network.RouteDto
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -240,14 +241,22 @@ class RouteRepository @Inject constructor(
     /** Reasigna una ruta a un usuario diferente.
      *  Solo permitido para owner/admin/manager (verificado en la capa ViewModel).
      *  El cambio se sincroniza con el servidor vía delta sync. */
-    suspend fun reassignRoute(routeUid: String, newUserId: Int): Result<Unit> = runCatching {
+    suspend fun reassignRoute(
+        routeUid: String,
+        newUserId: Int,
+        reason: String? = null,
+    ): Result<Unit> = runCatching {
         val token = session.token ?: error("Sin sesión activa")
         val route = routeDao.getByUid(routeUid) ?: error("Ruta no encontrada: $routeUid")
 
-        // 1. Llamar al servidor — valida jerarquía y envía FCM push al nuevo agente
+        // 1. Llamar al servidor — valida jerarquía, registra historial, envía FCM push
         val response = api.assignRoute(
             token = token,
-            body  = mapOf("route_uid" to routeUid, "new_user_id" to newUserId),
+            body  = buildMap {
+                put("route_uid", routeUid)
+                put("new_user_id", newUserId)
+                reason?.takeIf { it.isNotBlank() }?.let { put("reason", it) }
+            },
         )
         if (!response.isSuccessful || response.body()?.ok != true) {
             error(response.body()?.error ?: "Error al reasignar en el servidor")
@@ -265,6 +274,39 @@ class RouteRepository @Inject constructor(
 
         // 3. Forzar delta_sync para traer el estado actualizado
         triggerSync()
+    }
+
+    /** Historial de reasignaciones de una ruta. Solo lectura — viene del servidor. */
+    suspend fun fetchRouteHistory(routeUid: String): Result<List<RouteAssignmentDto>> = runCatching {
+        val token = session.token ?: error("Sin sesión activa")
+        val resp  = api.routeHistory(routeUid = routeUid, token = token)
+        if (!resp.isSuccessful || resp.body()?.ok != true) {
+            error(resp.body()?.error ?: "No se pudo cargar el historial")
+        }
+        resp.body()?.history ?: emptyList()
+    }
+
+    /** Reasigna varias rutas al mismo usuario. Devuelve cuántas se reasignaron. */
+    suspend fun reassignRoutesBulk(
+        routeUids: List<String>,
+        newUserId: Int,
+        reason: String? = null,
+    ): Result<Int> = runCatching {
+        val token = session.token ?: error("Sin sesión activa")
+        val resp  = api.assignRoutesBulk(
+            token = token,
+            body  = buildMap {
+                put("route_uids", routeUids)
+                put("new_user_id", newUserId)
+                reason?.takeIf { it.isNotBlank() }?.let { put("reason", it) }
+            },
+        )
+        if (!resp.isSuccessful || resp.body()?.ok != true) {
+            error(resp.body()?.error ?: "Error en la reasignación masiva")
+        }
+        // Tras reasignar en el servidor, traer el estado actualizado a Room
+        fetchDelta(forceFull = true)
+        resp.body()?.reassigned ?: 0
     }
 
     // ── Delta sync desde servidor ──────────────────────────────
