@@ -1625,6 +1625,64 @@ if ($action === 'account_config_save') {
 }
 
 // ══════════════════════════════════════════════════════════════
+// kpi_def_save — crear o editar una definición de KPI personalizada.
+// Roles: manager, admin, owner, god. El KPI queda en account_id del
+// usuario y se descarga vía delta_sync (kpi_definitions).
+// ══════════════════════════════════════════════════════════════
+
+if ($action === 'kpi_def_save') {
+    $sess = requireAuth();
+    $aid  = (int)$sess['account_id'];
+    $role = $sess['role'] ?? 'agent';
+
+    if (roleLevel($role) < 3) {  // manager=3
+        err('Sin permisos para gestionar KPIs', 403, $action);
+    }
+
+    $id       = san($body['id'] ?? '', 40);
+    $label    = san($body['label'] ?? '', 60);
+    $type     = san($body['type'] ?? 'number', 16);
+    $unit     = isset($body['unit']) ? san($body['unit'], 16) : null;
+    $section  = san($body['section'] ?? 'general', 24);
+    $required = !empty($body['required']) ? 1 : 0;
+    $options  = isset($body['options']) && is_array($body['options'])
+                ? json_encode($body['options'], JSON_UNESCAPED_UNICODE) : null;
+
+    if (strlen($label) < 2)                                  err('El nombre del KPI es obligatorio', 400, $action);
+    if (!in_array($type, ['number','boolean','select','text'], true)) err('Tipo de KPI no válido', 400, $action);
+
+    // El id puede venir del cliente (creación con id propio) o vacío.
+    if ($id === '') {
+        $id = 'custom_' . substr(bin2hex(random_bytes(6)), 0, 8);
+    }
+    // ¿Ya existe?
+    $chk = db()->prepare('SELECT account_id, is_system FROM kpi_definitions WHERE id=? LIMIT 1');
+    $chk->execute([$id]);
+    $row = $chk->fetch();
+
+    if (!$row) {
+        // No existe → crear con ese id
+        db()->prepare(
+            'INSERT INTO kpi_definitions
+                (id, account_id, sector, label, type, unit, options,
+                 is_system, visible, required, order_index, section)
+             VALUES (?, ?, \'custom\', ?, ?, ?, ?, 0, 1, ?, 999, ?)'
+        )->execute([$id, $aid, $label, $type, $unit, $options, $required, $section]);
+    } else {
+        // Existe → editar, validando propiedad y que no sea de sistema
+        if ((int)$row['account_id'] !== $aid) err('KPI de otra cuenta', 403, $action);
+        if ((int)$row['is_system'] === 1)   err('Los KPIs del sistema no se pueden editar', 403, $action);
+        db()->prepare(
+            'UPDATE kpi_definitions
+             SET label=?, type=?, unit=?, options=?, required=?, section=?
+             WHERE id=? AND account_id=?'
+        )->execute([$label, $type, $unit, $options, $required, $section, $id, $aid]);
+    }
+
+    ok(['id' => $id, 'saved' => true]);
+}
+
+// ══════════════════════════════════════════════════════════════
 // STATS MONTH — agregados del mes para manager/owner
 // Devuelve métricas de todos los agentes de la cuenta para el mes dado.
 // Solo accesible para roles manager, admin, owner, god.

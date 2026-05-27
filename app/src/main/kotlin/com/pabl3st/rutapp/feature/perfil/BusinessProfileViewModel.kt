@@ -27,6 +27,7 @@ data class BusinessProfileUiState(
     val newKpiUnit: String                      = "",
     val newKpiSection: String                   = "general",
     val newKpiRequired: Boolean                 = false,
+    val editingKpiId: String?                   = null,  // null = crear, no-null = editar
     val error: String?                          = null,
 )
 
@@ -75,7 +76,19 @@ class BusinessProfileViewModel @Inject constructor(
         viewModelScope.launch { repo.setKpiVisible(id, visible) }
     }
 
-    fun onShowAddKpiDialog()    = _ui.update { it.copy(showAddKpiDialog = true, newKpiLabel = "", newKpiType = "number", newKpiUnit = "", error = null) }
+    fun onShowAddKpiDialog() = _ui.update { it.copy(
+        showAddKpiDialog = true, editingKpiId = null,
+        newKpiLabel = "", newKpiType = "number", newKpiUnit = "",
+        newKpiSection = "general", newKpiRequired = false, error = null,
+    ) }
+
+    /** Abre el modal en modo edición, precargando los datos del KPI. */
+    fun onEditKpi(kpi: KpiDefinitionEntity) = _ui.update { it.copy(
+        showAddKpiDialog = true, editingKpiId = kpi.id,
+        newKpiLabel = kpi.label, newKpiType = kpi.type,
+        newKpiUnit = kpi.unit ?: "", newKpiSection = kpi.section,
+        newKpiRequired = kpi.required, error = null,
+    ) }
     fun onDismissAddKpiDialog() = _ui.update { it.copy(showAddKpiDialog = false) }
     fun onNewKpiLabelChange(v: String)   = _ui.update { it.copy(newKpiLabel = v, error = null) }
     fun onNewKpiTypeChange(v: String)    = _ui.update { it.copy(newKpiType = v) }
@@ -90,15 +103,27 @@ class BusinessProfileViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            repo.addCustomKpi(
-                label    = s.newKpiLabel.trim(),
-                type     = s.newKpiType,
-                unit     = s.newKpiUnit.trim().ifEmpty { null },
-                options  = null,
-                required = s.newKpiRequired,
-                section  = s.newKpiSection,
-            )
-            _ui.update { it.copy(showAddKpiDialog = false) }
+            val editingId = s.editingKpiId
+            if (editingId != null) {
+                repo.updateCustomKpi(
+                    id       = editingId,
+                    label    = s.newKpiLabel.trim(),
+                    type     = s.newKpiType,
+                    unit     = s.newKpiUnit.trim().ifEmpty { null },
+                    required = s.newKpiRequired,
+                    section  = s.newKpiSection,
+                )
+            } else {
+                repo.addCustomKpi(
+                    label    = s.newKpiLabel.trim(),
+                    type     = s.newKpiType,
+                    unit     = s.newKpiUnit.trim().ifEmpty { null },
+                    options  = null,
+                    required = s.newKpiRequired,
+                    section  = s.newKpiSection,
+                )
+            }
+            _ui.update { it.copy(showAddKpiDialog = false, editingKpiId = null) }
         }
     }
 

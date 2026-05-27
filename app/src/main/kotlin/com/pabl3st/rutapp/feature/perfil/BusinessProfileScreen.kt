@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.pabl3st.rutapp.feature.perfil
 
 import androidx.compose.foundation.layout.*
@@ -119,6 +119,7 @@ fun BusinessProfileScreen(
                         kpi      = kpi,
                         onToggle = { vm.onToggleKpiVisible(kpi.id, it) },
                         onDelete = { vm.deleteCustomKpi(kpi.id) },
+                        onEdit   = { vm.onEditKpi(kpi) },
                     )
                 }
             }
@@ -175,6 +176,7 @@ private fun KpiRow(
     kpi: KpiDefinitionEntity,
     onToggle: ((Boolean) -> Unit)?,
     onDelete: (() -> Unit)?,
+    onEdit:   (() -> Unit)? = null,
 ) {
     val typeIcon = when (kpi.type) {
         "number"  -> Icons.Default.Numbers
@@ -213,6 +215,12 @@ private fun KpiRow(
                 }
             }
             Switch(checked = kpi.visible, onCheckedChange = onToggle, enabled = onToggle != null)
+            if (onEdit != null) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = "Editar KPI",
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                }
+            }
             if (onDelete != null) {
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar KPI",
@@ -272,10 +280,11 @@ private fun SectorPickerDialog(
 private fun AddKpiDialog(ui: BusinessProfileUiState, vm: BusinessProfileViewModel) {
     val types    = listOf("number", "boolean", "select", "text")
     val sections = listOf("general", "objetivos", "pedidos", "notas")
+    val isEditing = ui.editingKpiId != null
 
     AlertDialog(
         onDismissRequest = vm::onDismissAddKpiDialog,
-        title = { Text("Nuevo KPI") },
+        title = { Text(if (isEditing) "Editar KPI" else "Nuevo KPI") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
@@ -295,27 +304,29 @@ private fun AddKpiDialog(ui: BusinessProfileUiState, vm: BusinessProfileViewMode
                     singleLine    = true,
                     modifier      = Modifier.fillMaxWidth(),
                 )
-                // Tipo
+                // Tipo — FlowRow para que los chips no se corten si no caben
                 Text("Tipo", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     types.forEach { t ->
                         FilterChip(
                             selected = ui.newKpiType == t,
                             onClick  = { vm.onNewKpiTypeChange(t) },
-                            label    = { Text(t, style = MaterialTheme.typography.labelSmall) },
+                            label    = { Text(t, maxLines = 1, softWrap = false,
+                                style = MaterialTheme.typography.labelSmall) },
                         )
                     }
                 }
-                // Sección
+                // Sección — FlowRow para que los chips no se corten
                 Text("Sección", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     sections.forEach { s ->
                         FilterChip(
                             selected = ui.newKpiSection == s,
                             onClick  = { vm.onNewKpiSectionChange(s) },
-                            label    = { Text(s, style = MaterialTheme.typography.labelSmall) },
+                            label    = { Text(s, maxLines = 1, softWrap = false,
+                                style = MaterialTheme.typography.labelSmall) },
                         )
                     }
                 }
@@ -327,7 +338,9 @@ private fun AddKpiDialog(ui: BusinessProfileUiState, vm: BusinessProfileViewMode
             }
         },
         confirmButton = {
-            Button(onClick = vm::saveCustomKpi) { Text("Guardar") }
+            Button(onClick = vm::saveCustomKpi) {
+                Text(if (isEditing) "Guardar cambios" else "Crear")
+            }
         },
         dismissButton = {
             TextButton(onClick = vm::onDismissAddKpiDialog) { Text("Cancelar") }

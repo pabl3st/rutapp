@@ -144,6 +144,10 @@ private fun RouteListContent(
 
         // ── Panel de equipo para manager ──────────────────────
         if (ui.isManager && ui.routes.isNotEmpty()) {
+            // El owner ve primero los totales globales de toda la cuenta
+            if (UserRole.from(ui.userRole).level >= UserRole.OWNER.level) {
+                item { GlobalTotalsCard(routes = ui.routes) }
+            }
             item { ManagerTeamSummary(routes = ui.routes) }
         }
 
@@ -179,6 +183,53 @@ private fun RouteListContent(
         }
 
         item { Spacer(Modifier.height(Spacing.lg)) }
+    }
+}
+
+// ── GlobalTotalsCard — totales de toda la cuenta (solo owner) ──
+@Composable
+private fun GlobalTotalsCard(routes: List<RouteWithProgress>) {
+    val totalRoutes = routes.size
+    val totalStops  = routes.sumOf { it.totalStops }
+    val doneStops   = routes.sumOf { it.doneStops }
+    val agents      = routes.map { it.route.userId }.distinct().size
+    val progress    = if (totalStops > 0) doneStops.toFloat() / totalStops else 0f
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text(
+                "Totales de la empresa — hoy",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                TotalMetric("$agents", "Agentes")
+                TotalMetric("$totalRoutes", "Rutas")
+                TotalMetric("$doneStops/$totalStops", "Visitadas")
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "${(progress * 100).toInt()}% completado",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TotalMetric(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

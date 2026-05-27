@@ -665,6 +665,13 @@ interface RutasApiService {
         @Body body: Map<String, @JvmSuppressWildcards Any>,
     ): retrofit2.Response<BaseResponse>
 
+    @POST(API_PATH)
+    suspend fun kpiDefSave(
+        @Query("action")        action: String = "kpi_def_save",
+        @Header("X-Auth-Token") token: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): retrofit2.Response<BaseResponse>
+
     @GET(API_PATH)
     suspend fun teamOverview(
         @Query("action")        action: String = "team_overview",

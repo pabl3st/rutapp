@@ -5,6 +5,7 @@ import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.KpiCatalog
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
+import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,7 @@ import javax.inject.Singleton
 class BusinessProfileRepository @Inject constructor(
     private val profileDao: BusinessProfileDao,
     private val kpiDao:     KpiDefinitionDao,
+    private val api:        RutasApiService,
     private val session:    SessionManager,
 ) {
     val accountId: Int get() = session.accountId
@@ -109,8 +111,21 @@ class BusinessProfileRepository @Inject constructor(
         required: Boolean,
         section: String,
     ) {
-        val profile = getOrCreateProfile()
+        getOrCreateProfile()
+        // El id lo genera el CLIENTE y se manda al servidor — así Room y
+        // el servidor comparten el mismo id y el delta_sync no duplica.
         val id = "custom_${UUID.randomUUID().toString().take(8)}"
+        val token = session.token
+        if (token != null) {
+            runCatching {
+                api.kpiDefSave(token = token, body = buildMap {
+                    put("id", id)
+                    put("label", label); put("type", type)
+                    unit?.let { put("unit", it) }
+                    put("section", section); put("required", required)
+                })
+            }
+        }
         kpiDao.upsert(
             KpiDefinitionEntity(
                 id         = id,
@@ -127,6 +142,32 @@ class BusinessProfileRepository @Inject constructor(
                 isSystem   = false,
             )
         )
+    }
+
+    /** Edita un KPI personalizado existente — local + servidor. */
+    suspend fun updateCustomKpi(
+        id: String,
+        label: String,
+        type: String,
+        unit: String?,
+        required: Boolean,
+        section: String,
+    ) {
+        val existing = kpiDao.getById(id) ?: return
+        kpiDao.upsert(existing.copy(
+            label = label, type = type, unit = unit,
+            required = required, section = section,
+        ))
+        val token = session.token
+        if (token != null) {
+            runCatching {
+                api.kpiDefSave(token = token, body = buildMap {
+                    put("id", id); put("label", label); put("type", type)
+                    unit?.let { put("unit", it) }
+                    put("section", section); put("required", required)
+                })
+            }
+        }
     }
 
     suspend fun deleteCustomKpi(id: String) = kpiDao.deleteCustom(id)
