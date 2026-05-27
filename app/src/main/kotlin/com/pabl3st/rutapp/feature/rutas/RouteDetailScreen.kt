@@ -83,6 +83,9 @@ fun RouteDetailScreen(
                         IconButton(onClick = vm::onShowReassignDialog) {
                             Icon(Icons.Default.PersonAdd, contentDescription = "Reasignar ruta")
                         }
+                        IconButton(onClick = vm::onShowHistory) {
+                            Icon(Icons.Default.History, contentDescription = "Historial de asignación")
+                        }
                     }
                     if (ui.stops.isNotEmpty() && ui.canEditStops) {
                         var showClearConfirm by remember { mutableStateOf(false) }
@@ -282,6 +285,15 @@ fun RouteDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // Motivo opcional — queda registrado en el historial
+                    OutlinedTextField(
+                        value         = ui.reassignReason,
+                        onValueChange = vm::onReassignReasonChange,
+                        label         = { Text("Motivo (opcional)") },
+                        placeholder   = { Text("Baja, vacaciones, reequilibrio…") },
+                        singleLine    = true,
+                        modifier      = Modifier.fillMaxWidth(),
+                    )
                 }
             },
             confirmButton = {
@@ -295,6 +307,57 @@ fun RouteDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = vm::onDismissReassignDialog) { Text("Cancelar") }
+            },
+        )
+    }
+
+    // ── Diálogo de historial de reasignación ──────────────────
+    if (ui.showHistory) {
+        AlertDialog(
+            onDismissRequest = vm::onDismissHistory,
+            icon  = { Icon(Icons.Default.History, null) },
+            title = { Text("Historial de asignación") },
+            text  = {
+                when {
+                    ui.loadingHistory -> Box(
+                        Modifier.fillMaxWidth().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator(Modifier.size(28.dp)) }
+                    ui.history.isEmpty() -> Text(
+                        "Esta ruta no se ha reasignado nunca.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    else -> Column(
+                        Modifier
+                            .heightIn(max = 360.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        ui.history.forEach { h ->
+                            Column {
+                                Text(
+                                    "${h.fromUserName ?: "Sin asignar"}  →  ${h.toUserName}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    "Por ${h.assignedByName} · ${h.createdAt.take(10)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                h.reason?.takeIf { it.isNotBlank() }?.let { r ->
+                                    Text(
+                                        "Motivo: $r",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = vm::onDismissHistory) { Text("Cerrar") }
             },
         )
     }

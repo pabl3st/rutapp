@@ -16,6 +16,7 @@ import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.AuthResult
 import com.pabl3st.rutapp.data.network.AccountUserDto
+import com.pabl3st.rutapp.data.network.RouteAssignmentDto
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.session.SessionManager
@@ -51,7 +52,12 @@ data class RouteDetailUiState(
     val selectedAssigneeId: Int?                 = null,
     val loadingUsers:       Boolean              = false,
     val isReassigning:      Boolean              = false,
+    val reassignReason:     String               = "",     // motivo opcional
     val snackbar:           String?              = null,
+    // Historial de reasignación
+    val showHistory:        Boolean              = false,
+    val loadingHistory:     Boolean              = false,
+    val history:            List<RouteAssignmentDto> = emptyList(),
     // Selector de fecha para rutas multi-día
     val availableDates: List<String>              = emptyList(),
     val selectedDate:   String?                   = java.time.LocalDate.now().toString(),
@@ -259,7 +265,7 @@ class RouteDetailViewModel @Inject constructor(
         val routeUid = routeUid
         viewModelScope.launch {
             _ui.update { it.copy(isReassigning = true) }
-            routeRepo.reassignRoute(routeUid, targetId)
+            routeRepo.reassignRoute(routeUid, targetId, _ui.value.reassignReason)
                 .onSuccess {
                     val name = _ui.value.assignableUsers
                         .firstOrNull { it.userId == targetId }?.displayName ?: "usuario"
@@ -267,6 +273,7 @@ class RouteDetailViewModel @Inject constructor(
                         isReassigning      = false,
                         showReassignDialog = false,
                         selectedAssigneeId = null,
+                        reassignReason     = "",
                         snackbar           = "Ruta reasignada a $name",
                     ) }
                 }
@@ -275,6 +282,22 @@ class RouteDetailViewModel @Inject constructor(
                 }
         }
     }
+
+    fun onReassignReasonChange(v: String) = _ui.update { it.copy(reassignReason = v) }
+
+    // ── Historial de reasignación ─────────────────────────────
+    fun onShowHistory() {
+        _ui.update { it.copy(showHistory = true, loadingHistory = true) }
+        viewModelScope.launch {
+            routeRepo.fetchRouteHistory(routeUid)
+                .onSuccess { h -> _ui.update { it.copy(history = h, loadingHistory = false) } }
+                .onFailure { e ->
+                    _ui.update { it.copy(loadingHistory = false, error = e.message) }
+                }
+        }
+    }
+
+    fun onDismissHistory() = _ui.update { it.copy(showHistory = false) }
 
     fun removeStop(stopUid: String) {
         viewModelScope.launch { stopRepo.removeFromRoute(stopUid) }
