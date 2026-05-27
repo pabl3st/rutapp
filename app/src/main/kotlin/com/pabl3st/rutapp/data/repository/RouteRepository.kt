@@ -223,7 +223,6 @@ class RouteRepository @Inject constructor(
         )
         routeDao.upsert(route)
         enqueue("route", route.uid, "create", routeToMap(route))
-        triggerSync()
         return route
     }
 
@@ -241,7 +240,6 @@ class RouteRepository @Inject constructor(
         )
         routeDao.upsert(updated)
         enqueue("route", uid, "update", routeToMap(updated))
-        triggerSync()
     }
 
     /** Reasigna una ruta a un usuario diferente.
@@ -389,5 +387,8 @@ class RouteRepository @Inject constructor(
                 payload   = mapAdapter.toJson(data),
             )
         )
+        // Sync inmediato: todo encolado intenta subir ya si hay red.
+        // Centralizado aquí para que ninguna escritura futura lo olvide.
+        triggerSync()
     }
 }

@@ -156,7 +156,6 @@ class StopRepository @Inject constructor(
         )
         stopDao.upsert(stop)
         enqueue("stop", stop.uid, "create", stopToMap(stop))
-        triggerSync()
         return stop
     }
 
@@ -209,7 +208,6 @@ class StopRepository @Inject constructor(
         )
         stopDao.upsert(updated)
         enqueue("stop", uid, "update", stopToMap(updated))
-        triggerSync()
     }
 
     suspend fun markVisiting(uid: String) {
@@ -375,6 +373,9 @@ class StopRepository @Inject constructor(
             operation = op,
             payload   = mapAdapter.toJson(data),
         ))
+        // Sync inmediato: todo encolado intenta subir ya si hay red.
+        // Centralizado aquí para que ninguna escritura futura lo olvide.
+        triggerSync()
     }
 }
 

@@ -1,12 +1,17 @@
 package com.pabl3st.rutapp.data.repository
 
+import android.content.Context
 import android.location.Location
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkManager
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
+import com.pabl3st.rutapp.sync.SyncWorker
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import javax.inject.Inject
@@ -17,6 +22,7 @@ class JornadaRepository @Inject constructor(
     private val dao:          DaySessionDao,
     private val syncQueueDao: SyncQueueDao,
     private val moshi:        Moshi,
+    @ApplicationContext private val appContext: Context,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
@@ -155,5 +161,18 @@ class JornadaRepository @Inject constructor(
                 payload   = payload,
             )
         )
+        // Sync inmediato: la jornada (play/pause/finish) sube ya si hay red.
+        triggerSync()
+    }
+
+    private fun triggerSync() {
+        runCatching {
+            WorkManager.getInstance(appContext)
+                .enqueueUniqueWork(
+                    SyncWorker.WORK_NAME_ONDEMAND,
+                    ExistingWorkPolicy.REPLACE,
+                    SyncWorker.onDemandRequest(),
+                )
+        }
     }
 }
