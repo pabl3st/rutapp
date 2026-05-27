@@ -683,7 +683,7 @@ if ($action === 'delta_sync') {
         $stopsParam = $uid;
     }
     $stopsQuery = "SELECT s.id, s.uid, s.route_id, r.uid AS route_uid, s.account_id,
-                s.name, s.address, s.lat, s.lng, s.order_index,
+                s.name, s.address, s.street, s.postal_code, s.city, s.lat, s.lng, s.order_index,
                 s.external_id, s.contact_name, s.contact_phone,
                 s.visit_frequency, s.priority, s.segment, s.account_status, s.opening_hours,
                 s.pdv_open, s.pdv_inactive,
@@ -1001,7 +1001,7 @@ if ($action === 'batch_sync') {
                             // UPDATE seguro: solo si account_id coincide
                             db()->prepare(
                                 'UPDATE stops SET
-                                    name=?, address=?, lat=?, lng=?,
+                                    name=?, address=?, street=?, postal_code=?, city=?, lat=?, lng=?,
                                     order_index=?, status=?, notes=?, visited_at=?,
                                     external_id=?, contact_name=?, contact_phone=?,
                                     visit_result=?, next_action=?,
@@ -1018,6 +1018,9 @@ if ($action === 'batch_sync') {
                             )->execute([
                                 san($data['name'] ?? '', 255),
                                 san($data['address'] ?? '', 500) ?: null,
+                                san($data['street'] ?? '', 300) ?: null,
+                                san($data['postal_code'] ?? '', 10) ?: null,
+                                san($data['city'] ?? '', 100) ?: null,
                                 isset($data['lat']) ? (float)$data['lat'] : null,
                                 isset($data['lng']) ? (float)$data['lng'] : null,
                                 (int)($data['order_index'] ?? 0),
@@ -1047,7 +1050,7 @@ if ($action === 'batch_sync') {
                             // INSERT solo si no existe — account_id del token
                             db()->prepare(
                                 'INSERT INTO stops
-                                    (uid, route_id, account_id, name, address, lat, lng,
+                                    (uid, route_id, account_id, name, address, street, postal_code, city, lat, lng,
                                      order_index, status, notes, visited_at,
                                      external_id, contact_name, contact_phone,
                                      visit_result, next_action, pdv_open, pdv_inactive,
@@ -1056,11 +1059,14 @@ if ($action === 'batch_sync') {
                                      check_in_ts, check_out_ts,
                                      gps_lat_visit, gps_lng_visit,
                                      created_at, updated_at)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
                             )->execute([
                                 $clientUid, $routeId, $aid,
                                 san($data['name'] ?? '', 255),
                                 san($data['address'] ?? '', 500) ?: null,
+                                san($data['street'] ?? '', 300) ?: null,
+                                san($data['postal_code'] ?? '', 10) ?: null,
+                                san($data['city'] ?? '', 100) ?: null,
                                 isset($data['lat']) ? (float)$data['lat'] : null,
                                 isset($data['lng']) ? (float)$data['lng'] : null,
                                 (int)($data['order_index'] ?? 0),

@@ -16,7 +16,10 @@ data class StopEntity(
                                             // usado en import/export bulk con sus sistemas
 
     // ── Ubicación ────────────────────────────────────────────
-    val address: String?    = null,
+    val address: String?    = null,        // dirección completa (compat + display)
+    val street: String?     = null,        // calle + número (separado de address)
+    val postalCode: String? = null,        // CP (5 dígitos en España, alfanumérico permitido)
+    val city: String?       = null,        // localidad
     val lat: Double?        = null,
     val lng: Double?        = null,
     val orderIndex: Int     = 0,

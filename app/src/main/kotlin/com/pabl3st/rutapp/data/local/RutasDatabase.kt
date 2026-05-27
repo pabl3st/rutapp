@@ -33,7 +33,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 14,
+    version      = 15,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -177,6 +177,65 @@ abstract class RutasDatabase : RoomDatabase() {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 // Fecha de visita concreta del stop (un stop por fecha del schedule)
                 db.execSQL("ALTER TABLE stops ADD COLUMN dateAssigned TEXT")
+            }
+        }
+
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Separar dirección en street/postalCode/city.
+                // Address se conserva para compatibilidad y display.
+                db.execSQL("ALTER TABLE stops ADD COLUMN street TEXT")
+                db.execSQL("ALTER TABLE stops ADD COLUMN postalCode TEXT")
+                db.execSQL("ALTER TABLE stops ADD COLUMN city TEXT")
+
+                // Back-fill: extraer CP (5 dígitos) de address y separar street/city.
+                // SQLite no tiene REGEXP nativo. Recorremos por código en Kotlin
+                // no es posible aquí — usamos LIKE+SUBSTR para casos típicos:
+                //   "CALLE X 7, 46320, SINARCAS"  →  street="CALLE X 7"  cp="46320"  city="SINARCAS"
+                // Limitación SQLite: solo CPs con coma delante. Direcciones libres
+                // sin CP detectable quedan con street=address y resto NULL.
+                db.execSQL("""
+                    UPDATE stops
+                    SET postalCode = SUBSTR(address,
+                                       INSTR(address || ',', ', ') + 2,
+                                       5)
+                    WHERE address IS NOT NULL
+                      AND address LIKE '%, %'
+                      AND LENGTH(address) >= INSTR(address || ',', ', ') + 6
+                      AND postalCode IS NULL
+                """.trimIndent())
+
+                // Si extrajimos algo que no parece CP (no 5 dígitos), limpiar
+                db.execSQL("""
+                    UPDATE stops
+                    SET postalCode = NULL
+                    WHERE postalCode IS NOT NULL
+                      AND (LENGTH(postalCode) != 5
+                           OR CAST(postalCode AS INTEGER) = 0)
+                """.trimIndent())
+
+                // street = lo anterior al ", CP"
+                db.execSQL("""
+                    UPDATE stops
+                    SET street = TRIM(SUBSTR(address, 1, INSTR(address, ', ' || postalCode) - 1))
+                    WHERE postalCode IS NOT NULL AND street IS NULL
+                """.trimIndent())
+
+                // city = lo posterior a "CP, "
+                db.execSQL("""
+                    UPDATE stops
+                    SET city = TRIM(SUBSTR(address, INSTR(address, postalCode) + 6))
+                    WHERE postalCode IS NOT NULL AND city IS NULL
+                """.trimIndent())
+
+                // Direcciones sin CP detectable → street = address completo
+                db.execSQL("""
+                    UPDATE stops
+                    SET street = address
+                    WHERE address IS NOT NULL
+                      AND postalCode IS NULL
+                      AND street IS NULL
+                """.trimIndent())
             }
         }
 

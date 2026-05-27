@@ -65,6 +65,8 @@ data class StopPreview(
     val name:           String,
     val externalId:     String?,
     val address:        String?,
+    val postalCode:     String?,
+    val city:           String?,
     val lat:            Double?,
     val lng:            Double?,
     val contactName:    String?,
@@ -492,15 +494,29 @@ class ImportarViewModel @Inject constructor(
                 lat == null || lng == null -> "Sin GPS — no se incluirá en clustering"
                 else                       -> null
             }
+            val rawAddress = row[mapping[StopField.ADDRESS]]?.takeIf { it.isNotBlank() }
+            val explicitCp = row[mapping[StopField.POSTAL_CODE]]?.takeIf { it.isNotBlank() }?.trim()
+            val explicitCity = row[mapping[StopField.LOCALITY]]?.takeIf { it.isNotBlank() }?.trim()
+            // Si CP/localidad no vienen en columnas separadas, intentar extraerlos
+            // del propio address (caso común: "CALLE X 7, 46320, SINARCAS")
+            val (parsedStreet, parsedCp, parsedCity) =
+                if (explicitCp != null || explicitCity != null) {
+                    // Vienen separados → respeta el address tal cual
+                    Triple(rawAddress, explicitCp, explicitCity)
+                } else {
+                    splitAddress(rawAddress)
+                }
             StopPreview(
                 rowIndex       = idx,
                 name           = name,
                 externalId     = row[mapping[StopField.EXTERNAL_ID]]?.takeIf { it.isNotBlank() },
                 address        = buildFullAddress(
-                    base     = row[mapping[StopField.ADDRESS]]?.takeIf { it.isNotBlank() },
-                    cp       = row[mapping[StopField.POSTAL_CODE]]?.takeIf { it.isNotBlank() },
-                    locality = row[mapping[StopField.LOCALITY]]?.takeIf { it.isNotBlank() },
+                    base     = parsedStreet,
+                    cp       = parsedCp,
+                    locality = parsedCity,
                 ),
+                postalCode     = parsedCp,
+                city           = parsedCity,
                 lat            = lat, lng = lng,
                 contactName    = row[mapping[StopField.CONTACT_NAME]]?.takeIf { it.isNotBlank() },
                 contactPhone   = row[mapping[StopField.CONTACT_PHONE]]?.takeIf { it.isNotBlank() },
@@ -775,6 +791,8 @@ class ImportarViewModel @Inject constructor(
                                     uid            = existingStop.uid,
                                     name           = preview.name,
                                     address        = preview.address,
+                                    postalCode     = preview.postalCode ?: existingStop.postalCode,
+                                    city           = preview.city ?: existingStop.city,
                                     lat            = preview.lat,
                                     lng            = preview.lng,
                                     contactName    = preview.contactName?.takeIf { it.isNotBlank() } ?: existingStop.contactName,
@@ -791,6 +809,8 @@ class ImportarViewModel @Inject constructor(
                                     name           = preview.name,
                                     externalId     = preview.externalId,
                                     address        = preview.address,
+                                    postalCode     = preview.postalCode,
+                                    city           = preview.city,
                                     lat            = preview.lat,
                                     lng            = preview.lng,
                                     orderIndex     = stopIdx,
@@ -901,6 +921,32 @@ class ImportarViewModel @Inject constructor(
      *   - Formato largo: columnas Ruta + Fecha (1 fila por fecha)
      *   - Formato ancho: columnas route_name + date_1, date_2, date_3… (1 fila por ruta)
      */
+    /**
+     * Separa una dirección libre en (street, postalCode, city).
+     * Busca un CP español (5 dígitos) como ancla; lo anterior es calle,
+     * lo posterior es ciudad. Si no hay CP detectable, devuelve la
+     * dirección completa como street y null en cp/city.
+     *
+     * Ejemplos:
+     *   "CALLE ROMAN OCHANDO 7, 46320, SINARCAS"
+     *     → ("CALLE ROMAN OCHANDO 7", "46320", "SINARCAS")
+     *   "Av. Doctor Peset Aleixandre 117"  (sin CP)
+     *     → ("Av. Doctor Peset Aleixandre 117", null, null)
+     *   "Calle La Paz, 5, 46010, Valencia" (número con coma — el CP es ancla)
+     *     → ("Calle La Paz, 5", "46010", "Valencia")
+     */
+    internal fun splitAddress(full: String?): Triple<String?, String?, String?> {
+        if (full.isNullOrBlank()) return Triple(null, null, null)
+        val match = Regex("""\b(\d{5})\b""").find(full)
+            ?: return Triple(full.trim(), null, null)
+        val cp = match.value
+        val before = full.substring(0, match.range.first).trimEnd(' ', ',', '-')
+        val after  = full.substring(match.range.last + 1).trimStart(' ', ',', '-')
+        val street = before.takeIf { it.isNotBlank() }
+        val city   = after.takeIf { it.isNotBlank() }
+        return Triple(street, cp, city)
+    }
+
     /**
      * Combina dirección base + CP + población en un único string de dirección.
      * Ej: ("Calle Colón 12", "46001", "Valencia") → "Calle Colón 12, 46001 Valencia"
