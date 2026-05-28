@@ -10,6 +10,31 @@ interface KpiValueDao {
     @Query("SELECT * FROM kpi_values WHERE stopUid = :stopUid")
     suspend fun getByStop(stopUid: String): List<KpiValueEntity>
 
+    /**
+     * Devuelve el último total acumulado de cada KPI del stop.
+     * Los KPIs son acumulativos (cada visita guarda el total vigente del PDV),
+     * así que "el valor actual" es el de la visita más reciente.
+     *
+     * Toma la fila por cada kpiId cuya stop_visits.visitDate sea la más alta.
+     * Si dos visitas tienen la misma fecha, devuelve un resultado estable
+     * (la de updatedAt mayor por desempate).
+     */
+    @Query("""
+        SELECT kv.* FROM kpi_values kv
+        JOIN stop_visits sv ON sv.uid = kv.visitUid
+        WHERE kv.stopUid = :stopUid
+          AND sv.deletedAt IS NULL
+          AND sv.visitDate = (
+              SELECT MAX(sv2.visitDate)
+              FROM kpi_values kv2
+              JOIN stop_visits sv2 ON sv2.uid = kv2.visitUid
+              WHERE kv2.stopUid = :stopUid
+                AND kv2.kpiId   = kv.kpiId
+                AND sv2.deletedAt IS NULL
+          )
+    """)
+    suspend fun getLastTotalsByStop(stopUid: String): List<KpiValueEntity>
+
     /** Carga los kpi_values de múltiples stops — para lógica acumulativa mensual */
     @Query("SELECT * FROM kpi_values WHERE stopUid IN (:stopUids)")
     suspend fun getByStops(stopUids: List<String>): List<KpiValueEntity>

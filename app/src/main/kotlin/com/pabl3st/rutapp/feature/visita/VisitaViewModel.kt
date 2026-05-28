@@ -267,7 +267,11 @@ class VisitaViewModel @Inject constructor(
 
     private fun loadExistingKpiValues() {
         viewModelScope.launch {
-            val existing = kpiValueDao.getByStop(stopUid)
+            // KPIs son acumulativos: cada visita guarda el total vigente del PDV.
+            // Al abrir el formulario, mostramos el ÚLTIMO total acumulado conocido
+            // (la visita más reciente), no un valor aleatorio entre visitas.
+            // El agente verá ese número y lo incrementará si corresponde.
+            val existing = kpiValueDao.getLastTotalsByStop(stopUid)
                 .associate { it.kpiId to it.valueText }
             _ui.update { it.copy(kpiValues = it.kpiValues + existing) }
         }
