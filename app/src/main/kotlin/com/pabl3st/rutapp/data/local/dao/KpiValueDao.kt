@@ -57,6 +57,14 @@ interface KpiValueDao {
 
     @Query("DELETE FROM kpi_values WHERE stopUid = :stopUid")
     suspend fun deleteByStop(stopUid: String)
+
+    /** Borra TODOS los KPI values cuyos stops pertenezcan a esta cuenta.
+     *  Se hace por subquery porque KpiValueEntity no tiene accountId directo. */
+    @Query("""
+        DELETE FROM kpi_values
+        WHERE stopUid IN (SELECT uid FROM stops WHERE accountId = :accountId)
+    """)
+    suspend fun deleteAllByAccount(accountId: Int)
 }
 
 

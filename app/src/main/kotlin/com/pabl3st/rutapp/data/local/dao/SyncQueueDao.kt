@@ -33,4 +33,9 @@ interface SyncQueueDao {
 
     @Query("SELECT COUNT(*) FROM sync_queue")
     suspend fun count(): Int
+
+    /** Vacía la cola entera. Usado por clearAllRoutes para descartar pushes
+     *  pendientes de entidades que acaban de borrarse. */
+    @Query("DELETE FROM sync_queue")
+    suspend fun purgeAll()
 }

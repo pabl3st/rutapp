@@ -16,6 +16,7 @@ import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.SyncRepository
 import com.pabl3st.rutapp.data.repository.StopVisitRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -187,6 +188,7 @@ class ImportarViewModel @Inject constructor(
     private val adminRepo:  AdminRepository,
     private val kpiValueDao: KpiValueDao,
     private val session:    SessionManager,
+    private val syncRepo:   SyncRepository,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(ImportarUiState())
@@ -891,7 +893,20 @@ class ImportarViewModel @Inject constructor(
                     if (kpiEntities.isNotEmpty()) kpiValueDao.upsertAll(kpiEntities)
                 }
 
-                _ui.update { it.copy(isLoading = false, step = ImportStep.DONE) }
+                _ui.update { it.copy(isLoading = true, saveError = null) }
+                // Push síncrono al servidor: garantiza que las rutas/stops/kpis recién
+                // creados llegan a la BD remota antes de marcar el wizard como DONE.
+                // Sin esto, los triggerSync() de cada createRoute/createStop son
+                // reemplazados sucesivamente por la política REPLACE del WorkManager
+                // y nunca llegan a ejecutar batch_sync (bug confirmado por api_logs vacíos).
+                val syncResult = runCatching { syncRepo.runSync() }.getOrNull()
+                val syncOk = syncResult == com.pabl3st.rutapp.data.repository.SyncResult.Success
+                _ui.update { it.copy(
+                    isLoading = false,
+                    step      = ImportStep.DONE,
+                    saveError = if (!syncOk) "Importación local OK, pero el servidor no recibió todo. " +
+                                              "Pulsa sincronizar manualmente desde Perfil." else null,
+                )}
             }
         }
     }

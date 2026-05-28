@@ -57,4 +57,9 @@ interface StopVisitDao {
         ORDER BY visitDate ASC
     """)
     suspend fun getDistinctDatesByRoute(routeUid: String): List<String>
+
+    /** Borra TODAS las visitas de una cuenta. Usado por clearAllRoutes para evitar
+     *  visitas huérfanas que apunten a stops ya eliminados. */
+    @Query("DELETE FROM stop_visits WHERE accountId = :accountId")
+    suspend fun deleteAllByAccount(accountId: Int)
 }

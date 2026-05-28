@@ -2173,17 +2173,27 @@ if ($action === 'clear_routes') {
     // Solo owner/god pueden borrar todo el contenido de la cuenta
     if (roleLevel($sess['role']) < 5) err('Forbidden', 403);
     $aid = (int)$sess['account_id'];
-    // Borrar en orden correcto por FK: kpi_values → stops → routes → sync_queue
+    // Borrar en orden por FK (dependientes → ancestrales):
+    //   visit_photos → kpi_values → stop_visits → stops → routes → sync_log
+    // Si stop_visits o visit_photos no existen aún (cuenta antigua), el ALTER
+    // los habrá creado y estas DELETE serán no-op.
+    db()->prepare('DELETE vp FROM visit_photos vp
+        JOIN stop_visits sv ON sv.uid = vp.visit_uid
+        JOIN stops s ON s.uid = sv.stop_uid
+        JOIN routes r ON r.id = s.route_id
+        WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE kv FROM kpi_values kv
         JOIN stops s ON s.uid = kv.stop_uid
+        JOIN routes r ON r.id = s.route_id
+        WHERE r.account_id = ?')->execute([$aid]);
+    db()->prepare('DELETE sv FROM stop_visits sv
+        JOIN stops s ON s.uid = sv.stop_uid
         JOIN routes r ON r.id = s.route_id
         WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE s FROM stops s
         JOIN routes r ON r.id = s.route_id
         WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE FROM routes WHERE account_id = ?')->execute([$aid]);
-    // sync_log registra operaciones — no hay sync_queue en este esquema
-    // Los registros de sync_log de esta cuenta se limpian también
     db()->prepare('DELETE FROM sync_log WHERE account_id = ?')->execute([$aid]);
     apiLog($action, $sess['uid'], $aid);
     ok(['cleared' => true]);

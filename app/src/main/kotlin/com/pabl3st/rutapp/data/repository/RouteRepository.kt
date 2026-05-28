@@ -12,6 +12,7 @@ import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.RouteStopCount
 import com.pabl3st.rutapp.data.local.dao.StopDao
+import com.pabl3st.rutapp.data.local.dao.StopVisitDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
@@ -37,6 +38,7 @@ class RouteRepository @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val routeDao:      RouteDao,
     private val stopDao:       StopDao,
+    private val stopVisitDao:  StopVisitDao,
     private val daySessionDao: DaySessionDao,
     private val kpiValueDao:   KpiValueDao,
     private val syncQueueDao:  SyncQueueDao,
@@ -98,15 +100,24 @@ class RouteRepository @Inject constructor(
     suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity? =
         routeDao.getByNameAndUser(name, userId)
 
-    /** Borra TODAS las rutas y paradas de la cuenta (solo owner/god).
-     *  Primero llama al servidor, luego limpia Room local. */
+    /** Borra TODAS las rutas, paradas, visitas, KPIs y la cola local de sync de la cuenta.
+     *  Primero llama al servidor (también borra ahí), luego limpia Room en orden FK seguro.
+     *  Tras esto el usuario puede re-importar sin colisiones con datos huérfanos.
+     *  Solo owner/god — el servidor también lo valida. */
     suspend fun clearAllRoutes(): Boolean {
         return try {
             val token = session.token ?: return false
             val response = api.clearRoutes(token = token)
             if (response.isSuccessful) {
-                routeDao.deleteAllByAccount(session.accountId)
+                // Orden importante por dependencias FK locales:
+                //   kpi_values → stop_visits → stops → routes → sync_queue (purga total)
+                // sync_queue se vacía entera: cualquier op pendiente sobre entidades
+                // recién borradas dejaría de tener sentido y bloquearía pushes futuros.
+                kpiValueDao.deleteAllByAccount(session.accountId)
+                stopVisitDao.deleteAllByAccount(session.accountId)
                 stopDao.deleteAllByAccount(session.accountId)
+                routeDao.deleteAllByAccount(session.accountId)
+                syncQueueDao.purgeAll()
                 true
             } else false
         } catch (e: Exception) { false }
