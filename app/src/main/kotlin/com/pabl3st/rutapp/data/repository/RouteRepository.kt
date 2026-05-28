@@ -416,4 +416,32 @@ class RouteRepository @Inject constructor(
         // Centralizado aquí para que ninguna escritura futura lo olvide.
         triggerSync()
     }
+
+    /**
+     * Encola un batch de KPI values asociado a una visita concreta para sync.
+     * El servidor espera UN op por (stopUid, visitUid) con todos los KPIs como
+     * objeto `values: {kpi_id → value_text}`. El uid del op es el visitUid
+     * (clave natural en el modelo C, único por (stop, fecha)).
+     *
+     * Usado por el importer cuando carga reports históricos: en vez de insertar
+     * en kpi_values con syncStatus="synced" (que NO sube al server), se encola
+     * para que el siguiente runSync lo envíe.
+     */
+    suspend fun enqueueKpiValuesBatch(
+        stopUid:  String,
+        visitUid: String,
+        values:   Map<String, String>,
+    ) {
+        if (values.isEmpty()) return
+        enqueue(
+            entity = "kpi_values",
+            uid    = visitUid,
+            op     = "upsert",
+            data   = mapOf(
+                "stopUid"  to stopUid,
+                "visitUid" to visitUid,
+                "values"   to values,
+            ),
+        )
+    }
 }

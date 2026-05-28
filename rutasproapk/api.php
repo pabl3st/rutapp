@@ -2733,6 +2733,124 @@ if ($action === 'visit_save') {
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+// _diag — endpoint TEMPORAL de diagnóstico. Borrar tras depurar.
+// Devuelve el estado de visibilidad del caller: su jerarquía, su
+// subárbol calculado, y las rutas que debería ver.
+// ══════════════════════════════════════════════════════════════
+if ($action === '_diag') {
+    // Auth flexible para depurar desde navegador. TEMPORAL — borrar tras usar.
+    // Opción A: ?token=<64 chars>
+    // Opción B: ?login=email@x.com:password   (hace login y usa esa sesión)
+    $uid = 0; $aid = 0; $role = '';
+    if (!empty($_GET['login']) && strpos($_GET['login'], ':') !== false) {
+        [$diagEmail, $diagPass] = explode(':', $_GET['login'], 2);
+        $stL = db()->prepare(
+            'SELECT id, account_id, role, password_hash FROM users WHERE email=? AND active=1 LIMIT 1'
+        );
+        $stL->execute([trim($diagEmail)]);
+        $u = $stL->fetch();
+        if (!$u || !password_verify($diagPass, $u['password_hash'])) err('Login inválido', 401);
+        $uid = (int)$u['id']; $aid = (int)$u['account_id']; $role = $u['role'];
+    } else {
+        $diagToken = $_GET['token'] ?? ($_SERVER['HTTP_X_AUTH_TOKEN'] ?? '');
+        if (strlen($diagToken) !== 64) err('Pasa ?login=email:password o ?token=', 401);
+        $stAuth = db()->prepare(
+            'SELECT u.id as uid, u.account_id, u.role
+             FROM sessions s JOIN users u ON u.id = s.user_id
+             WHERE s.token = ? AND s.expires_at > NOW()'
+        );
+        $stAuth->execute([$diagToken]);
+        $sess = $stAuth->fetch();
+        if (!$sess) err('Sesión inválida', 401);
+        $uid = (int)$sess['uid']; $aid = (int)$sess['account_id']; $role = $sess['role'];
+    }
+
+    // Datos del propio usuario
+    $stMe = db()->prepare('SELECT id, account_id, name, role, manager_id, active FROM users WHERE id=?');
+    $stMe->execute([$uid]);
+    $me = $stMe->fetch();
+
+    // Subárbol calculado por el helper
+    $descendants = getDescendantUserIds($uid, $aid);
+
+    // Todos los usuarios de la cuenta (para ver la jerarquía completa)
+    $stUsers = db()->prepare('SELECT id, name, role, manager_id, active FROM users WHERE account_id=? ORDER BY id');
+    $stUsers->execute([$aid]);
+    $allUsers = $stUsers->fetchAll();
+
+    // Todas las rutas de la cuenta con su user_id y fechas
+    $stRoutes = db()->prepare(
+        'SELECT uid, user_id, name, date_assigned, scheduled_dates, deleted_at, updated_at
+         FROM routes WHERE account_id=? ORDER BY user_id, name'
+    );
+    $stRoutes->execute([$aid]);
+    $allRoutes = $stRoutes->fetchAll();
+
+    // Rutas que el caller DEBERÍA ver según la lógica nueva
+    $placeholders = implode(',', array_fill(0, count($descendants), '?'));
+    $stVisible = db()->prepare(
+        "SELECT uid, user_id, name, date_assigned FROM routes
+         WHERE user_id IN ($placeholders) AND deleted_at IS NULL"
+    );
+    $stVisible->execute($descendants);
+    $visibleRoutes = $stVisible->fetchAll();
+
+    // DIAG GLOBAL: buscar PSO7 (y cualquier ruta) en TODAS las cuentas,
+    // para rastrear dónde está físicamente la ruta importada.
+    $stGlobal = db()->query(
+        'SELECT uid, account_id, user_id, name, date_assigned, deleted_at, updated_at
+         FROM routes ORDER BY updated_at DESC LIMIT 50'
+    );
+    $globalRoutes = $stGlobal->fetchAll();
+
+    // Conteo total de rutas y stops en toda la BD
+    $totalRoutes = (int)db()->query('SELECT COUNT(*) FROM routes')->fetchColumn();
+    $totalStops  = (int)db()->query('SELECT COUNT(*) FROM stops')->fetchColumn();
+    // Stops de la cuenta del caller
+    $stStopsAcc = db()->prepare('SELECT COUNT(*) FROM stops WHERE account_id=?');
+    $stStopsAcc->execute([$aid]);
+    $stopsInAccount = (int)$stStopsAcc->fetchColumn();
+
+    // Logs recientes de la cuenta: batch_sync y errores
+    $stLog = db()->prepare(
+        "SELECT id, action, user_id, account_id, status, error_msg,
+                created_at, duration_ms
+         FROM api_logs
+         WHERE account_id = ?
+           AND action IN ('batch_sync','delta_sync','login')
+         ORDER BY id DESC LIMIT 30"
+    );
+    $stLog->execute([$aid]);
+    $recentLogs = $stLog->fetchAll();
+
+    // Solo errores de la cuenta (status != 200)
+    $stErr = db()->prepare(
+        "SELECT id, action, user_id, status, error_msg, created_at
+         FROM api_logs
+         WHERE account_id = ? AND status != 200
+         ORDER BY id DESC LIMIT 20"
+    );
+    $stErr->execute([$aid]);
+    $recentErrors = $stErr->fetchAll();
+
+    ok([
+        'caller'           => ['uid' => $uid, 'role' => $role, 'account_id' => $aid],
+        'me_row'           => $me,
+        'descendant_ids'   => $descendants,
+        'all_users'        => $allUsers,
+        'all_routes'       => $allRoutes,
+        'visible_routes'   => $visibleRoutes,
+        'global_routes'    => $globalRoutes,       // TODAS las cuentas
+        'total_routes_db'  => $totalRoutes,        // conteo global
+        'total_stops_db'   => $totalStops,
+        'stops_in_account' => $stopsInAccount,
+        'recent_logs'      => $recentLogs,         // últimas 30 llamadas de la cuenta
+        'recent_errors'    => $recentErrors,       // últimos 20 errores de la cuenta
+        'server_date'      => date('Y-m-d'),
+    ]);
+}
+
 err("Acción desconocida: {$action}", 404);
 
 

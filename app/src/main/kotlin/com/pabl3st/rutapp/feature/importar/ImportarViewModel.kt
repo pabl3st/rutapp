@@ -863,34 +863,42 @@ class ImportarViewModel @Inject constructor(
                     return@withContext
                 }
 
-                // Guardar KPI reports históricos como kpi_values — ancladas a la
-                // stop_visit concreta de (stopUid, report.date). Modelo C: cada
-                // KPI pertenece a una visita específica, no al PDV en general.
+                // Guardar KPI reports históricos: insertar en Room local + encolar
+                // batch al servidor. Cada (stopUid, visitUid) → un op kpi_values con
+                // todos los KPI como objeto, formato que espera batch_sync.
+                // Sin encolar, los datos quedarían solo en local (syncStatus="synced"
+                // engaña a la cola y nunca llegan al server).
                 if (kpiReports.isNotEmpty()) {
-                    val kpiEntities = kpiReports.flatMap { report ->
-                        val stopUid = externalIdToStopUid[report.stopExternalId] ?: return@flatMap emptyList()
+                    kpiReports.forEach { report ->
+                        val stopUid = externalIdToStopUid[report.stopExternalId] ?: return@forEach
                         // Resolver visitUid:
                         // - Si el importer creó stop_visits para esta fecha (Task 13), getByStopAndDate la devuelve.
                         // - Si no (KPI cuya fecha no estaba en el calendario del XLS), fallback al patrón v1
                         //   (mantiene coherencia con el back-fill de MIGRATION_15_16/16_17).
                         val visit = visitRepo.getByStopAndDate(stopUid, report.date)
                         val visitUid = visit?.uid ?: "$stopUid-v1"
-                        buildList {
-                            if (report.kpiActivaciones.isNotBlank())
-                                add(KpiValueEntity(visitUid, stopUid, "telco_activaciones",  report.kpiActivaciones, "synced"))
-                            if (report.kpiPrimerBono.isNotBlank())
-                                add(KpiValueEntity(visitUid, stopUid, "telco_primer_bono",   report.kpiPrimerBono,   "synced"))
-                            if (report.kpiMediaBono.isNotBlank())
-                                add(KpiValueEntity(visitUid, stopUid, "telco_media_bono",    report.kpiMediaBono,    "synced"))
-                            if (report.kpiRecargas.isNotBlank())
-                                add(KpiValueEntity(visitUid, stopUid, "telco_recargas",      report.kpiRecargas,     "synced"))
-                            if (report.kpiNroTv.isNotBlank())
-                                add(KpiValueEntity(visitUid, stopUid, "telco_tv",            report.kpiNroTv,        "synced"))
-                            add(KpiValueEntity(visitUid, stopUid, "telco_plus",          if (report.plus) "true" else "false",         "synced"))
-                            add(KpiValueEntity(visitUid, stopUid, "telco_pdv_inactivo",  if (report.pdvInactivo) "true" else "false",  "synced"))
+
+                        // Acumular KPIs como Map para batch_sync
+                        val values = buildMap<String, String> {
+                            if (report.kpiActivaciones.isNotBlank()) put("telco_activaciones",  report.kpiActivaciones)
+                            if (report.kpiPrimerBono.isNotBlank())   put("telco_primer_bono",   report.kpiPrimerBono)
+                            if (report.kpiMediaBono.isNotBlank())    put("telco_media_bono",    report.kpiMediaBono)
+                            if (report.kpiRecargas.isNotBlank())     put("telco_recargas",      report.kpiRecargas)
+                            if (report.kpiNroTv.isNotBlank())        put("telco_tv",            report.kpiNroTv)
+                            put("telco_plus",         if (report.plus) "true" else "false")
+                            put("telco_pdv_inactivo", if (report.pdvInactivo) "true" else "false")
                         }
+
+                        // 1) Persistir en Room local con syncStatus="pending" para que
+                        //    el dashboard local refleje los datos al instante.
+                        val kpiEntities = values.map { (kpiId, value) ->
+                            KpiValueEntity(visitUid, stopUid, kpiId, value, "pending")
+                        }
+                        kpiValueDao.upsertAll(kpiEntities)
+
+                        // 2) Encolar batch al servidor (un op por visita)
+                        routeRepo.enqueueKpiValuesBatch(stopUid, visitUid, values)
                     }
-                    if (kpiEntities.isNotEmpty()) kpiValueDao.upsertAll(kpiEntities)
                 }
 
                 _ui.update { it.copy(isLoading = true, saveError = null) }
