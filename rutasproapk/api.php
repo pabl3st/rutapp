@@ -844,8 +844,14 @@ if ($action === 'batch_sync') {
     $ops       = $body['operations'] ?? [];
     $callerRole  = $sess['role'];
     $callerLevel = roleLevel($callerRole);
-    // Solo owner/admin/god pueden crear o eliminar rutas y paradas
-    $canCreateDelete = $callerLevel >= 4; // admin=4, owner=5, god=6
+    // Permisos de creación/borrado de rutas y paradas:
+    // - delete: solo owner/admin/god (nivel >= 4). Un agent no borra rutas.
+    // - create: todos pueden crear, PERO un usuario por debajo de admin
+    //   (agent/manager/viewer) solo puede crear rutas para SÍ MISMO. La
+    //   asignación a terceros queda reservada a admin+. Esto se valida más
+    //   abajo forzando targetUserId = $uid cuando el caller no es admin+.
+    $canDelete       = $callerLevel >= 4; // admin=4, owner=5, god=6
+    $canAssignOthers = $callerLevel >= 4; // solo admin+ asigna a terceros
 
     $synced = [];
     $errors = [];
@@ -858,12 +864,14 @@ if ($action === 'batch_sync') {
             $data      = $op['data'] ?? [];
             $clientUid = san($op['uid'] ?? '', 36);
 
-            // Bloquear create/delete de rutas y paradas para manager/agent/viewer
+            // Bloquear SOLO el delete de rutas/paradas para manager/agent/viewer.
+            // El create se permite a todos (con destinatario forzado a sí mismo
+            // si no es admin+, ver lógica de targetUserId más abajo).
             if (in_array($entity, ['route', 'stop']) &&
-                in_array($operation, ['create', 'delete']) &&
-                !$canCreateDelete) {
+                $operation === 'delete' &&
+                !$canDelete) {
                 $errors[] = ['uid' => $clientUid, 'entity' => $entity,
-                             'error' => 'Sin permisos para crear o eliminar ' . $entity];
+                             'error' => 'Sin permisos para eliminar ' . $entity];
                 continue;
             }
 
@@ -884,13 +892,17 @@ if ($action === 'batch_sync') {
                             $stOld->execute([$clientUid]);
                             $oldUserId = (int)($stOld->fetchColumn() ?: $uid);
 
-                            // Nuevo user_id — respetar el del payload si viene de un manager/admin
-                            $newUserId = isset($data['user_id']) ? (int)$data['user_id'] : $oldUserId;
-                            // Verificar que newUserId pertenece a la misma cuenta
-                            if ($newUserId !== $oldUserId) {
-                                $stCheck = $db->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
-                                $stCheck->execute([$newUserId, $aid]);
-                                if (!$stCheck->fetchColumn()) $newUserId = $oldUserId; // fallback seguro
+                            // Nuevo user_id — solo admin+ puede reasignar a otro
+                            // usuario. Un agent/manager no cambia el propietario.
+                            $newUserId = $oldUserId;
+                            if ($canAssignOthers && isset($data['user_id'])) {
+                                $newUserId = (int)$data['user_id'];
+                                // Verificar que newUserId pertenece a la misma cuenta
+                                if ($newUserId !== $oldUserId) {
+                                    $stCheck = $db->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+                                    $stCheck->execute([$newUserId, $aid]);
+                                    if (!$stCheck->fetchColumn()) $newUserId = $oldUserId; // fallback seguro
+                                }
                             }
 
                             // UPDATE seguro: incluye user_id para soportar reasignación
@@ -931,13 +943,18 @@ if ($action === 'batch_sync') {
                             }
                         } else {
                             // INSERT solo si no existe — account_id y user_id del token
-                            // user_id: respetar el del payload si lo envió un manager para un agente
-                            $targetUserId = isset($data['user_id']) ? (int)$data['user_id'] : $uid;
-                            // Verificar que targetUserId pertenece a la misma cuenta
-                            if ($targetUserId !== $uid) {
-                                $stCheck = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
-                                $stCheck->execute([$targetUserId, $aid]);
-                                if (!$stCheck->fetchColumn()) $targetUserId = $uid; // fallback seguro
+                            // user_id: respetar el del payload SOLO si el caller puede
+                            // asignar a terceros (admin+). Un agent/manager crea siempre
+                            // para sí mismo, ignorando cualquier user_id del payload.
+                            $targetUserId = $uid;
+                            if ($canAssignOthers && isset($data['user_id'])) {
+                                $targetUserId = (int)$data['user_id'];
+                                // Verificar que targetUserId pertenece a la misma cuenta
+                                if ($targetUserId !== $uid) {
+                                    $stCheck = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+                                    $stCheck->execute([$targetUserId, $aid]);
+                                    if (!$stCheck->fetchColumn()) $targetUserId = $uid; // fallback seguro
+                                }
                             }
                             $db->prepare(
                                 'INSERT INTO routes
