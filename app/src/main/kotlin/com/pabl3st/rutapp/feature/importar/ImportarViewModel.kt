@@ -182,13 +182,14 @@ data class ImportarUiState(
 @HiltViewModel
 class ImportarViewModel @Inject constructor(
     @ApplicationContext private val ctx: Context,
-    private val stopRepo:   StopRepository,
-    private val visitRepo:  StopVisitRepository,
-    private val routeRepo:  RouteRepository,
-    private val adminRepo:  AdminRepository,
+    private val stopRepo:    StopRepository,
+    private val visitRepo:   StopVisitRepository,
+    private val routeRepo:   RouteRepository,
+    private val adminRepo:   AdminRepository,
     private val kpiValueDao: KpiValueDao,
-    private val session:    SessionManager,
-    private val syncRepo:   SyncRepository,
+    private val session:     SessionManager,
+    private val syncRepo:    SyncRepository,
+    private val syncGateway: com.pabl3st.rutapp.sync.SyncGateway,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(ImportarUiState())
@@ -737,6 +738,12 @@ class ImportarViewModel @Inject constructor(
 
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
+                // Suprimir los miles de triggerSync() de createRoute/createStop/
+                // ensureVisitExists/enqueueKpiValuesBatch durante la importación.
+                // Sin esto, WorkManager.enqueueUniqueWork(REPLACE) se llamaría
+                // ~4500 veces seguidas y el worker nunca llegaría a ejecutar
+                // batch_sync. Al final del wizard se dispara UN runSync() explícito.
+                syncGateway.beginBatch()
                 val externalIdToStopUid = mutableMapOf<String, String>()
                 var saved = 0
 
@@ -860,6 +867,7 @@ class ImportarViewModel @Inject constructor(
                         isLoading = false,
                         saveError = "Error al guardar: ${e.message}",
                     )}
+                    syncGateway.endBatch()   // cerrar batch antes de salir por error
                     return@withContext
                 }
 
@@ -901,12 +909,15 @@ class ImportarViewModel @Inject constructor(
                     }
                 }
 
+                // Cerrar batch ANTES del runSync: queremos que el runSync explícito
+                // funcione normalmente y no quede suprimido por el flag.
+                syncGateway.endBatch()
+
                 _ui.update { it.copy(isLoading = true, saveError = null) }
                 // Push síncrono al servidor: garantiza que las rutas/stops/kpis recién
                 // creados llegan a la BD remota antes de marcar el wizard como DONE.
-                // Sin esto, los triggerSync() de cada createRoute/createStop son
-                // reemplazados sucesivamente por la política REPLACE del WorkManager
-                // y nunca llegan a ejecutar batch_sync (bug confirmado por api_logs vacíos).
+                // El batch ya está cerrado, así que esta es la ÚNICA llamada de
+                // sincronización que se hace tras la importación entera.
                 val syncResult = runCatching { syncRepo.runSync() }.getOrNull()
                 val syncOk = syncResult == com.pabl3st.rutapp.data.repository.SyncResult.Success
                 _ui.update { it.copy(

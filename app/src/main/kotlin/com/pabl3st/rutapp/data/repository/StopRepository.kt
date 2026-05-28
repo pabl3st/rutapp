@@ -27,6 +27,7 @@ class StopRepository @Inject constructor(
     private val stopDao:      StopDao,
     private val syncQueueDao: SyncQueueDao,
     private val session:      SessionManager,
+    private val syncGateway:  com.pabl3st.rutapp.sync.SyncGateway,
     private val moshi:        Moshi,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
@@ -54,16 +55,7 @@ class StopRepository @Inject constructor(
         routeUid: String, externalId: String, dateAssigned: String
     ): StopEntity? = stopDao.getByExternalIdDateAndRoute(routeUid, externalId, dateAssigned)
 
-    private fun triggerSync() {
-        runCatching {
-            WorkManager.getInstance(appContext)
-                .enqueueUniqueWork(
-                    SyncWorker.WORK_NAME_ONDEMAND,
-                    ExistingWorkPolicy.REPLACE,
-                    SyncWorker.onDemandRequest(),
-                )
-        }
-    }
+    private fun triggerSync() = syncGateway.trigger()
 
     /** Devuelve SyncQueueEntity para cada stop local pendiente de subir al servidor. */
     suspend fun getPendingOperations(): List<SyncQueueEntity> =

@@ -23,6 +23,7 @@ class JornadaRepository @Inject constructor(
     private val syncQueueDao: SyncQueueDao,
     private val moshi:        Moshi,
     @ApplicationContext private val appContext: Context,
+    private val syncGateway:  com.pabl3st.rutapp.sync.SyncGateway,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
@@ -165,14 +166,5 @@ class JornadaRepository @Inject constructor(
         triggerSync()
     }
 
-    private fun triggerSync() {
-        runCatching {
-            WorkManager.getInstance(appContext)
-                .enqueueUniqueWork(
-                    SyncWorker.WORK_NAME_ONDEMAND,
-                    ExistingWorkPolicy.REPLACE,
-                    SyncWorker.onDemandRequest(),
-                )
-        }
-    }
+    private fun triggerSync() = syncGateway.trigger()
 }

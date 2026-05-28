@@ -44,6 +44,7 @@ class RouteRepository @Inject constructor(
     private val syncQueueDao:  SyncQueueDao,
     private val api:           RutasApiService,
     private val session:       SessionManager,
+    private val syncGateway:   com.pabl3st.rutapp.sync.SyncGateway,
     private val moshi:         Moshi,
 ) {
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
@@ -204,17 +205,12 @@ class RouteRepository @Inject constructor(
         enqueue("route", uid, "update", routeToMap(updated))
     }
 
-    // ── Crear ruta localmente + encolar sync ──────────────────
-    private fun triggerSync() {
-        runCatching {
-            WorkManager.getInstance(appContext)
-                .enqueueUniqueWork(
-                    SyncWorker.WORK_NAME_ONDEMAND,
-                    ExistingWorkPolicy.REPLACE,
-                    SyncWorker.onDemandRequest(),
-                )
-        }
-    }
+    // ── Disparar sync ─────────────────────────────────────────
+    // Delegado a SyncGateway: durante operaciones masivas (importer) el
+    // gateway suprime estos triggers para evitar el bombardeo histórico
+    // de ~4500 enqueueUniqueWork(REPLACE) por importación que cancelaban
+    // al worker en bucle y nunca llegaba a hacer batch_sync.
+    private fun triggerSync() = syncGateway.trigger()
 
     /** Devuelve SyncQueueEntity para cada ruta local pendiente de subir al servidor.
      *  Usado por SyncRepository para re-encolar huérfanas sin duplicar lógica. */

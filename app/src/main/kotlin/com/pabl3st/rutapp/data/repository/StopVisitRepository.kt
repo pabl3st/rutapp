@@ -33,6 +33,7 @@ class StopVisitRepository @Inject constructor(
     private val visitDao:     StopVisitDao,
     private val syncQueueDao: SyncQueueDao,
     private val session:      SessionManager,
+    private val syncGateway:  com.pabl3st.rutapp.sync.SyncGateway,
     private val moshi:        Moshi,
 ) {
     private val isoFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
@@ -133,16 +134,7 @@ class StopVisitRepository @Inject constructor(
         triggerSync()
     }
 
-    private fun triggerSync() {
-        runCatching {
-            WorkManager.getInstance(appContext)
-                .enqueueUniqueWork(
-                    SyncWorker.WORK_NAME_ONDEMAND,
-                    ExistingWorkPolicy.REPLACE,
-                    SyncWorker.onDemandRequest(),
-                )
-        }
-    }
+    private fun triggerSync() = syncGateway.trigger()
 
     /** Serialización para el batch_sync — claves snake_case que entiende api.php. */
     private fun visitToMap(v: StopVisitEntity): Map<String, Any?> = mapOf(
