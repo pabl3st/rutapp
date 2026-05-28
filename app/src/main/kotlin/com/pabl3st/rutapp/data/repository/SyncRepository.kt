@@ -40,6 +40,7 @@ class SyncRepository @Inject constructor(
     private val stopDao:         StopDao,
     private val routeRepo:       RouteRepository,
     private val stopRepo:        StopRepository,
+    private val visitRepo:       StopVisitRepository,
     private val daySessionDao:   DaySessionDao,
     private val kpiValueDao:     KpiValueDao,
     private val businessProfileDao:  BusinessProfileDao,
@@ -111,6 +112,10 @@ class SyncRepository @Inject constructor(
         stopRepo.getPendingOperations()
             .filter { it.entityUid !in queuedUids }
             .forEach { syncQueueDao.enqueue(it) }
+
+        visitRepo.getPendingOperations()
+            .filter { it.entityUid !in queuedUids }
+            .forEach { syncQueueDao.enqueue(it) }
     }
 
     // ── Subir operaciones pendientes de la cola ────────────────
@@ -145,6 +150,7 @@ class SyncRepository @Inject constructor(
             when (result.entity) {
                 "route"            -> routeDao.updateSyncStatus(result.uid, "synced", now)
                 "stop"             -> stopDao.updateSyncStatus(result.uid, "synced", now)
+                "stop_visit"       -> visitRepo.markSynced(result.uid)
                 "kpi_values"       -> kpiValueDao.markSynced(result.uid)
                 // day_session y business_profile no tienen syncStatus en Room — nada que actualizar
             }
@@ -181,6 +187,9 @@ class SyncRepository @Inject constructor(
             ?.let { routeDao.upsertAll(it) }
         body.stops?.mapNotNull { it.toEntity(session.accountId) }
             ?.let { if (it.isNotEmpty()) stopDao.upsertAll(it) }
+        // Sincronizar stop_visits desde servidor (Modelo C — informes diarios)
+        body.stopVisits?.map { it.toEntity(session.accountId) }
+            ?.let { if (it.isNotEmpty()) it.forEach { v -> visitRepo.upsertFromServer(v) } }
         // Sincronizar jornadas desde servidor
         body.daySessions?.mapNotNull { it.toEntity() }
             ?.let { if (it.isNotEmpty()) it.forEach { s -> daySessionDao.upsert(s) } }
