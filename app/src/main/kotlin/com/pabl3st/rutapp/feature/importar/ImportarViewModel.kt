@@ -16,6 +16,7 @@ import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.StopVisitRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -181,6 +182,7 @@ data class ImportarUiState(
 class ImportarViewModel @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val stopRepo:   StopRepository,
+    private val visitRepo:  StopVisitRepository,
     private val routeRepo:  RouteRepository,
     private val adminRepo:  AdminRepository,
     private val kpiValueDao: KpiValueDao,
@@ -832,6 +834,23 @@ class ImportarViewModel @Inject constructor(
                             preview.externalId?.let { externalIdToStopUid[it] = stop.uid }
                             saved++
                             _ui.update { it.copy(saveProgress = saved) }
+                        }
+
+                        // Modelo C — generar 1 stop_visit por cada (stop, fecha).
+                        // Las paradas siguen siendo únicas (149); las visitas son
+                        // entidades aparte que viven en stop_visits. Idempotente —
+                        // si la visita ya existía (reimport del XLS), no la duplica.
+                        if (allDates.isNotEmpty()) {
+                            val routeStops = stopRepo.getByRoute(route.uid)
+                            allDates.forEach { date ->
+                                routeStops.forEach { s ->
+                                    visitRepo.ensureVisitExists(
+                                        stopUid  = s.uid,
+                                        routeUid = route.uid,
+                                        date     = date,
+                                    )
+                                }
+                            }
                         }
                     }
                 } catch (e: Exception) {
