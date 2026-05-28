@@ -9,8 +9,9 @@ sealed class Screen(val route: String) {
     object Calendario: Screen("calendario")
     object Perfil    : Screen("perfil")
     object Admin     : Screen("admin")
-    object Visita : Screen("visita/{stopUid}") {
-        fun createRoute(uid: String) = "visita/$uid"
+    object Visita : Screen("visita/{stopUid}?date={date}") {
+        fun createRoute(uid: String, date: String? = null): String =
+            if (date.isNullOrBlank()) "visita/$uid" else "visita/$uid?date=$date"
     }
     object RouteDetail : Screen("route/{routeUid}") {
         fun createRoute(uid: String) = "route/$uid"

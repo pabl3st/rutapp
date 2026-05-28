@@ -270,7 +270,14 @@ fun RutasNavGraph(
 
             composable(
                 route               = Screen.Visita.route,
-                arguments           = listOf(navArgument("stopUid") { type = NavType.StringType }),
+                arguments           = listOf(
+                    navArgument("stopUid") { type = NavType.StringType },
+                    navArgument("date") {
+                        type            = NavType.StringType
+                        nullable        = true
+                        defaultValue    = null
+                    },
+                ),
                 enterTransition     = { enterPush },
                 exitTransition      = { exitPush },
                 popEnterTransition  = { enterPop },

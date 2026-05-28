@@ -10,6 +10,7 @@ import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopVisitEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
@@ -18,6 +19,7 @@ import com.pabl3st.rutapp.data.repository.PhotoRepository
 import com.pabl3st.rutapp.data.repository.UserPrefs
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.StopVisitRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -50,6 +52,7 @@ data class VisitaUiState(
 class VisitaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val stopRepo:     StopRepository,
+    private val visitRepo:    StopVisitRepository,
     private val routeRepo:    RouteRepository,
     private val session:      SessionManager,
     private val profileRepo:  BusinessProfileRepository,
@@ -62,6 +65,10 @@ class VisitaViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     private val stopUid: String = checkNotNull(savedStateHandle["stopUid"])
+    // Fecha de la visita: viene del navArgument opcional ?date=YYYY-MM-DD.
+    // Si no viene (compat retroactiva), se decide al guardar consultando la
+    // ruta del stop (Modelo C requiere una fecha).
+    private val visitDateArg: String? = savedStateHandle["date"]
 
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
@@ -139,14 +146,54 @@ class VisitaViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
             val gpsPos = locationMgr.getLastLocation()
-
-            // 1. Guardar resultado de visita en Stop (encola el stop en SyncQueue via StopRepository)
             val checkOutTs = System.currentTimeMillis()
+            val nowIso     = java.time.Instant.now()
+                .atOffset(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            val notesValue       = _ui.value.notes.trim().ifEmpty { null }
+            val nextActionValue  = _ui.value.nextAction.trim().ifEmpty { null }
+
+            // 1. Resolver la fecha de la visita (Modelo C — 1 visita por (stop,fecha))
+            //    Orden de prioridad:
+            //    a) date del navArgument (cuando se entra desde RouteDetail tras seleccionar fecha)
+            //    b) date del stop.dateAssigned (compat con rutas legacy)
+            //    c) fecha de hoy (fallback final)
+            val resolvedDate: String = when {
+                !visitDateArg.isNullOrBlank() -> visitDateArg
+                else -> {
+                    val stopRow = _ui.value.stop ?: stopRepo.getByUid(stopUid)
+                    stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
+                        ?: java.time.LocalDate.now().toString()
+                }
+            }
+
+            // 2. Crear o recuperar la stop_visit y escribir el informe en ella
+            val routeUidForVisit = _ui.value.stop?.routeUid
+                ?: stopRepo.getByUid(stopUid)?.routeUid
+            if (routeUidForVisit != null) {
+                val existing = visitRepo.getByStopAndDate(stopUid, resolvedDate)
+                    ?: visitRepo.ensureVisitExists(stopUid, routeUidForVisit, resolvedDate)
+                visitRepo.updateVisit(existing.copy(
+                    status       = "done",
+                    visitedAt    = nowIso,
+                    visitResult  = _ui.value.selectedResult,
+                    nextAction   = nextActionValue,
+                    notes        = notesValue,
+                    checkInTs    = _ui.value.checkInTs ?: existing.checkInTs,
+                    checkOutTs   = checkOutTs,
+                    gpsLatVisit  = gpsPos?.latitude  ?: existing.gpsLatVisit,
+                    gpsLngVisit  = gpsPos?.longitude ?: existing.gpsLngVisit,
+                ))
+            }
+
+            // 3. Espejo en el stop — sigue siendo la fuente de verdad de la
+            //    "última visita registrada" para vistas legacy (Biblioteca,
+            //    GlobalMap, etc) que no usan stop_visits.
             stopRepo.saveVisitResult(
                 uid         = stopUid,
                 result      = _ui.value.selectedResult,
-                notes       = _ui.value.notes.trim().ifEmpty { null },
-                nextAction  = _ui.value.nextAction.trim().ifEmpty { null },
+                notes       = notesValue,
+                nextAction  = nextActionValue,
                 pdvOpen     = _ui.value.storeOpen,
                 pdvInactive = _ui.value.pdvInactive,
                 gpsLat      = gpsPos?.latitude,
@@ -155,7 +202,7 @@ class VisitaViewModel @Inject constructor(
                 checkOutTs  = checkOutTs,
             )
 
-            // 2. Persistir valores KPI en Room
+            // 4. Persistir valores KPI en Room
             val kpiEntities = _ui.value.kpiValues
                 .filter { (_, v) -> v.isNotBlank() }
                 .map { (kpiId, value) ->
@@ -170,7 +217,7 @@ class VisitaViewModel @Inject constructor(
             if (kpiEntities.isNotEmpty()) {
                 kpiValueDao.upsertAll(kpiEntities)
 
-                // 3. Encolar en SyncQueue para que SyncWorker los suba al servidor
+                // 5. Encolar en SyncQueue para que SyncWorker los suba al servidor
                 // api.php batch_sync entity="kpi_values": data={stopUid, values:{kpiId->value}}
                 val valuesMap: Map<String, Any?> = kpiEntities.associate { it.kpiId to it.valueText }
                 val payload = mapAdapter.toJson(
@@ -186,7 +233,7 @@ class VisitaViewModel @Inject constructor(
                 )
             }
 
-            // 4. Persistir fotos en Room (se subirán al servidor en background via SyncWorker)
+            // 6. Persistir fotos en Room (se subirán al servidor en background via SyncWorker)
             val currentPhotos = _ui.value.photos
             if (currentPhotos.isNotEmpty()) {
                 photoRepo.savePhotos(stopUid, currentPhotos)
