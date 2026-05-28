@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopVisitEntity
 
 @Composable
 fun RouteDetailScreen(
@@ -212,6 +213,7 @@ fun RouteDetailScreen(
                         StopCard(
                             modifier = Modifier.semantics { testTag = "stop-card-$idx" },
                             stop     = stop,
+                            visit    = ui.visitsByStop[stop.uid],
                             onRemove = if (ui.canEditStops) ({ vm.removeStop(stop.uid) }) else null,
                         )
                     }
@@ -453,10 +455,19 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 @Composable
 private fun StopCard(
     stop:     StopEntity,
+    visit:    StopVisitEntity? = null,
     onRemove: (() -> Unit)? = null,
     modifier: Modifier      = Modifier,
 ) {
-    val isDone = stop.status == "done"
+    // Modelo C: cuando hay visita de la fecha seleccionada, ella manda.
+    // Cuando no la hay (rutas legacy o ruta sin scheduledDates), nos quedamos
+    // con los campos espejo del stop (lastVisitMirror).
+    val effectiveStatus      = visit?.status      ?: stop.status
+    val effectiveVisitedAt   = visit?.visitedAt   ?: stop.visitedAt
+    val effectiveVisitResult = visit?.visitResult ?: stop.visitResult
+    val effectiveNextAction  = visit?.nextAction  ?: stop.nextAction
+    val effectiveVisitDate   = visit?.visitDate   ?: stop.dateAssigned
+    val isDone = effectiveStatus == "done"
     Card(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier          = Modifier.padding(16.dp),
@@ -490,7 +501,7 @@ private fun StopCard(
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         )
                     }
-                    stop.dateAssigned?.let { date ->
+                    effectiveVisitDate?.let { date ->
                         val today = java.time.LocalDate.now().toString()
                         val label = if (date == today) "Hoy" else
                             runCatching {
@@ -521,7 +532,7 @@ private fun StopCard(
                         overflow = TextOverflow.Ellipsis)
                 }
                 // Resultado última visita + fecha
-                stop.visitResult?.let { result ->
+                effectiveVisitResult?.let { result ->
                     val (label, color) = when (result) {
                         "contactado" -> "Contactado"  to androidx.compose.ui.graphics.Color(0xFF1D9E75)
                         "no_estaba"  -> "No estaba"   to MaterialTheme.colorScheme.error
@@ -536,14 +547,14 @@ private fun StopCard(
                     ) {
                         Icon(Icons.Default.History, null, Modifier.size(10.dp), tint = color)
                         Text(label, style = MaterialTheme.typography.labelSmall, color = color)
-                        stop.visitedAt?.take(10)?.let { date ->
+                        effectiveVisitedAt?.take(10)?.let { date ->
                             Text("· $date", style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
                 // Próxima acción
-                stop.nextAction?.takeIf { it.isNotBlank() }?.let { action ->
+                effectiveNextAction?.takeIf { it.isNotBlank() }?.let { action ->
                     Row(
                         verticalAlignment     = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
