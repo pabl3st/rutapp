@@ -138,9 +138,44 @@ class SessionManager @Inject constructor(
         this.accountName     = accountName
     }
 
+    /** Limpieza nuclear: borra TODO (token, datos del usuario, managedAgentIds,
+     *  lastSync, etc.). Solo se usa cuando es seguro descartar todo el estado
+     *  cacheado — por ejemplo, al cambiar a una cuenta totalmente diferente,
+     *  donde mantener algo del usuario anterior sería contaminación. */
     fun clear() {
         try { securePrefs.edit().clear().apply() } catch (_: Exception) {}
         prefs.edit().clear().apply()
+    }
+
+    /** Logout "ligero": borra SOLO el token de autenticación.
+     *
+     *  Antes (bug mayo 2026): el logout llamaba a clear() y borraba todo,
+     *  incluido managedAgentIds. El siguiente login del MISMO usuario (o de
+     *  otro usuario en la misma cuenta) arrancaba con managedAgentIds=[]
+     *  → RouteRepository.observeAll() caía al fallback [session.userId]
+     *  → admin/manager no veía las rutas asignadas a su subárbol hasta que
+     *  delta_sync repoblaba managedAgentIds (2-15s, o nunca si red mala).
+     *
+     *  Ahora: solo se borra el token. accountId, role, lastSync y
+     *  managedAgentIds sobreviven al logout para que el próximo login del
+     *  MISMO usuario tenga los datos al instante. Si en el próximo login
+     *  cambia el userId o accountId, AuthRepository.parseAuthResponse limpia
+     *  lo que toque (P5 para cuenta nueva, lógica adicional para usuario
+     *  nuevo de la misma cuenta). */
+    fun clearTokenOnly() {
+        try { securePrefs.edit().remove(KEY_TOKEN).apply() } catch (_: Exception) {}
+    }
+
+    /** Limpia el cache de jerarquía (managedAgentIds, lastSync) sin tocar el
+     *  resto de la sesión. Se usa cuando el siguiente login es de un usuario
+     *  DISTINTO en la misma cuenta — el subárbol del nuevo no es el del
+     *  anterior, así que arrancar con la lista vieja sería incorrecto. */
+    fun clearManagedHierarchy() {
+        prefs.edit()
+            .remove(KEY_MANAGED_AGENTS)
+            .remove(KEY_LAST_SYNC)
+            .remove(KEY_LAST_FULL_SYNC)
+            .apply()
     }
 
     companion object {

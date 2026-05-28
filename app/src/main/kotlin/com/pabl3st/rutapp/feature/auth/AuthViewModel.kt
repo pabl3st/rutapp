@@ -56,12 +56,19 @@ class AuthViewModel @Inject constructor(
             }
             when (val r = repo.verifySession()) {
                 is AuthResult.Success -> {
+                    // Para admin/manager: si no tenemos managedAgentIds cacheado
+                    // (primer arranque, o logout/login con limpieza), ESPERAR al
+                    // primer sync para que la pantalla de Rutas no aparezca
+                    // vacía. Para owner/agent es seguro lanzar en background.
+                    val role = session.userRole
+                    val needsSyncWaiting = role in setOf("admin", "manager") &&
+                                            session.managedAgentIds.isEmpty()
+                    if (needsSyncWaiting) {
+                        runCatching { syncRepo.syncIncremental() }
+                    } else {
+                        launch { runCatching { syncRepo.syncIncremental() } }
+                    }
                     _ui.update { it.copy(isAuthenticated = true) }
-                    // Arrancar la app con sesión existente → sync incremental en
-                    // background para traer cambios del servidor desde el último
-                    // sync sin bloquear la UI. No es full porque Room ya tiene
-                    // datos del usuario actual.
-                    launch { runCatching { syncRepo.syncIncremental() } }
                 }
                 is AuthResult.Error   -> {
                     // Si es error de red (sin conexión) y tenemos sesión cacheada → dejar pasar
@@ -236,16 +243,26 @@ class AuthViewModel @Inject constructor(
         doLaunch {
             when (val r = repo.login(s.username.trim(), s.password)) {
                 is AuthResult.Success -> {
-                    _ui.update { it.copy(isAuthenticated = true, isLoading = false, isCompany = r.data.isCompany) }
-                    // Disparar sync apropiado en background — no bloquea el cambio de pantalla.
-                    // wasAccountSwitch: login con cuenta DISTINTA a la anterior → Room ya
-                    // fue limpiado por AuthRepository.parseAuthResponse → full download.
-                    // Mismo accountId (cambio de rol dentro de la cuenta) → incremental.
-                    if (r.data.wasAccountSwitch) {
+                    // ¿Espero al sync o lo lanzo en background?
+                    // - admin/manager: ESPERAR. Necesitan managedAgentIds del
+                    //   server para ver el subárbol; si entran antes de que
+                    //   llegue verán la pantalla de Rutas vacía.
+                    // - owner/agent: BACKGROUND. owner usa observeByAccount
+                    //   (no necesita managedAgentIds); agent usa
+                    //   observeByUser(self) (tampoco).
+                    val needsSyncWaiting = r.data.userRole in setOf("admin", "manager")
+                    if (needsSyncWaiting) {
+                        if (r.data.wasAccountSwitch) {
+                            runCatching { syncRepo.syncFullDownload() }
+                        } else {
+                            runCatching { syncRepo.syncIncremental() }
+                        }
+                    } else if (r.data.wasAccountSwitch) {
                         viewModelScope.launch { runCatching { syncRepo.syncFullDownload() } }
                     } else {
                         viewModelScope.launch { runCatching { syncRepo.syncIncremental() } }
                     }
+                    _ui.update { it.copy(isAuthenticated = true, isLoading = false, isCompany = r.data.isCompany) }
                 }
                 is AuthResult.Error   -> _ui.update { it.copy(error = r.message, isLoading = false) }
             }

@@ -153,7 +153,12 @@ class AuthRepository @Inject constructor(
             }
         }
         runCatching { api.logout(token = token) }
-        session.clear()
+        // Logout ligero: solo borrar token. accountId/role/managedAgentIds/
+        // lastSync sobreviven para que el próximo login del MISMO usuario
+        // tenga sus datos al instante. parseAuthResponse decide si limpiar
+        // hierarchy (cambio de userId mismo accountId) o Room completo
+        // (cambio de accountId).
+        session.clearTokenOnly()
     }
 
     // ── Me (verificar sesión al arrancar) ─────────────────────
@@ -225,12 +230,26 @@ class AuthRepository @Inject constructor(
         // para que el nuevo rol vea los datos al instante sin esperar a un
         // delta_sync completo.
         val previousAccountId = session.accountId
+        val previousUserId    = session.userId
         val newAccountId      = body.account.id
+        val newUserId         = body.user.id
         val isAccountSwitch   = previousAccountId != 0 && previousAccountId != newAccountId
+        // Cambio de USUARIO dentro de la MISMA cuenta (ej: logout owner → login admin).
+        // El subárbol del nuevo usuario es diferente — no podemos reusar
+        // managedAgentIds del anterior. Hay que limpiar y dejar que el primer
+        // delta_sync los repueble.
+        val isUserSwitchSameAccount = !isAccountSwitch &&
+                                       previousUserId != 0 &&
+                                       previousUserId != newUserId
         if (isAccountSwitch) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 database.clearAllTables()
             }
+        } else if (isUserSwitchSameAccount) {
+            // No tocar Room (los datos son visibles para varios roles de la
+            // misma cuenta), pero invalidar la jerarquía cacheada y forzar
+            // re-sync para descargar el subárbol correcto del nuevo usuario.
+            session.clearManagedHierarchy()
         }
         // Persistir en SessionManager
         session.saveAuth(
