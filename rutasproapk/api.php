@@ -703,6 +703,22 @@ if ($action === 'delta_sync') {
         $stS->execute([$stopsParam, $since]);
     }
 
+    // Visitas (stop_visits) modificadas desde $since para las rutas del caller
+    $visitsQuery = "SELECT sv.uid, sv.stop_uid, sv.route_uid, sv.visit_date, sv.status,
+                            sv.visited_at, sv.visit_result, sv.next_action, sv.notes,
+                            sv.check_in_ts, sv.check_out_ts, sv.gps_lat_visit, sv.gps_lng_visit,
+                            sv.created_at, sv.updated_at, sv.deleted_at
+                     FROM stop_visits sv
+                     JOIN routes r ON r.uid = sv.route_uid
+                     WHERE {$stopsWhere} AND sv.updated_at > ?
+                     ORDER BY sv.updated_at ASC LIMIT 500";
+    $stV = db()->prepare($visitsQuery);
+    if ($stopsParam === null) {
+        $stV->execute([...$agentIds, $since]);
+    } else {
+        $stV->execute([$stopsParam, $since]);
+    }
+
     // Jornadas del usuario en el período
     $stD = db()->prepare(
         'SELECT route_uid, date_str, state, started_at, elapsed_ms,
@@ -760,6 +776,7 @@ if ($action === 'delta_sync') {
     ok([
         'routes'             => $stR->fetchAll(),
         'stops'              => $stS->fetchAll(),
+        'stop_visits'        => $stV->fetchAll(),
         'day_sessions'       => $stD->fetchAll(),
         'kpi_values'         => $stK->fetchAll(),
         'business_profile'   => $bp,
@@ -1107,6 +1124,87 @@ if ($action === 'batch_sync') {
                             'UPDATE stops SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND account_id=?'
                         )->execute([$clientUid, $aid]);
                         $synced[] = ['uid' => $clientUid, 'entity' => 'stop', 'deleted' => true];
+                    }
+                } elseif ($entity === 'stop_visit') {
+                    // Informe de visita a un stop en una fecha concreta.
+                    if ($operation === 'create' || $operation === 'update' || $operation === 'upsert') {
+                        $stopUid   = san($data['stopUid']   ?? ($data['stop_uid']   ?? ''), 36);
+                        $routeUid  = san($data['routeUid']  ?? ($data['route_uid']  ?? ''), 36);
+                        $visitDate = san($data['visitDate'] ?? ($data['visit_date'] ?? ''), 10);
+                        if (!$stopUid || !$routeUid || !$visitDate || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $visitDate)) {
+                            $errors[] = ['uid' => $clientUid, 'entity' => 'stop_visit', 'error' => 'stopUid, routeUid, visitDate requeridos'];
+                            continue;
+                        }
+                        // Validar que el stop existe en la cuenta
+                        $stChk = db()->prepare('SELECT uid FROM stops WHERE uid=? AND account_id=? LIMIT 1');
+                        $stChk->execute([$stopUid, $aid]);
+                        if (!$stChk->fetch()) {
+                            $errors[] = ['uid' => $clientUid, 'entity' => 'stop_visit', 'error' => 'stop no encontrado'];
+                            continue;
+                        }
+
+                        $existing = db()->prepare('SELECT id FROM stop_visits WHERE uid=? AND account_id=? LIMIT 1');
+                        $existing->execute([$clientUid, $aid]);
+
+                        if ($existing->fetch()) {
+                            // UPDATE
+                            db()->prepare(
+                                'UPDATE stop_visits SET
+                                    status=?, visited_at=?, visit_result=?, next_action=?, notes=?,
+                                    check_in_ts=COALESCE(?,check_in_ts),
+                                    check_out_ts=COALESCE(?,check_out_ts),
+                                    gps_lat_visit=COALESCE(?,gps_lat_visit),
+                                    gps_lng_visit=COALESCE(?,gps_lng_visit),
+                                    updated_at=NOW()
+                                 WHERE uid=? AND account_id=?'
+                            )->execute([
+                                san($data['status'] ?? 'pending', 20),
+                                $data['visitedAt']   ?? ($data['visited_at']   ?? null),
+                                san($data['visitResult'] ?? ($data['visit_result'] ?? ''), 20) ?: null,
+                                san($data['nextAction']  ?? ($data['next_action']  ?? ''), 5000) ?: null,
+                                san($data['notes'] ?? '', 5000) ?: null,
+                                $data['checkInTs']   ?? ($data['check_in_ts']   ?? null),
+                                $data['checkOutTs']  ?? ($data['check_out_ts']  ?? null),
+                                isset($data['gpsLatVisit']) ? (float)$data['gpsLatVisit'] :
+                                    (isset($data['gps_lat_visit']) ? (float)$data['gps_lat_visit'] : null),
+                                isset($data['gpsLngVisit']) ? (float)$data['gpsLngVisit'] :
+                                    (isset($data['gps_lng_visit']) ? (float)$data['gps_lng_visit'] : null),
+                                $clientUid, $aid,
+                            ]);
+                        } else {
+                            // INSERT
+                            db()->prepare(
+                                'INSERT INTO stop_visits
+                                    (uid, stop_uid, route_uid, account_id, visit_date,
+                                     status, visited_at, visit_result, next_action, notes,
+                                     check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit,
+                                     created_at, updated_at)
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
+                            )->execute([
+                                $clientUid, $stopUid, $routeUid, $aid, $visitDate,
+                                san($data['status'] ?? 'pending', 20),
+                                $data['visitedAt']   ?? ($data['visited_at']   ?? null),
+                                san($data['visitResult'] ?? ($data['visit_result'] ?? ''), 20) ?: null,
+                                san($data['nextAction']  ?? ($data['next_action']  ?? ''), 5000) ?: null,
+                                san($data['notes'] ?? '', 5000) ?: null,
+                                $data['checkInTs']   ?? ($data['check_in_ts']   ?? null),
+                                $data['checkOutTs']  ?? ($data['check_out_ts']  ?? null),
+                                isset($data['gpsLatVisit']) ? (float)$data['gpsLatVisit'] :
+                                    (isset($data['gps_lat_visit']) ? (float)$data['gps_lat_visit'] : null),
+                                isset($data['gpsLngVisit']) ? (float)$data['gpsLngVisit'] :
+                                    (isset($data['gps_lng_visit']) ? (float)$data['gps_lng_visit'] : null),
+                            ]);
+                        }
+                        db()->prepare(
+                            'INSERT INTO sync_log (account_id, user_id, entity, entity_uid, operation)
+                             VALUES (?,?,?,?,?)'
+                        )->execute([$aid, $uid, 'stop_visit', $clientUid, $operation]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'stop_visit'];
+                    } elseif ($operation === 'delete') {
+                        db()->prepare(
+                            'UPDATE stop_visits SET deleted_at=NOW(), updated_at=NOW() WHERE uid=? AND account_id=?'
+                        )->execute([$clientUid, $aid]);
+                        $synced[] = ['uid' => $clientUid, 'entity' => 'stop_visit', 'deleted' => true];
                     }
                 }
             } catch (\Throwable $e) {
@@ -2429,6 +2527,127 @@ if ($action === 'agent_detail') {
         'recent_visits'=> $recentVisits,
         'month_kpis'   => $kpis,
     ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// visits_by_route — todas las stop_visits de una ruta agrupadas por fecha.
+// Roles: agent ve solo sus rutas, manager las de su equipo, admin/owner todas.
+// ══════════════════════════════════════════════════════════════
+if ($action === 'visits_by_route') {
+    $sess     = requireAuth();
+    $callerId = (int)$sess['uid'];
+    $aid      = (int)$sess['account_id'];
+    $role     = $sess['role'];
+
+    $routeUid = san($_GET['route_uid'] ?? ($body['route_uid'] ?? ''), 36);
+    if (!$routeUid) err('route_uid requerido', 400, $action);
+
+    // Validar acceso a la ruta
+    $st = db()->prepare('SELECT user_id FROM routes WHERE uid=? AND account_id=? AND deleted_at IS NULL LIMIT 1');
+    $st->execute([$routeUid, $aid]);
+    $row = $st->fetch();
+    if (!$row) err('Ruta no encontrada', 404, $action);
+
+    // agent (nivel < 3) solo puede ver sus rutas
+    if (roleLevel($role) < 3 && (int)$row['user_id'] !== $callerId) {
+        err('Sin permiso', 403, $action);
+    }
+
+    $st = db()->prepare(
+        'SELECT uid, stop_uid, route_uid, visit_date, status, visited_at,
+                visit_result, next_action, notes,
+                check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit,
+                created_at, updated_at
+         FROM stop_visits
+         WHERE route_uid=? AND deleted_at IS NULL
+         ORDER BY visit_date ASC, stop_uid ASC'
+    );
+    $st->execute([$routeUid]);
+
+    apiLog($action, $callerId, $aid);
+    ok(['visits' => $st->fetchAll()]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// visit_save — upsert de una stop_visit por uid.
+// Si la visita ya existe → UPDATE; si no → INSERT.
+// ══════════════════════════════════════════════════════════════
+if ($action === 'visit_save') {
+    $sess     = requireAuth();
+    $callerId = (int)$sess['uid'];
+    $aid      = (int)$sess['account_id'];
+
+    $visitUid  = san($body['uid']        ?? '', 36);
+    $stopUid   = san($body['stop_uid']   ?? ($body['stopUid']   ?? ''), 36);
+    $routeUid  = san($body['route_uid']  ?? ($body['routeUid']  ?? ''), 36);
+    $visitDate = san($body['visit_date'] ?? ($body['visitDate'] ?? ''), 10);
+
+    if (!$visitUid || !$stopUid || !$routeUid || !$visitDate) {
+        err('uid, stop_uid, route_uid, visit_date requeridos', 400, $action);
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $visitDate)) {
+        err('visit_date formato YYYY-MM-DD', 400, $action);
+    }
+
+    // Validar que el stop pertenece a la cuenta
+    $stChk = db()->prepare('SELECT uid FROM stops WHERE uid=? AND account_id=? LIMIT 1');
+    $stChk->execute([$stopUid, $aid]);
+    if (!$stChk->fetch()) err('Stop no encontrado', 404, $action);
+
+    $existing = db()->prepare('SELECT id FROM stop_visits WHERE uid=? AND account_id=? LIMIT 1');
+    $existing->execute([$visitUid, $aid]);
+
+    if ($existing->fetch()) {
+        db()->prepare(
+            'UPDATE stop_visits SET
+                status=?, visited_at=?, visit_result=?, next_action=?, notes=?,
+                check_in_ts=COALESCE(?,check_in_ts),
+                check_out_ts=COALESCE(?,check_out_ts),
+                gps_lat_visit=COALESCE(?,gps_lat_visit),
+                gps_lng_visit=COALESCE(?,gps_lng_visit),
+                updated_at=NOW()
+             WHERE uid=? AND account_id=?'
+        )->execute([
+            san($body['status'] ?? 'pending', 20),
+            $body['visited_at']   ?? ($body['visitedAt']   ?? null),
+            san($body['visit_result'] ?? ($body['visitResult'] ?? ''), 20) ?: null,
+            san($body['next_action']  ?? ($body['nextAction']  ?? ''), 5000) ?: null,
+            san($body['notes'] ?? '', 5000) ?: null,
+            $body['check_in_ts']  ?? ($body['checkInTs']  ?? null),
+            $body['check_out_ts'] ?? ($body['checkOutTs'] ?? null),
+            isset($body['gps_lat_visit']) ? (float)$body['gps_lat_visit'] :
+                (isset($body['gpsLatVisit']) ? (float)$body['gpsLatVisit'] : null),
+            isset($body['gps_lng_visit']) ? (float)$body['gps_lng_visit'] :
+                (isset($body['gpsLngVisit']) ? (float)$body['gpsLngVisit'] : null),
+            $visitUid, $aid,
+        ]);
+        apiLog($action, $callerId, $aid);
+        ok(['uid' => $visitUid, 'updated' => true]);
+    } else {
+        db()->prepare(
+            'INSERT INTO stop_visits
+                (uid, stop_uid, route_uid, account_id, visit_date,
+                 status, visited_at, visit_result, next_action, notes,
+                 check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit,
+                 created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
+        )->execute([
+            $visitUid, $stopUid, $routeUid, $aid, $visitDate,
+            san($body['status'] ?? 'pending', 20),
+            $body['visited_at']   ?? ($body['visitedAt']   ?? null),
+            san($body['visit_result'] ?? ($body['visitResult'] ?? ''), 20) ?: null,
+            san($body['next_action']  ?? ($body['nextAction']  ?? ''), 5000) ?: null,
+            san($body['notes'] ?? '', 5000) ?: null,
+            $body['check_in_ts']  ?? ($body['checkInTs']  ?? null),
+            $body['check_out_ts'] ?? ($body['checkOutTs'] ?? null),
+            isset($body['gps_lat_visit']) ? (float)$body['gps_lat_visit'] :
+                (isset($body['gpsLatVisit']) ? (float)$body['gpsLatVisit'] : null),
+            isset($body['gps_lng_visit']) ? (float)$body['gps_lng_visit'] :
+                (isset($body['gpsLngVisit']) ? (float)$body['gpsLngVisit'] : null),
+        ]);
+        apiLog($action, $callerId, $aid);
+        ok(['uid' => $visitUid, 'created' => true]);
+    }
 }
 
 err("Acción desconocida: {$action}", 404);
