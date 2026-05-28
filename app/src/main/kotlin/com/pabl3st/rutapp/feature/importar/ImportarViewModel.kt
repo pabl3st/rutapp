@@ -941,7 +941,11 @@ class ImportarViewModel @Inject constructor(
                 // creados llegan a la BD remota antes de marcar el wizard como DONE.
                 // El batch ya está cerrado, así que esta es la ÚNICA llamada de
                 // sincronización que se hace tras la importación entera.
-                val syncResult = runCatching { syncRepo.runSync() }.getOrNull()
+                //
+                // syncUploadOnly (no runSync): el wizard ya tiene todos los datos
+                // locales en Room — no necesitamos descargar el delta del servidor
+                // (sería redundante y lento). Solo subir la cola pendiente.
+                val syncResult = runCatching { syncRepo.syncUploadOnly() }.getOrNull()
                 val syncOk = syncResult == com.pabl3st.rutapp.data.repository.SyncResult.Success
                 _ui.update { it.copy(
                     isLoading = false,

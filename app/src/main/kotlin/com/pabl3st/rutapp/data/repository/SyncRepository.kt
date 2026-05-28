@@ -54,33 +54,74 @@ class SyncRepository @Inject constructor(
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
-    /** Serializa runSync() entre callers (WorkManager periódico + forceSync()
-     *  del botón + runSync() del importer). Si dos llegan a la vez, la segunda
-     *  espera a que la primera termine. Sin esto, ambas leerían getNext50()
-     *  simultáneamente y enviarían las mismas operaciones — el servidor las
-     *  idempota con ON DUPLICATE KEY pero gasta tiempo y red en duplicados. */
+    /** Serializa todas las llamadas de sync entre callers (login + WorkManager
+     *  periódico + forceSync() del botón + logout + importer). Si dos llegan a
+     *  la vez, la segunda espera a que la primera termine. Sin esto leerían
+     *  getNext50() simultáneamente y enviarían las mismas operaciones — el
+     *  servidor las idempota con ON DUPLICATE KEY pero gasta tiempo y red. */
     private val syncMutex = kotlinx.coroutines.sync.Mutex()
 
     suspend fun pendingCount(): Int = syncQueueDao.count()
 
-    // ── Ejecutar sync completo: subir + descargar ──────────────
-    suspend fun runSync(): SyncResult = syncMutex.withLock { runSyncInternal() }
+    // ══════════════════════════════════════════════════════════════
+    // Métodos públicos — separación por flujo (refactor mayo 2026)
+    // ══════════════════════════════════════════════════════════════
 
-    private suspend fun runSyncInternal(): SyncResult {
+    /**
+     * **LOGIN FRESCO / CAMBIO DE CUENTA** — descarga TODO del servidor desde
+     * cero, sin subir nada. Reseteamos lastSync para forzar full-download.
+     * Útil tras un login con cuenta distinta (Room recién limpiado por P5)
+     * o tras una reinstalación: el cliente necesita repoblar Room con todo
+     * lo del servidor antes de que el usuario empiece a interactuar.
+     *
+     * NO sube cola. NO procesa fotos. Solo download.
+     */
+    suspend fun syncFullDownload(): SyncResult = syncMutex.withLock {
+        val token = session.token ?: return@withLock SyncResult.NoAuth
+        // Forzar that el next downloadDelta haga full-download
+        session.lastSyncTimestamp = ""
+        session.lastFullSyncMs    = 0L
+        val downloaded = downloadDelta(token = token, since = "2000-01-01T00:00:00Z")
+        if (downloaded) session.lastFullSyncMs = System.currentTimeMillis()
+        if (downloaded) SyncResult.Success else SyncResult.DownloadError
+    }
+
+    /**
+     * **WORKER PERIÓDICO / FORZAR SYNC BOTÓN** — bidireccional incremental.
+     * Sube cola + descarga delta + sube fotos. Es el flujo "normal" que se
+     * ejecuta cada 15 min o cuando el usuario pulsa el botón ☁️.
+     */
+    suspend fun syncIncremental(): SyncResult = syncMutex.withLock { incrementalInternal() }
+
+    /**
+     * **LOGOUT / FIN DE IMPORT** — solo sube cola al servidor. NO descarga,
+     * NO procesa fotos. Más rápido y no contamina Room con descarga si el
+     * usuario está saliendo o si el wizard ya tiene todos los datos locales.
+     */
+    suspend fun syncUploadOnly(): SyncResult = syncMutex.withLock {
+        val token = session.token ?: return@withLock SyncResult.NoAuth
+        reEnqueueOrphans()
+        purgeStaleQueueItems()
+        val uploaded = uploadPending(token)
+        if (uploaded) SyncResult.Success else SyncResult.UploadError
+    }
+
+    /** **Alias retrocompatible.** SyncWorker y RutasViewModel.forceSync siguen
+     *  llamando aquí — mantienen su comportamiento incremental sin cambios. */
+    suspend fun runSync(): SyncResult = syncIncremental()
+
+    // ══════════════════════════════════════════════════════════════
+    // Implementaciones privadas
+    // ══════════════════════════════════════════════════════════════
+
+    private suspend fun incrementalInternal(): SyncResult {
         val token = session.token ?: return SyncResult.NoAuth
 
         // Re-encolar datos huérfanos: en Room con syncStatus=pending
         // pero sin entrada en la SyncQueue (ocurre cuando la queue fue purgada
         // por exceso de intentos o por antigüedad, dejando los datos sin subir)
         reEnqueueOrphans()
-
-        // Purgar items exhaustos — aumentamos el umbral para ser más tolerantes
-        val cutoff = java.time.Instant.now()
-            .minusSeconds(30L * 24 * 3600)  // 30 días (antes eran 7)
-            .atOffset(java.time.ZoneOffset.UTC)
-            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        syncQueueDao.purgeExhausted(maxAttempts = 20)  // antes era 5
-        syncQueueDao.purgeOlderThan(cutoff)
+        purgeStaleQueueItems()
 
         val uploaded = uploadPending(token)
 
@@ -109,6 +150,17 @@ class SyncRepository @Inject constructor(
             !uploaded              -> SyncResult.UploadError
             else                   -> SyncResult.DownloadError
         }
+    }
+
+    /** Centraliza la purga de items exhaustos / antiguos. Extraída del runSync
+     *  para reusarse desde syncUploadOnly también. */
+    private suspend fun purgeStaleQueueItems() {
+        val cutoff = java.time.Instant.now()
+            .minusSeconds(30L * 24 * 3600)  // 30 días
+            .atOffset(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        syncQueueDao.purgeExhausted(maxAttempts = 20)
+        syncQueueDao.purgeOlderThan(cutoff)
     }
 
     // ── Re-encolar datos huérfanos ───────────────────────────

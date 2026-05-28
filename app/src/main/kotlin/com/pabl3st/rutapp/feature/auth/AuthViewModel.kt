@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.repository.AuthRepository
 import com.pabl3st.rutapp.data.repository.AuthResult
+import com.pabl3st.rutapp.data.repository.AuthSuccess
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,9 +37,10 @@ data class AuthUiState(
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val repo:    AuthRepository,
-    private val session: SessionManager,
-    private val db:      com.pabl3st.rutapp.data.local.RutasDatabase,
+    private val repo:     AuthRepository,
+    private val session:  SessionManager,
+    private val db:       com.pabl3st.rutapp.data.local.RutasDatabase,
+    private val syncRepo: com.pabl3st.rutapp.data.repository.SyncRepository,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(AuthUiState())
@@ -53,7 +55,14 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             when (val r = repo.verifySession()) {
-                is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true) }
+                is AuthResult.Success -> {
+                    _ui.update { it.copy(isAuthenticated = true) }
+                    // Arrancar la app con sesión existente → sync incremental en
+                    // background para traer cambios del servidor desde el último
+                    // sync sin bloquear la UI. No es full porque Room ya tiene
+                    // datos del usuario actual.
+                    launch { runCatching { syncRepo.syncIncremental() } }
+                }
                 is AuthResult.Error   -> {
                     // Si es error de red (sin conexión) y tenemos sesión cacheada → dejar pasar
                     // Solo forzar re-login si el servidor rechaza explícitamente el token (401/403)
@@ -156,7 +165,10 @@ class AuthViewModel @Inject constructor(
         if (!validateRegister(s.name, s.username, s.email, s.password)) return
         doLaunch {
             when (val r = repo.registerIndividual(s.name, s.username, s.email, s.password)) {
-                is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true, isLoading = false) }
+                is AuthResult.Success -> {
+                    _ui.update { it.copy(isAuthenticated = true, isLoading = false) }
+                    triggerPostAuthSync(r.data)
+                }
                 is AuthResult.Error   -> _ui.update { it.copy(error = r.message, isLoading = false) }
             }
         }
@@ -168,7 +180,10 @@ class AuthViewModel @Inject constructor(
         if (!validateRegister(s.name, s.username, s.email, s.password)) return
         doLaunch {
             when (val r = repo.registerCompany(s.companyName, s.name, s.username, s.email, s.password)) {
-                is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true, isLoading = false, isCompany = true) }
+                is AuthResult.Success -> {
+                    _ui.update { it.copy(isAuthenticated = true, isLoading = false, isCompany = true) }
+                    triggerPostAuthSync(r.data)
+                }
                 is AuthResult.Error   -> _ui.update { it.copy(error = r.message, isLoading = false) }
             }
         }
@@ -193,9 +208,23 @@ class AuthViewModel @Inject constructor(
                 email      = s.email.trim(),
                 password   = s.password,
             )) {
-                is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true, isLoading = false) }
+                is AuthResult.Success -> {
+                    _ui.update { it.copy(isAuthenticated = true, isLoading = false) }
+                    triggerPostAuthSync(r.data)
+                }
                 is AuthResult.Error   -> _ui.update { it.copy(error = r.message, isLoading = false) }
             }
+        }
+    }
+
+    /** Dispara el sync apropiado tras un login/register exitoso, en background.
+     *  - wasAccountSwitch (cuenta distinta, Room limpiado por P5): full download
+     *  - misma cuenta o primer login: incremental */
+    private fun triggerPostAuthSync(data: AuthSuccess) {
+        if (data.wasAccountSwitch) {
+            viewModelScope.launch { runCatching { syncRepo.syncFullDownload() } }
+        } else {
+            viewModelScope.launch { runCatching { syncRepo.syncIncremental() } }
         }
     }
 
@@ -206,7 +235,18 @@ class AuthViewModel @Inject constructor(
         if (s.password.isBlank()) { _ui.update { it.copy(error = "Introduce tu contraseña") };      return }
         doLaunch {
             when (val r = repo.login(s.username.trim(), s.password)) {
-                is AuthResult.Success -> _ui.update { it.copy(isAuthenticated = true, isLoading = false, isCompany = r.data.isCompany) }
+                is AuthResult.Success -> {
+                    _ui.update { it.copy(isAuthenticated = true, isLoading = false, isCompany = r.data.isCompany) }
+                    // Disparar sync apropiado en background — no bloquea el cambio de pantalla.
+                    // wasAccountSwitch: login con cuenta DISTINTA a la anterior → Room ya
+                    // fue limpiado por AuthRepository.parseAuthResponse → full download.
+                    // Mismo accountId (cambio de rol dentro de la cuenta) → incremental.
+                    if (r.data.wasAccountSwitch) {
+                        viewModelScope.launch { runCatching { syncRepo.syncFullDownload() } }
+                    } else {
+                        viewModelScope.launch { runCatching { syncRepo.syncIncremental() } }
+                    }
+                }
                 is AuthResult.Error   -> _ui.update { it.copy(error = r.message, isLoading = false) }
             }
         }
@@ -214,8 +254,12 @@ class AuthViewModel @Inject constructor(
 
     fun logout() {
         viewModelScope.launch {
+            // AuthRepository.logout() ya sube lo pendiente con timeout 5s y limpia
+            // session. Room NO se limpia aquí — se limpia en el próximo login si
+            // cambia accountId (P5 en parseAuthResponse). Si el siguiente login es
+            // del mismo accountId (cambio de rol), Room se mantiene para que el
+            // nuevo rol vea los datos al instante.
             repo.logout()
-            try { db.clearAllTables() } catch (_: Exception) {}
             _ui.update { AuthUiState(screen = AuthScreen.CHOOSE_TYPE) }
         }
     }

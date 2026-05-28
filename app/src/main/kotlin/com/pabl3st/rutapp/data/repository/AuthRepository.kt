@@ -31,6 +31,11 @@ data class AuthSuccess(
     val accountType: String,
     val accountName: String,
     val isCompany: Boolean,
+    /** True si este login pertenece a una cuenta distinta a la anterior en
+     *  este móvil (Room ya fue limpiado en parseAuthResponse). El AuthViewModel
+     *  debe disparar syncFullDownload() en lugar de syncIncremental() para
+     *  repoblar Room desde cero. */
+    val wasAccountSwitch: Boolean = false,
 )
 
 @Singleton
@@ -40,6 +45,9 @@ class AuthRepository @Inject constructor(
     private val userPrefsRepo: UserPrefsRepository,
     private val fcmTokenRepo:  FcmTokenRepository,
     private val database:      com.pabl3st.rutapp.data.local.RutasDatabase,
+    // dagger.Lazy evita el ciclo Hilt: SyncRepository depende de varios repos
+    // y AuthRepository es solo Singleton — lazy se resuelve en runtime.
+    private val syncRepoLazy:  dagger.Lazy<SyncRepository>,
     @ApplicationContext private val context: Context,
 ) {
     private val deviceName: String
@@ -136,6 +144,14 @@ class AuthRepository @Inject constructor(
     // ── Logout ────────────────────────────────────────────────
     suspend fun logout() {
         val token = session.token ?: return
+        // Subir lo pendiente antes de cerrar — pero con timeout para no
+        // bloquear al usuario más de 5s si la red está mala. Si caduca,
+        // los datos quedan en sync_queue para el próximo login.
+        runCatching {
+            kotlinx.coroutines.withTimeout(5_000) {
+                syncRepoLazy.get().syncUploadOnly()
+            }
+        }
         runCatching { api.logout(token = token) }
         session.clear()
     }
@@ -202,10 +218,6 @@ class AuthRepository @Inject constructor(
         if (body == null || !body.ok || body.token == null || body.user == null || body.account == null) {
             return AuthResult.Error(body?.error ?: "Error desconocido", code)
         }
-        val success = buildSuccess(
-            body.token, body.user.id, body.user.username, body.user.email,
-            body.user.role, body.user.name, body.account.id, body.account.type, body.account.name,
-        )
         // P5 (mayo 2026): si el login pertenece a una cuenta DIFERENTE a la
         // anterior en este móvil, limpiar Room para evitar contaminación entre
         // cuentas (datos de otra empresa visibles tras logout/login). Si es la
@@ -232,6 +244,11 @@ class AuthRepository @Inject constructor(
             accountType     = body.account.type,
             accountName     = body.account.name,
         )
+        val success = buildSuccess(
+            body.token, body.user.id, body.user.username, body.user.email,
+            body.user.role, body.user.name, body.account.id, body.account.type,
+            body.account.name, wasAccountSwitch = isAccountSwitch,
+        )
         return AuthResult.Success(success)
     }
 
@@ -239,6 +256,7 @@ class AuthRepository @Inject constructor(
         token: String, userId: Int, userName: String, userEmail: String,
         userRole: String, userDisplayName: String, accountId: Int,
         accountType: String, accountName: String,
+        wasAccountSwitch: Boolean = false,
     ) = AuthSuccess(
         token           = token,
         userId          = userId,
@@ -250,5 +268,6 @@ class AuthRepository @Inject constructor(
         accountType     = accountType,
         accountName     = accountName,
         isCompany       = accountType == "company",
+        wasAccountSwitch = wasAccountSwitch,
     )
 }
