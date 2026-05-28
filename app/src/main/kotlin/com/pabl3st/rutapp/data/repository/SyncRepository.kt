@@ -207,12 +207,22 @@ class SyncRepository @Inject constructor(
         body.kpiValues?.mapNotNull { it.toEntity() }
             ?.filter { it.valueText.isNotBlank() }
             ?.let { if (it.isNotEmpty()) kpiValueDao.upsertAll(it) }
-        // Restaurar business_profile desde el servidor (si reinstalación o primer sync)
+        // P1 (mayo 2026): el servidor es fuente de verdad para business_profile
+        // cuando tiene un sector válido. Antes solo se aplicaba si Room estaba
+        // vacío (existing == null), lo que cementaba el "custom" creado por
+        // getOrCreateProfile() la primera vez que se abría KPIs/Visita/Perfil:
+        // el servidor podía tener "telco" para esa cuenta y nunca llegaba al
+        // cliente porque ya había una fila local.
+        //
+        // Modo CONSERVADOR: sobreescribir SOLO si el server devuelve un perfil
+        // con sector no vacío y distinto de "custom" (que es el placeholder
+        // local). Si el server no tiene perfil (devuelve null) o devuelve
+        // "custom", se respeta el local. Esto evita borrar cambios locales
+        // pendientes de subida (la subida cliente→server llegará en P3).
         body.businessProfile?.let { bp ->
-            val existing = businessProfileDao.get(session.accountId)
-            if (existing == null) {
-                // Solo insertar si no existe localmente — no sobreescribir cambios locales
-                businessProfileDao.upsert(bp.toEntity(session.accountId))
+            val bpEntity = bp.toEntity(session.accountId)
+            if (bpEntity.sector.isNotBlank() && bpEntity.sector != "custom") {
+                businessProfileDao.upsert(bpEntity)
             }
         }
 

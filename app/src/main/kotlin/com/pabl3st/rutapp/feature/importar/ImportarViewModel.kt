@@ -14,6 +14,7 @@ import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.repository.AdminRepository
+import com.pabl3st.rutapp.data.repository.BusinessProfileRepository
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.SyncRepository
@@ -186,6 +187,7 @@ class ImportarViewModel @Inject constructor(
     private val visitRepo:   StopVisitRepository,
     private val routeRepo:   RouteRepository,
     private val adminRepo:   AdminRepository,
+    private val profileRepo: BusinessProfileRepository,
     private val kpiValueDao: KpiValueDao,
     private val session:     SessionManager,
     private val syncRepo:    SyncRepository,
@@ -869,6 +871,27 @@ class ImportarViewModel @Inject constructor(
                     )}
                     syncGateway.endBatch()   // cerrar batch antes de salir por error
                     return@withContext
+                }
+
+                // P4 (mayo 2026): inferir sector telco si los reports tienen
+                // contenido telco. Antes el sector se quedaba en "custom" (default
+                // local) tras importar y la pantalla KPIs no mostraba los KPIs
+                // recién importados porque getVisibleKpisForSector filtra por
+                // sector. Ahora si el XLS trae datos telco, el sector se fija a
+                // "telco" automáticamente (idempotente — si ya era telco, no pasa
+                // nada; si era otro sector, se sobreescribe porque el XLS es la
+                // señal más reciente del usuario).
+                val hasTelcoData = kpiReports.any { r ->
+                    r.kpiActivaciones.isNotBlank() || r.kpiPrimerBono.isNotBlank() ||
+                    r.kpiMediaBono.isNotBlank()   || r.kpiRecargas.isNotBlank()    ||
+                    r.kpiNroTv.isNotBlank()       || r.plus || r.pdvInactivo
+                }
+                if (hasTelcoData) {
+                    runCatching { profileRepo.setSector("telco") }
+                        // No bloquear el flujo si falla — solo lo registramos en saveError
+                        .onFailure { e ->
+                            android.util.Log.w("Importar", "No se pudo fijar sector telco: ${e.message}")
+                        }
                 }
 
                 // Guardar KPI reports históricos: insertar en Room local + encolar

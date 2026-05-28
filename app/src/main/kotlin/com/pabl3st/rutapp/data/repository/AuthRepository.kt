@@ -39,6 +39,7 @@ class AuthRepository @Inject constructor(
     private val session:       SessionManager,
     private val userPrefsRepo: UserPrefsRepository,
     private val fcmTokenRepo:  FcmTokenRepository,
+    private val database:      com.pabl3st.rutapp.data.local.RutasDatabase,
     @ApplicationContext private val context: Context,
 ) {
     private val deviceName: String
@@ -194,7 +195,7 @@ class AuthRepository @Inject constructor(
     }
 
     // ── Helpers ───────────────────────────────────────────────
-    private fun parseAuthResponse(
+    private suspend fun parseAuthResponse(
         code: Int,
         body: com.pabl3st.rutapp.data.network.AuthResponse?,
     ): AuthResult<AuthSuccess> {
@@ -205,6 +206,20 @@ class AuthRepository @Inject constructor(
             body.token, body.user.id, body.user.username, body.user.email,
             body.user.role, body.user.name, body.account.id, body.account.type, body.account.name,
         )
+        // P5 (mayo 2026): si el login pertenece a una cuenta DIFERENTE a la
+        // anterior en este móvil, limpiar Room para evitar contaminación entre
+        // cuentas (datos de otra empresa visibles tras logout/login). Si es la
+        // misma cuenta (logout/login para cambiar de rol), Room se mantiene
+        // para que el nuevo rol vea los datos al instante sin esperar a un
+        // delta_sync completo.
+        val previousAccountId = session.accountId
+        val newAccountId      = body.account.id
+        val isAccountSwitch   = previousAccountId != 0 && previousAccountId != newAccountId
+        if (isAccountSwitch) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                database.clearAllTables()
+            }
+        }
         // Persistir en SessionManager
         session.saveAuth(
             token           = body.token,
@@ -213,7 +228,7 @@ class AuthRepository @Inject constructor(
             userEmail       = body.user.email,
             userRole        = body.user.role,
             userDisplayName = body.user.name,
-            accountId       = body.account.id,
+            accountId       = newAccountId,
             accountType     = body.account.type,
             accountName     = body.account.name,
         )

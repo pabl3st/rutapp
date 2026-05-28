@@ -2,11 +2,15 @@ package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
 import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
+import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.KpiCatalog
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
+import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.session.SessionManager
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -18,12 +22,18 @@ import javax.inject.Singleton
 @Singleton
 @OptIn(ExperimentalCoroutinesApi::class)
 class BusinessProfileRepository @Inject constructor(
-    private val profileDao: BusinessProfileDao,
-    private val kpiDao:     KpiDefinitionDao,
-    private val api:        RutasApiService,
-    private val session:    SessionManager,
+    private val profileDao:   BusinessProfileDao,
+    private val kpiDao:       KpiDefinitionDao,
+    private val syncQueueDao: SyncQueueDao,
+    private val syncGateway:  com.pabl3st.rutapp.sync.SyncGateway,
+    private val api:          RutasApiService,
+    private val session:      SessionManager,
+    private val moshi:        Moshi,
 ) {
     val accountId: Int get() = session.accountId
+
+    private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
+    private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
     // ── Perfil ────────────────────────────────────────────────
 
@@ -36,7 +46,10 @@ class BusinessProfileRepository @Inject constructor(
         }
     }
 
-    /** Cambia el sector y carga los KPIs predefinidos si no existen ya */
+    /** Cambia el sector y carga los KPIs predefinidos si no existen ya.
+     *  P3 (mayo 2026): además encola el cambio al servidor vía batch_sync para
+     *  que todos los móviles de la misma cuenta converjan al mismo sector.
+     *  Antes el sector vivía solo en cada Room local y no se sincronizaba. */
     suspend fun setSector(sector: String) {
         val profile = BusinessProfileEntity(
             accountId = accountId,
@@ -45,6 +58,25 @@ class BusinessProfileRepository @Inject constructor(
         )
         profileDao.upsert(profile)
         seedKpisIfNeeded(sector)
+        enqueueProfileUpdate(profile)
+    }
+
+    /** Encola un upsert de business_profile al servidor. El uid del op usa
+     *  un prefijo determinístico por accountId — múltiples cambios sucesivos
+     *  reemplazan al anterior en lugar de acumular operaciones distintas. */
+    private suspend fun enqueueProfileUpdate(profile: BusinessProfileEntity) {
+        val payload = mapOf(
+            "sector"    to profile.sector,
+            "name"      to profile.name,
+            "updatedAt" to profile.updatedAt,
+        )
+        syncQueueDao.enqueue(SyncQueueEntity(
+            entity    = "business_profile",
+            entityUid = "bp-${profile.accountId}",
+            operation = "upsert",
+            payload   = mapAdapter.toJson(payload),
+        ))
+        syncGateway.trigger()
     }
 
     // ── KPIs ─────────────────────────────────────────────────
