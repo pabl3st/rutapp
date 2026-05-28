@@ -17,8 +17,12 @@ SET @sql := IF(@idx_exists = 0,
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Back-fill: cada foto apunta a la visita inicial del stop (creada en v16)
+-- Importante: visit_photos usa utf8mb4_general_ci pero stop_visits usa
+-- utf8mb4_unicode_ci, así que forzamos collation en la comparación del JOIN
+-- (MariaDB error #1267 si no).
 UPDATE visit_photos vp
-JOIN stop_visits sv ON sv.uid = CONCAT(vp.stop_uid, '-v1')
+JOIN stop_visits sv
+  ON sv.uid COLLATE utf8mb4_unicode_ci = CONCAT(vp.stop_uid, '-v1') COLLATE utf8mb4_unicode_ci
 SET vp.visit_uid = sv.uid
 WHERE vp.visit_uid IS NULL;
 
