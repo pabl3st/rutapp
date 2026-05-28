@@ -103,12 +103,19 @@ class RouteRepository @Inject constructor(
     /** Borra TODAS las rutas, paradas, visitas, KPIs y la cola local de sync de la cuenta.
      *  Primero llama al servidor (también borra ahí), luego limpia Room en orden FK seguro.
      *  Tras esto el usuario puede re-importar sin colisiones con datos huérfanos.
-     *  Solo owner/god — el servidor también lo valida. */
-    suspend fun clearAllRoutes(): Boolean {
+     *  Solo owner/god — el servidor también lo valida.
+     *
+     *  Devuelve un string null si todo OK, o un mensaje con el motivo del fallo.
+     *  Antes devolvía Boolean pero eso ocultaba excepciones reales (sin token,
+     *  http 4xx/5xx, timeouts, IOException) que el usuario solo veía como
+     *  'Error de conexión' aunque la causa fuese otra. */
+    suspend fun clearAllRoutes(): String? {
+        val token = session.token ?: return "Sin sesión activa"
         return try {
-            val token = session.token ?: return false
             val response = api.clearRoutes(token = token)
-            if (response.isSuccessful) {
+            if (!response.isSuccessful) {
+                "HTTP ${response.code()}: ${response.message().ifBlank { "sin detalle" }}"
+            } else {
                 // Orden importante por dependencias FK locales:
                 //   kpi_values → stop_visits → stops → routes → sync_queue (purga total)
                 // sync_queue se vacía entera: cualquier op pendiente sobre entidades
@@ -118,9 +125,11 @@ class RouteRepository @Inject constructor(
                 stopDao.deleteAllByAccount(session.accountId)
                 routeDao.deleteAllByAccount(session.accountId)
                 syncQueueDao.purgeAll()
-                true
-            } else false
-        } catch (e: Exception) { false }
+                null
+            }
+        } catch (e: Exception) {
+            "${e.javaClass.simpleName}: ${e.message ?: "sin mensaje"}"
+        }
     }
 
     /** Marca la ruta como completada y encola para sync */

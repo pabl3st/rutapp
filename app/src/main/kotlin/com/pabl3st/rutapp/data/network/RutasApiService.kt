@@ -74,6 +74,11 @@ data class LogoutRequest(
     @Json(name = "clear_fcm") val clearFcm: Boolean = true,
 )
 
+/** POST sin payload concreto. Algunos servidores (cPanel/Apache) cierran la conexión
+ *  ante POST con Content-Length: 0 — enviar un objeto JSON vacío {} evita ese problema. */
+@JsonClass(generateAdapter = true)
+class EmptyRequest
+
 // ── Response models ──────────────────────────────────────────
 
 @JsonClass(generateAdapter = true)
@@ -777,6 +782,7 @@ interface RutasApiService {
     suspend fun clearRoutes(
         @Query("action")        action: String = "clear_routes",
         @Header("X-Auth-Token") token: String,
+        @Body body: EmptyRequest = EmptyRequest(),
     ): retrofit2.Response<BaseResponse>
 
     // ── S14 Admin endpoints ───────────────────────────────────

@@ -365,12 +365,12 @@ class AdminViewModel @Inject constructor(
     fun confirmClearRoutes() {
         _ui.update { it.copy(showClearDialog = false, isClearingRoutes = true) }
         viewModelScope.launch {
-            val ok = routeRepo.clearAllRoutes()
+            val errorMsg = routeRepo.clearAllRoutes()
             _ui.update {
                 it.copy(
                     isClearingRoutes = false,
-                    snackbar = if (ok) "Todas las rutas y paradas eliminadas"
-                               else "Error al eliminar — comprueba la conexión",
+                    snackbar = if (errorMsg == null) "Todas las rutas y paradas eliminadas"
+                               else "No se pudo limpiar: $errorMsg",
                 )
             }
         }
