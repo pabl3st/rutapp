@@ -321,6 +321,7 @@ data class DaySessionDto(
 @JsonClass(generateAdapter = true)
 data class KpiValueDto(
     @Json(name = "stop_uid")    val stopUid:   String,
+    @Json(name = "visit_uid")   val visitUid:  String? = null,  // Modelo C: identifica la visita concreta
     @Json(name = "kpi_id")      val kpiId:     String,
     @Json(name = "value_text")  val valueText: String?,
     @Json(name = "updated_at")  val updatedAt: String?,

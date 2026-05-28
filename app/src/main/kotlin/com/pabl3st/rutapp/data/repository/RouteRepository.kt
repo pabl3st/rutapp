@@ -359,7 +359,12 @@ class RouteRepository @Inject constructor(
 
     private fun toKpiEntity(dto: com.pabl3st.rutapp.data.network.KpiValueDto): com.pabl3st.rutapp.data.local.entity.KpiValueEntity? {
         if (dto.stopUid.isBlank() || dto.kpiId.isBlank()) return null
+        // Modelo C: visit_uid viene del servidor. Si el servidor aún no lo
+        // envía (compat retroatrás), generamos el patrón v1 igual que el
+        // back-fill de las migraciones.
+        val visitUid = dto.visitUid?.takeIf { it.isNotBlank() } ?: "${dto.stopUid}-v1"
         return com.pabl3st.rutapp.data.local.entity.KpiValueEntity(
+            visitUid   = visitUid,
             stopUid    = dto.stopUid,
             kpiId      = dto.kpiId,
             valueText  = dto.valueText ?: "",

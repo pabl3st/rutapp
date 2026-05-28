@@ -243,7 +243,10 @@ fun KpiValueDto.toEntity(): KpiValueEntity? {
     if (stopUid.isBlank() || kpiId.isBlank()) return null
     val v = valueText?.trim() ?: return null   // null o vacío del servidor = ignorar
     if (v.isEmpty()) return null
+    // Modelo C: usamos visit_uid del servidor si existe, fallback a -v1
+    val resolvedVisitUid = visitUid?.takeIf { it.isNotBlank() } ?: "$stopUid-v1"
     return KpiValueEntity(
+        visitUid   = resolvedVisitUid,
         stopUid    = stopUid,
         kpiId      = kpiId,
         valueText  = v,

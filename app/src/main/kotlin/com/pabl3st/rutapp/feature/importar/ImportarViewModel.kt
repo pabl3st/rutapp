@@ -861,23 +861,31 @@ class ImportarViewModel @Inject constructor(
                     return@withContext
                 }
 
-                // Guardar KPI reports históricos como kpi_values
+                // Guardar KPI reports históricos como kpi_values — ancladas a la
+                // stop_visit concreta de (stopUid, report.date). Modelo C: cada
+                // KPI pertenece a una visita específica, no al PDV en general.
                 if (kpiReports.isNotEmpty()) {
                     val kpiEntities = kpiReports.flatMap { report ->
                         val stopUid = externalIdToStopUid[report.stopExternalId] ?: return@flatMap emptyList()
+                        // Resolver visitUid:
+                        // - Si el importer creó stop_visits para esta fecha (Task 13), getByStopAndDate la devuelve.
+                        // - Si no (KPI cuya fecha no estaba en el calendario del XLS), fallback al patrón v1
+                        //   (mantiene coherencia con el back-fill de MIGRATION_15_16/16_17).
+                        val visit = visitRepo.getByStopAndDate(stopUid, report.date)
+                        val visitUid = visit?.uid ?: "$stopUid-v1"
                         buildList {
                             if (report.kpiActivaciones.isNotBlank())
-                                add(KpiValueEntity(stopUid, "telco_activaciones",  report.kpiActivaciones, "synced"))
+                                add(KpiValueEntity(visitUid, stopUid, "telco_activaciones",  report.kpiActivaciones, "synced"))
                             if (report.kpiPrimerBono.isNotBlank())
-                                add(KpiValueEntity(stopUid, "telco_primer_bono",   report.kpiPrimerBono,   "synced"))
+                                add(KpiValueEntity(visitUid, stopUid, "telco_primer_bono",   report.kpiPrimerBono,   "synced"))
                             if (report.kpiMediaBono.isNotBlank())
-                                add(KpiValueEntity(stopUid, "telco_media_bono",    report.kpiMediaBono,    "synced"))
+                                add(KpiValueEntity(visitUid, stopUid, "telco_media_bono",    report.kpiMediaBono,    "synced"))
                             if (report.kpiRecargas.isNotBlank())
-                                add(KpiValueEntity(stopUid, "telco_recargas",      report.kpiRecargas,     "synced"))
+                                add(KpiValueEntity(visitUid, stopUid, "telco_recargas",      report.kpiRecargas,     "synced"))
                             if (report.kpiNroTv.isNotBlank())
-                                add(KpiValueEntity(stopUid, "telco_tv",            report.kpiNroTv,        "synced"))
-                            add(KpiValueEntity(stopUid, "telco_plus",          if (report.plus) "true" else "false",         "synced"))
-                            add(KpiValueEntity(stopUid, "telco_pdv_inactivo",  if (report.pdvInactivo) "true" else "false",  "synced"))
+                                add(KpiValueEntity(visitUid, stopUid, "telco_tv",            report.kpiNroTv,        "synced"))
+                            add(KpiValueEntity(visitUid, stopUid, "telco_plus",          if (report.plus) "true" else "false",         "synced"))
+                            add(KpiValueEntity(visitUid, stopUid, "telco_pdv_inactivo",  if (report.pdvInactivo) "true" else "false",  "synced"))
                         }
                     }
                     if (kpiEntities.isNotEmpty()) kpiValueDao.upsertAll(kpiEntities)

@@ -170,7 +170,7 @@ class VisitaViewModel @Inject constructor(
             // 2. Crear o recuperar la stop_visit y escribir el informe en ella
             val routeUidForVisit = _ui.value.stop?.routeUid
                 ?: stopRepo.getByUid(stopUid)?.routeUid
-            if (routeUidForVisit != null) {
+            val visitUidForKpis: String? = if (routeUidForVisit != null) {
                 val existing = visitRepo.getByStopAndDate(stopUid, resolvedDate)
                     ?: visitRepo.ensureVisitExists(stopUid, routeUidForVisit, resolvedDate)
                 visitRepo.updateVisit(existing.copy(
@@ -184,7 +184,8 @@ class VisitaViewModel @Inject constructor(
                     gpsLatVisit  = gpsPos?.latitude  ?: existing.gpsLatVisit,
                     gpsLngVisit  = gpsPos?.longitude ?: existing.gpsLngVisit,
                 ))
-            }
+                existing.uid
+            } else null
 
             // 3. Espejo en el stop — sigue siendo la fuente de verdad de la
             //    "última visita registrada" para vistas legacy (Biblioteca,
@@ -202,11 +203,15 @@ class VisitaViewModel @Inject constructor(
                 checkOutTs  = checkOutTs,
             )
 
-            // 4. Persistir valores KPI en Room
+            // 4. Persistir valores KPI en Room — ancladas a la visita actual
+            //    Si no pudimos resolver visitUid (caso extremo: stop sin ruta),
+            //    usamos el patrón '-v1' como fallback de compatibilidad.
+            val effectiveVisitUid = visitUidForKpis ?: "$stopUid-v1"
             val kpiEntities = _ui.value.kpiValues
                 .filter { (_, v) -> v.isNotBlank() }
                 .map { (kpiId, value) ->
                     KpiValueEntity(
+                        visitUid   = effectiveVisitUid,
                         stopUid    = stopUid,
                         kpiId      = kpiId,
                         valueText  = value.trim(),
@@ -218,15 +223,19 @@ class VisitaViewModel @Inject constructor(
                 kpiValueDao.upsertAll(kpiEntities)
 
                 // 5. Encolar en SyncQueue para que SyncWorker los suba al servidor
-                // api.php batch_sync entity="kpi_values": data={stopUid, values:{kpiId->value}}
+                // api.php batch_sync entity="kpi_values": data={stopUid, visitUid, values:{kpiId->value}}
                 val valuesMap: Map<String, Any?> = kpiEntities.associate { it.kpiId to it.valueText }
                 val payload = mapAdapter.toJson(
-                    mapOf("stopUid" to stopUid, "values" to valuesMap)
+                    mapOf(
+                        "stopUid"  to stopUid,
+                        "visitUid" to effectiveVisitUid,
+                        "values"   to valuesMap,
+                    )
                 )
                 syncQueueDao.enqueue(
                     SyncQueueEntity(
                         entity    = "kpi_values",
-                        entityUid = stopUid,
+                        entityUid = effectiveVisitUid,    // ahora el uid de la visita identifica el batch
                         operation = "upsert",
                         payload   = payload,
                     )

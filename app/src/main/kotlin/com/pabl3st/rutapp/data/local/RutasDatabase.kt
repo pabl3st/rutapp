@@ -36,7 +36,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 16,
+    version      = 17,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -304,6 +304,56 @@ abstract class RutasDatabase : RoomDatabase() {
                     FROM stops
                     WHERE deletedAt IS NULL
                       AND (visitedAt IS NOT NULL OR status != 'pending' OR dateAssigned IS NOT NULL)
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Modelo C: KpiValueEntity pasa a PK (visitUid, kpiId).
+                // Recreamos la tabla porque SQLite no permite cambiar PK.
+                // Back-fill: cada KPI existente se ancla a la visita '-v1' del stop
+                // (creada en MIGRATION_15_16). KPIs huérfanos (stop borrado) se
+                // descartan en el back-fill.
+                db.execSQL("ALTER TABLE kpi_values RENAME TO kpi_values_old")
+                db.execSQL("""
+                    CREATE TABLE kpi_values (
+                        visitUid TEXT NOT NULL,
+                        stopUid TEXT NOT NULL,
+                        kpiId TEXT NOT NULL,
+                        valueText TEXT NOT NULL,
+                        syncStatus TEXT NOT NULL DEFAULT 'pending',
+                        PRIMARY KEY (visitUid, kpiId)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_kpi_values_stopUid ON kpi_values (stopUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_kpi_values_syncStatus ON kpi_values (syncStatus)")
+
+                // Back-fill: el visit_uid se deriva del stop_uid añadiéndole '-v1'
+                // (mismo patrón que el back-fill de stop_visits). Si un KPI no tiene
+                // una visita 'v1' correspondiente (stop borrado), se omite.
+                db.execSQL("""
+                    INSERT OR IGNORE INTO kpi_values (visitUid, stopUid, kpiId, valueText, syncStatus)
+                    SELECT
+                        kv.stopUid || '-v1' AS visitUid,
+                        kv.stopUid,
+                        kv.kpiId,
+                        kv.valueText,
+                        kv.syncStatus
+                    FROM kpi_values_old kv
+                    WHERE EXISTS (SELECT 1 FROM stop_visits sv WHERE sv.uid = kv.stopUid || '-v1')
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE kpi_values_old")
+
+                // visit_photos: añadir columna visitUid (no es PK, no hay que recrear)
+                // El esquema de visit_photos tiene PK uid y stopUid como FK lógica.
+                db.execSQL("ALTER TABLE visit_photos ADD COLUMN visitUid TEXT")
+                db.execSQL("""
+                    UPDATE visit_photos
+                    SET visitUid = stopUid || '-v1'
+                    WHERE visitUid IS NULL
+                      AND EXISTS (SELECT 1 FROM stop_visits sv WHERE sv.uid = visit_photos.stopUid || '-v1')
                 """.trimIndent())
             }
         }

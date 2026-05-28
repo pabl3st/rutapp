@@ -733,7 +733,7 @@ if ($action === 'delta_sync') {
 
     // KPI values de stops actualizados en el período
     $stK = db()->prepare(
-        'SELECT kv.stop_uid, kv.kpi_id, kv.value_text, kv.updated_at
+        'SELECT kv.stop_uid, kv.visit_uid, kv.kpi_id, kv.value_text, kv.updated_at
          FROM kpi_values kv
          JOIN stops s ON s.uid = kv.stop_uid
          JOIN routes r ON r.id = s.route_id
@@ -960,25 +960,31 @@ if ($action === 'batch_sync') {
 
                 } elseif ($entity === 'kpi_values') {
                     if ($operation === 'upsert' || $operation === 'create' || $operation === 'update') {
-                        $stopUid = san($data['stopUid'] ?? '', 36);
+                        $stopUid  = san($data['stopUid']  ?? ($data['stop_uid']  ?? ''), 36);
+                        // Modelo C: visitUid identifica la visita concreta a la que pertenecen los KPIs.
+                        // Si el cliente no lo envía (versiones anteriores), fallback al patrón v1
+                        // para coherencia con el back-fill de migration v17.
+                        $visitUid = san($data['visitUid'] ?? ($data['visit_uid'] ?? ''), 36);
+                        if (!$visitUid && $stopUid) $visitUid = $stopUid . '-v1';
                         $values  = $data['values'] ?? [];
-                        if ($stopUid && is_array($values)) {
+                        if ($stopUid && $visitUid && is_array($values)) {
                             $stmt = db()->prepare(
-                                'INSERT INTO kpi_values (account_id, stop_uid, kpi_id, value_text)
-                                 VALUES (?,?,?,?)
+                                'INSERT INTO kpi_values (account_id, stop_uid, visit_uid, kpi_id, value_text)
+                                 VALUES (?,?,?,?,?)
                                  ON DUPLICATE KEY UPDATE value_text=VALUES(value_text), updated_at=NOW()'
                             );
                             foreach ($values as $kpiId => $val) {
                                 $stmt->execute([
                                     $aid,
                                     $stopUid,
+                                    $visitUid,
                                     san((string)$kpiId, 100),
                                     san((string)($val ?? ''), 5000),
                                 ]);
                             }
                             $synced[] = ['uid' => $clientUid, 'entity' => 'kpi_values'];
                         } else {
-                            $errors[] = ['uid' => $clientUid, 'entity' => 'kpi_values', 'error' => 'stopUid o values inválidos'];
+                            $errors[] = ['uid' => $clientUid, 'entity' => 'kpi_values', 'error' => 'stopUid/visitUid o values inválidos'];
                         }
                     }
 
