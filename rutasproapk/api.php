@@ -2175,11 +2175,17 @@ if ($action === 'clear_routes') {
     $aid = (int)$sess['account_id'];
     // Borrar en orden por FK (dependientes → ancestrales):
     //   visit_photos → kpi_values → stop_visits → stops → routes → sync_log
-    // Si stop_visits o visit_photos no existen aún (cuenta antigua), el ALTER
-    // los habrá creado y estas DELETE serán no-op.
+    //
+    // OJO collation: visit_photos se creó con utf8mb4_general_ci pero
+    // stop_visits/stops/routes con utf8mb4_unicode_ci. Sin forzar collation
+    // en el JOIN sobre visit_photos, MariaDB tira #1267 Illegal mix of
+    // collations y el endpoint cae con HTTP 500 — el cliente lo ve como
+    // "error de conexión". Mismo problema que arreglamos en migration v18.
     db()->prepare('DELETE vp FROM visit_photos vp
-        JOIN stop_visits sv ON sv.uid = vp.visit_uid
-        JOIN stops s ON s.uid = sv.stop_uid
+        JOIN stop_visits sv
+          ON sv.uid COLLATE utf8mb4_unicode_ci = vp.visit_uid COLLATE utf8mb4_unicode_ci
+        JOIN stops s
+          ON s.uid COLLATE utf8mb4_unicode_ci = sv.stop_uid COLLATE utf8mb4_unicode_ci
         JOIN routes r ON r.id = s.route_id
         WHERE r.account_id = ?')->execute([$aid]);
     db()->prepare('DELETE kv FROM kpi_values kv
