@@ -222,10 +222,47 @@ data class RoutesListResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class StopVisitDto(
+    val uid: String,
+    @Json(name = "stop_uid")      val stopUid: String,
+    @Json(name = "route_uid")     val routeUid: String,
+    @Json(name = "visit_date")    val visitDate: String,           // YYYY-MM-DD
+    val status: String,
+    @Json(name = "visited_at")    val visitedAt: String?  = null,
+    @Json(name = "visit_result")  val visitResult: String? = null,
+    @Json(name = "next_action")   val nextAction: String?  = null,
+    val notes: String? = null,
+    @Json(name = "check_in_ts")   val checkInTs:  Long? = null,
+    @Json(name = "check_out_ts")  val checkOutTs: Long? = null,
+    @Json(name = "gps_lat_visit") val gpsLatVisit: Double? = null,
+    @Json(name = "gps_lng_visit") val gpsLngVisit: Double? = null,
+    @Json(name = "created_at")    val createdAt: String,
+    @Json(name = "updated_at")    val updatedAt: String,
+    @Json(name = "deleted_at")    val deletedAt: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VisitsByRouteResponse(
+    val ok: Boolean,
+    val visits: List<StopVisitDto>? = null,
+    val error: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class VisitSaveResponse(
+    val ok: Boolean,
+    val uid: String? = null,
+    val created: Boolean? = null,
+    val updated: Boolean? = null,
+    val error: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
 data class DeltaSyncResponse(
     val ok: Boolean,
     val routes: List<RouteDto>?,
     val stops: List<StopDto>?,
+    @Json(name = "stop_visits")      val stopVisits:      List<StopVisitDto>?       = null,
     @Json(name = "day_sessions")     val daySessions:     List<DaySessionDto>?      = null,
     @Json(name = "kpi_values")       val kpiValues:       List<KpiValueDto>?         = null,
     @Json(name = "business_profile") val businessProfile: BusinessProfileSyncDto?    = null,
@@ -861,6 +898,21 @@ interface RutasApiService {
         @Query("action") action: String = "god_set_role",
         @Body body: GodSetRoleRequest,
     ): Response<AdminActionResponse>
+
+    // ── stop_visits ──────────────────────────────────────────
+    @GET(API_PATH)
+    suspend fun visitsByRoute(
+        @Header("X-Auth-Token") token: String,
+        @Query("action") action: String = "visits_by_route",
+        @Query("route_uid") routeUid: String,
+    ): Response<VisitsByRouteResponse>
+
+    @POST(API_PATH)
+    suspend fun visitSave(
+        @Header("X-Auth-Token") token: String,
+        @Query("action") action: String = "visit_save",
+        @Body body: Map<String, @JvmSuppressWildcards Any?>,
+    ): Response<VisitSaveResponse>
 
 }
 

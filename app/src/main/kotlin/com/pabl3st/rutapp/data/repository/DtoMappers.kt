@@ -2,8 +2,10 @@ package com.pabl3st.rutapp.data.repository
 
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopVisitEntity
 import com.pabl3st.rutapp.data.network.RouteDto
 import com.pabl3st.rutapp.data.network.StopDto
+import com.pabl3st.rutapp.data.network.StopVisitDto
 
 // ── RouteDto → RouteEntity ────────────────────────────────────
 fun RouteDto.toEntity(userId: Int, accountId: Int) = RouteEntity(
@@ -91,3 +93,26 @@ fun com.pabl3st.rutapp.data.network.KpiDefinitionSyncDto.toEntity() =
         section     = section,
     )
 
+
+// ── StopVisitDto → StopVisitEntity ────────────────────────────
+fun StopVisitDto.toEntity(accountId: Int) = StopVisitEntity(
+    uid          = uid,
+    stopUid      = stopUid,
+    routeUid     = routeUid,
+    accountId    = accountId,
+    visitDate    = visitDate,
+    status       = status,
+    visitedAt    = visitedAt,
+    visitResult  = visitResult,
+    nextAction   = nextAction,
+    notes        = notes,
+    checkInTs    = checkInTs,
+    checkOutTs   = checkOutTs,
+    gpsLatVisit  = gpsLatVisit,
+    gpsLngVisit  = gpsLngVisit,
+    createdAt    = createdAt,
+    updatedAt    = updatedAt,
+    deletedAt    = deletedAt,
+    syncStatus   = "synced",   // viene del servidor → ya sincronizado
+    syncedAt     = updatedAt,
+)
