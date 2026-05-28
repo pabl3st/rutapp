@@ -467,8 +467,10 @@ fun RutasNavGraph(
                 )
             }
             composable(route = Screen.Importar.route) {
-                // Guardia: owner/admin/manager/god pueden acceder al wizard de importación
-                if (!UserRole.from(userRole).canViewTeam) {
+                // Guardia: cualquiera que pueda importar (agent+). Un agent solo
+                // puede asignar rutas a sí mismo; el servidor lo valida. Usar
+                // canImport (>= agent) y NO canViewTeam, que excluye agent y god.
+                if (!UserRole.from(userRole).canImport) {
                     navController.popBackStack()
                     return@composable
                 }
