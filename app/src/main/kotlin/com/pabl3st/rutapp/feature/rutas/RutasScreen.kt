@@ -117,28 +117,28 @@ fun RutasScreen(
                             )
                             Spacer(Modifier.width(12.dp))
                         }
-                        // Forzar sync manual: solo owner/admin (canDelete = nivel admin+)
+                        // Forzar sync manual: visible para TODOS los roles.
+                        // El agent en campo es quien más lo necesita (red mala,
+                        // muchas visitas y fotos pendientes de subir).
                         // Muestra badge si hay ops pendientes en la cola local.
-                        if (ui.canDelete) {
-                            BadgedBox(
-                                badge = {
-                                    if (ui.pendingOpsCount > 0) {
-                                        Badge { Text(ui.pendingOpsCount.toString()) }
-                                    }
+                        BadgedBox(
+                            badge = {
+                                if (ui.pendingOpsCount > 0) {
+                                    Badge { Text(ui.pendingOpsCount.toString()) }
                                 }
+                            }
+                        ) {
+                            IconButton(
+                                onClick = vm::forceSync,
+                                enabled = !ui.isForceSyncing,
                             ) {
-                                IconButton(
-                                    onClick = vm::forceSync,
-                                    enabled = !ui.isForceSyncing,
-                                ) {
-                                    if (ui.isForceSyncing) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp,
-                                        )
-                                    } else {
-                                        Icon(Icons.Default.CloudUpload, contentDescription = "Forzar sincronización")
-                                    }
+                                if (ui.isForceSyncing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(Icons.Default.CloudUpload, contentDescription = "Forzar sincronización")
                                 }
                             }
                         }
