@@ -33,11 +33,13 @@ object DatabaseModule {
                 RutasDatabase.MIGRATION_12_13,
                 RutasDatabase.MIGRATION_13_14,
                 RutasDatabase.MIGRATION_14_15,
+                RutasDatabase.MIGRATION_15_16,
             )
             .build()
 
     @Provides fun provideRouteDao(db: RutasDatabase)           = db.routeDao()
     @Provides fun provideStopDao(db: RutasDatabase)            = db.stopDao()
+    @Provides fun provideStopVisitDao(db: RutasDatabase)       = db.stopVisitDao()
     @Provides fun provideSyncQueueDao(db: RutasDatabase)       = db.syncQueueDao()
     @Provides fun provideDaySessionDao(db: RutasDatabase)      = db.daySessionDao()
     @Provides fun provideKpiDefinitionDao(db: RutasDatabase)   = db.kpiDefinitionDao()

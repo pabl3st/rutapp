@@ -10,6 +10,7 @@ import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.dao.RouteDao
 import com.pabl3st.rutapp.data.local.dao.StopDao
+import com.pabl3st.rutapp.data.local.dao.StopVisitDao
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.BusinessProfileEntity
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
@@ -18,6 +19,7 @@ import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.dao.VisitPhotoDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.local.entity.StopVisitEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
 import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
 
@@ -26,6 +28,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
     entities = [
         RouteEntity::class,
         StopEntity::class,
+        StopVisitEntity::class,
         SyncQueueEntity::class,
         DaySessionEntity::class,
         KpiDefinitionEntity::class,
@@ -33,12 +36,13 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 15,
+    version      = 16,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
     abstract fun routeDao(): RouteDao
     abstract fun stopDao(): StopDao
+    abstract fun stopVisitDao(): StopVisitDao
     abstract fun syncQueueDao(): SyncQueueDao
     abstract fun daySessionDao(): DaySessionDao
     abstract fun kpiDefinitionDao(): KpiDefinitionDao
@@ -235,6 +239,71 @@ abstract class RutasDatabase : RoomDatabase() {
                     WHERE address IS NOT NULL
                       AND postalCode IS NULL
                       AND street IS NULL
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Modelo C — informes diarios independientes.
+                // Una parada (stop) puede tener N visitas, una por fecha programada.
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS stop_visits (
+                        uid TEXT NOT NULL PRIMARY KEY,
+                        stopUid TEXT NOT NULL,
+                        routeUid TEXT NOT NULL,
+                        accountId INTEGER NOT NULL,
+                        visitDate TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        visitedAt TEXT,
+                        visitResult TEXT,
+                        nextAction TEXT,
+                        notes TEXT,
+                        checkInTs INTEGER,
+                        checkOutTs INTEGER,
+                        gpsLatVisit REAL,
+                        gpsLngVisit REAL,
+                        createdAt TEXT NOT NULL,
+                        updatedAt TEXT NOT NULL,
+                        deletedAt TEXT,
+                        syncStatus TEXT NOT NULL DEFAULT 'pending',
+                        syncedAt TEXT
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_stop_visits_stopUid_visitDate ON stop_visits (stopUid, visitDate)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_stop_visits_routeUid ON stop_visits (routeUid)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_stop_visits_syncStatus ON stop_visits (syncStatus)")
+
+                // Back-fill: para cada stop con datos de visita ya existentes, crear
+                // una stop_visit "v1" con esos datos. Idempotente con OR IGNORE
+                // (la PK uid evita duplicados si la migración se ejecuta dos veces).
+                db.execSQL("""
+                    INSERT OR IGNORE INTO stop_visits
+                        (uid, stopUid, routeUid, accountId, visitDate, status,
+                         visitedAt, visitResult, nextAction, notes,
+                         checkInTs, checkOutTs, gpsLatVisit, gpsLngVisit,
+                         createdAt, updatedAt, syncStatus)
+                    SELECT
+                        uid || '-v1',
+                        uid,
+                        routeUid,
+                        accountId,
+                        COALESCE(dateAssigned, substr(createdAt, 1, 10)),
+                        status,
+                        visitedAt,
+                        visitResult,
+                        nextAction,
+                        notes,
+                        checkInTs,
+                        checkOutTs,
+                        gpsLatVisit,
+                        gpsLngVisit,
+                        createdAt,
+                        updatedAt,
+                        'synced'
+                    FROM stops
+                    WHERE deletedAt IS NULL
+                      AND (visitedAt IS NOT NULL OR status != 'pending' OR dateAssigned IS NOT NULL)
                 """.trimIndent())
             }
         }
