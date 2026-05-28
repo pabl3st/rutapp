@@ -7,6 +7,9 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.WorkManager
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
+import com.pabl3st.rutapp.data.network.AccountUserDto
+import com.pabl3st.rutapp.data.repository.AdminRepository
+import com.pabl3st.rutapp.data.repository.AuthResult
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.repository.SyncRepository
@@ -24,6 +27,7 @@ data class RouteWithProgress(
     val doneStops:        Int          = 0,
     val progress:         Float        = 0f,   // 0.0 – 1.0
     val nextPendingStop:  StopEntity?  = null, // primera parada pendiente
+    val stops:            List<StopEntity> = emptyList(), // lista completa para desglose colapsable
 )
 
 data class HomeUiState(
@@ -36,6 +40,9 @@ data class HomeUiState(
     val userName:       String  = "",
     val userRole:       String  = "agent",
     val isManager:      Boolean = false,  // owner/admin/manager/god
+    // Jerarquía del equipo (solo para roles manager+) — para renderizar el árbol
+    // del bloque "Equipo hoy". Vacío para agents.
+    val teamMembers:    List<AccountUserDto> = emptyList(),
     val error:          String? = null,
 )
 
@@ -46,6 +53,7 @@ class HomeViewModel @Inject constructor(
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
     private val syncRepo:    SyncRepository,
+    private val adminRepo:   AdminRepository,
     private val session:     SessionManager,
     private val workManager: WorkManager,
 ) : BaseViewModel() {
@@ -64,8 +72,24 @@ class HomeViewModel @Inject constructor(
 
     init {
         observeRoutes()
+        loadTeamMembers()
         schedulePeriodicSync()
         syncNow()
+    }
+
+    /**
+     * Carga la lista de usuarios de la cuenta (solo para roles manager+) para
+     * poder renderizar el árbol jerárquico Manager → Agentes en el dashboard.
+     * Fallo silencioso: si el endpoint falla, el árbol cae a lista plana.
+     */
+    private fun loadTeamMembers() {
+        if (session.userRole !in MANAGER_ROLES) return
+        viewModelScope.launch {
+            when (val res = adminRepo.listUsers()) {
+                is AuthResult.Success -> _ui.update { it.copy(teamMembers = res.data) }
+                else -> Unit  // sin team data, ManagerTeamSummary cae a lista plana
+            }
+        }
     }
 
     private fun observeRoutes() {
@@ -107,6 +131,7 @@ class HomeViewModel @Inject constructor(
                             nextPendingStop = stops
                                 .filter { it.status == "pending" || it.status == "visiting" }
                                 .minByOrNull { it.orderIndex },
+                            stops           = stops.sortedBy { it.orderIndex },
                         )
                     }
                     val totalAll   = enriched.sumOf { it.totalStops }
