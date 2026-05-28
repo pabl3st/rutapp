@@ -3,6 +3,7 @@ package com.pabl3st.rutapp.data.repository
 import com.pabl3st.rutapp.data.local.dao.BusinessProfileDao
 import com.pabl3st.rutapp.data.local.dao.KpiDefinitionDao
 import com.pabl3st.rutapp.data.repository.PhotoRepository
+import kotlinx.coroutines.sync.withLock
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
@@ -53,10 +54,19 @@ class SyncRepository @Inject constructor(
     private val mapType    = Types.newParameterizedType(Map::class.java, String::class.java, Any::class.java)
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
+    /** Serializa runSync() entre callers (WorkManager periódico + forceSync()
+     *  del botón + runSync() del importer). Si dos llegan a la vez, la segunda
+     *  espera a que la primera termine. Sin esto, ambas leerían getNext50()
+     *  simultáneamente y enviarían las mismas operaciones — el servidor las
+     *  idempota con ON DUPLICATE KEY pero gasta tiempo y red en duplicados. */
+    private val syncMutex = kotlinx.coroutines.sync.Mutex()
+
     suspend fun pendingCount(): Int = syncQueueDao.count()
 
     // ── Ejecutar sync completo: subir + descargar ──────────────
-    suspend fun runSync(): SyncResult {
+    suspend fun runSync(): SyncResult = syncMutex.withLock { runSyncInternal() }
+
+    private suspend fun runSyncInternal(): SyncResult {
         val token = session.token ?: return SyncResult.NoAuth
 
         // Re-encolar datos huérfanos: en Room con syncStatus=pending

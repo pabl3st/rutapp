@@ -34,8 +34,12 @@ enum class UserRole(val key: String, val level: Int) {
     /** Puede reasignar rutas a otros usuarios */
     val canReassignRoutes: Boolean get() = level >= MANAGER.level
 
-    /** Puede editar stops (añadir/eliminar en RouteDetail) */
-    val canEditStops: Boolean get() = level >= MANAGER.level || this == OWNER
+    /** Puede editar stops desde la UI (añadir/eliminar en RouteDetail).
+     *  Nota: el server permite a agent crear stops vía batch_sync para sus
+     *  propias rutas (necesario para el importer), pero la UI no expone esa
+     *  acción a agent — sólo manager+ ve los botones. El `delete` sí está
+     *  bloqueado a nivel server por $canDelete (admin+). */
+    val canEditStops: Boolean get() = level >= MANAGER.level
 
     /** Puede configurar perfil de negocio (sector, KPIs) */
     val canEditBusinessProfile: Boolean get() = level >= ADMIN.level || this == GOD
@@ -58,12 +62,14 @@ enum class UserRole(val key: String, val level: Int) {
         else    -> emptySet()
     }
 
-    /** Roles válidos como supervisor de este rol */
+    /** Roles válidos como supervisor de este rol — jerarquía ESTRICTA:
+     *  admin reporta SOLO a owner; manager SOLO a admin; agent/viewer SOLO a
+     *  manager. Sin saltos. */
     val validSupervisorRoles: Set<UserRole> get() = when (this) {
         ADMIN   -> setOf(OWNER)
-        MANAGER -> setOf(ADMIN, OWNER)
+        MANAGER -> setOf(ADMIN)
         AGENT,
-        VIEWER  -> setOf(MANAGER, ADMIN, OWNER)
+        VIEWER  -> setOf(MANAGER)
         else    -> emptySet()
     }
 

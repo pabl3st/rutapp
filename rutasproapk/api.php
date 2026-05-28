@@ -859,12 +859,23 @@ if ($action === 'batch_sync') {
     $callerLevel = roleLevel($callerRole);
     // Permisos de creación/borrado de rutas y paradas:
     // - delete: solo owner/admin/god (nivel >= 4). Un agent no borra rutas.
-    // - create: todos pueden crear, PERO un usuario por debajo de admin
-    //   (agent/manager/viewer) solo puede crear rutas para SÍ MISMO. La
-    //   asignación a terceros queda reservada a admin+. Esto se valida más
-    //   abajo forzando targetUserId = $uid cuando el caller no es admin+.
-    $canDelete       = $callerLevel >= 4; // admin=4, owner=5, god=6
-    $canAssignOthers = $callerLevel >= 4; // solo admin+ asigna a terceros
+    // - create:
+    //     · admin/owner/god (>=4): puede asignar a cualquier user del account
+    //       (con la salvaguarda de validateAssignTarget que ya se aplica)
+    //     · manager (3): puede asignar SOLO a sus agents DIRECTOS (los users
+    //       cuyo manager_id == su id). Si pasa otro user_id, fallback a sí mismo.
+    //     · agent/viewer (1-2): siempre se asigna a sí mismo
+    $canDelete           = $callerLevel >= 4; // admin=4, owner=5, god=6
+    $canAssignOthers     = $callerLevel >= 4; // admin+ asigna libremente
+    $canAssignDirectTeam = $callerRole === 'manager'; // manager solo a sus agents
+
+    // Cargar IDs de agents directos del manager (una sola query, no por op)
+    $managerDirectAgentIds = [];
+    if ($canAssignDirectTeam) {
+        $stM = db()->prepare('SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1');
+        $stM->execute([$aid, $uid]);
+        $managerDirectAgentIds = array_map('intval', array_column($stM->fetchAll(), 'id'));
+    }
 
     $synced = [];
     $errors = [];
@@ -905,16 +916,25 @@ if ($action === 'batch_sync') {
                             $stOld->execute([$clientUid]);
                             $oldUserId = (int)($stOld->fetchColumn() ?: $uid);
 
-                            // Nuevo user_id — solo admin+ puede reasignar a otro
-                            // usuario. Un agent/manager no cambia el propietario.
+                            // Nuevo user_id — política según rol:
+                            //   · admin+: a cualquiera del account
+                            //   · manager: solo a sus agents directos (verificado contra
+                            //     $managerDirectAgentIds calculado al inicio del batch)
+                            //   · agent/viewer: NO cambia el propietario
                             $newUserId = $oldUserId;
-                            if ($canAssignOthers && isset($data['user_id'])) {
-                                $newUserId = (int)$data['user_id'];
-                                // Verificar que newUserId pertenece a la misma cuenta
-                                if ($newUserId !== $oldUserId) {
-                                    $stCheck = $db->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
-                                    $stCheck->execute([$newUserId, $aid]);
-                                    if (!$stCheck->fetchColumn()) $newUserId = $oldUserId; // fallback seguro
+                            if (isset($data['user_id'])) {
+                                $requestedUserId = (int)$data['user_id'];
+                                if ($canAssignOthers) {
+                                    $newUserId = $requestedUserId;
+                                    if ($newUserId !== $oldUserId) {
+                                        $stCheck = $db->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+                                        $stCheck->execute([$newUserId, $aid]);
+                                        if (!$stCheck->fetchColumn()) $newUserId = $oldUserId;
+                                    }
+                                } elseif ($canAssignDirectTeam) {
+                                    if (in_array($requestedUserId, $managerDirectAgentIds, true)) {
+                                        $newUserId = $requestedUserId;
+                                    }
                                 }
                             }
 
@@ -956,18 +976,28 @@ if ($action === 'batch_sync') {
                             }
                         } else {
                             // INSERT solo si no existe — account_id y user_id del token
-                            // user_id: respetar el del payload SOLO si el caller puede
-                            // asignar a terceros (admin+). Un agent/manager crea siempre
-                            // para sí mismo, ignorando cualquier user_id del payload.
+                            // user_id: respetar el del payload según el rol del caller:
+                            //   · admin+: a cualquiera (verificando que pertenece al account)
+                            //   · manager: solo a sus agents directos
+                            //   · agent/viewer: siempre a sí mismo
                             $targetUserId = $uid;
-                            if ($canAssignOthers && isset($data['user_id'])) {
-                                $targetUserId = (int)$data['user_id'];
-                                // Verificar que targetUserId pertenece a la misma cuenta
-                                if ($targetUserId !== $uid) {
-                                    $stCheck = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
-                                    $stCheck->execute([$targetUserId, $aid]);
-                                    if (!$stCheck->fetchColumn()) $targetUserId = $uid; // fallback seguro
+                            if (isset($data['user_id'])) {
+                                $requestedUserId = (int)$data['user_id'];
+                                if ($canAssignOthers) {
+                                    $targetUserId = $requestedUserId;
+                                    if ($targetUserId !== $uid) {
+                                        $stCheck = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
+                                        $stCheck->execute([$targetUserId, $aid]);
+                                        if (!$stCheck->fetchColumn()) $targetUserId = $uid; // fallback
+                                    }
+                                } elseif ($canAssignDirectTeam) {
+                                    // manager: solo si el requested es uno de sus agents directos
+                                    if (in_array($requestedUserId, $managerDirectAgentIds, true)) {
+                                        $targetUserId = $requestedUserId;
+                                    }
+                                    // si no, queda $uid (sí mismo)
                                 }
+                                // agent/viewer: ignorar user_id del payload
                             }
                             $db->prepare(
                                 'INSERT INTO routes
@@ -1326,7 +1356,8 @@ if ($action === 'users_list') {
     if (roleLevel($role) < 3) err('Permisos insuficientes', 403);
 
     // Manager solo ve usuarios que reportan a él
-    // Admin/owner/god ven todos del account
+    // Admin ve su subárbol descendente (sus managers + agents de esos managers)
+    // Owner/god ven TODOS del account
     if ($role === 'manager') {
         $st = db()->prepare(
             'SELECT u.id AS user_id, u.username,
@@ -1341,7 +1372,33 @@ if ($action === 'users_list') {
              ORDER BY u.role DESC, u.username ASC'
         );
         $st->execute([$aid, $uid, $uid]);
+    } elseif ($role === 'admin') {
+        // Subárbol descendente: incluye el propio admin + sus managers + agents
+        // de esos managers. Excluye al admin de la lista devuelta.
+        $descendantIds = getDescendantUserIds($uid, $aid);
+        $descendantIds = array_filter($descendantIds, fn($id) => $id !== $uid);
+        if (empty($descendantIds)) {
+            // No tiene subordinados — devuelve lista vacía
+            $users = [];
+        } else {
+            $placeholders = implode(',', array_fill(0, count($descendantIds), '?'));
+            $st = db()->prepare(
+                "SELECT u.id AS user_id, u.username,
+                        COALESCE(u.name, u.username) AS display_name,
+                        u.email, u.role, u.active AS is_active,
+                        u.manager_id,
+                        COALESCE(m.name, m.username) AS manager_name,
+                        DATE_FORMAT(u.created_at, '%Y-%m-%dT%H:%i:%sZ') AS created_at
+                 FROM users u
+                 LEFT JOIN users m ON m.id = u.manager_id AND m.account_id = u.account_id
+                 WHERE u.account_id = ? AND u.id IN ($placeholders)
+                 ORDER BY u.role DESC, u.username ASC"
+            );
+            $st->execute([$aid, ...$descendantIds]);
+            $users = $st->fetchAll();
+        }
     } else {
+        // owner/god ven todo
         $st = db()->prepare(
             'SELECT u.id AS user_id, u.username,
                     COALESCE(u.name, u.username) AS display_name,
@@ -1356,7 +1413,7 @@ if ($action === 'users_list') {
         );
         $st->execute([$aid, $uid]);
     }
-    $users = $st->fetchAll();
+    if (!isset($users)) $users = $st->fetchAll();
 
     apiLog($action, $uid, $aid);
     ok(['success' => true, 'users' => array_map(function($u) {
@@ -2221,19 +2278,33 @@ if ($action === 'clear_routes') {
 /**
  * Valida que el caller puede reasignar a $targetUserId dentro de $aid.
  * Devuelve la fila del usuario destino, o llama a err() y corta la ejecución.
- * Reglas: manager solo a sus agentes directos; admin a cualquiera salvo owner/god.
+ * Reglas jerárquicas estrictas:
+ *   - manager: solo a sus agentes DIRECTOS (manager_id == callerId)
+ *   - admin: solo a usuarios de su subárbol descendente (managers que reportan
+ *     a él y agents que reportan a esos managers). NO a otro admin ni a owner/god.
+ *   - owner/god: a cualquier usuario del account salvo owner/god del mismo account
  */
 function validateAssignTarget(int $targetUserId, int $aid, string $callerRole, int $callerId): array {
     $st = db()->prepare('SELECT id, name, role, manager_id FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
     $st->execute([$targetUserId, $aid]);
     $row = $st->fetch();
     if (!$row) err('Usuario destino no encontrado', 404);
-    if ($callerRole === 'manager' && (int)$row['manager_id'] !== $callerId) {
-        err('Solo puedes asignar rutas a tus agentes directos', 403);
+    if ($callerRole === 'manager') {
+        if ((int)$row['manager_id'] !== $callerId) {
+            err('Solo puedes asignar rutas a tus agentes directos', 403);
+        }
+    } elseif ($callerRole === 'admin') {
+        // Subárbol descendente: el target debe ser un descendiente del admin,
+        // y no puede ser el propio admin (no se autoasigna así) ni owner/god.
+        if (in_array($row['role'], ['owner', 'god', 'admin'], true)) {
+            err('Solo puedes asignar rutas dentro de tu equipo (managers y agentes)', 403);
+        }
+        $descendants = getDescendantUserIds($callerId, $aid);
+        if (!in_array($targetUserId, $descendants, true)) {
+            err('El usuario destino no pertenece a tu equipo', 403);
+        }
     }
-    if ($callerRole === 'admin' && in_array($row['role'], ['owner', 'god'], true)) {
-        err('No puedes asignar rutas a owner o god', 403);
-    }
+    // owner/god: sin restricciones adicionales aquí
     return $row;
 }
 
