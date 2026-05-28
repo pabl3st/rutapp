@@ -11,6 +11,7 @@ import com.pabl3st.rutapp.data.local.dao.KpiValueDao
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.local.entity.StopEntity
 import com.pabl3st.rutapp.data.local.entity.StopTagConfig
+import com.pabl3st.rutapp.data.local.entity.StopVisitEntity
 import com.pabl3st.rutapp.data.local.entity.evaluateTag
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.AdminRepository
@@ -18,6 +19,7 @@ import com.pabl3st.rutapp.data.repository.AuthResult
 import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.network.RouteAssignmentDto
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.StopVisitRepository
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -61,6 +63,10 @@ data class RouteDetailUiState(
     // Selector de fecha para rutas multi-día
     val availableDates: List<String>              = emptyList(),
     val selectedDate:   String?                   = java.time.LocalDate.now().toString(),
+    // Modelo C: visita actual de cada stop en la fecha seleccionada
+    // (stopUid → StopVisitEntity). Si no hay visita aún para esa fecha,
+    // el stop no aparece en el mapa y la UI muestra "pending" por defecto.
+    val visitsByStop:   Map<String, StopVisitEntity> = emptyMap(),
 )
 
 @HiltViewModel
@@ -70,6 +76,7 @@ class RouteDetailViewModel @Inject constructor(
     private val routeRepo:    RouteRepository,
     private val adminRepo:    AdminRepository,
     private val stopRepo:     StopRepository,
+    private val visitRepo:    StopVisitRepository,
     private val locationMgr:  LocationManager,
     private val kpiValueDao:  KpiValueDao,
     private val prefsRepo:    UserPrefsRepository,
@@ -127,20 +134,71 @@ class RouteDetailViewModel @Inject constructor(
 
     private fun observeStops() {
         viewModelScope.launch {
-            // Cargar fechas disponibles y filtrar stops por fecha seleccionada
-            val availDates = stopRepo.getDistinctDates(routeUid)
-            if (availDates.isNotEmpty()) {
-                _ui.update { it.copy(availableDates = availDates) }
-                val sel = _ui.value.selectedDate ?: availDates.first()
-                stopRepo.observeByRouteAndDate(routeUid, sel)
+            // Modelo C — informes diarios independientes:
+            // Las fechas las da la ruta (route.dateAssigned + route.scheduledDates),
+            // NO los stops. Cada PDV es único; lo que cambia por fecha es la visita
+            // asociada en stop_visits.
+            val route = routeRepo.getByUid(routeUid)
+            val routeDates: List<String> = buildList {
+                if (route != null) {
+                    if (route.dateAssigned.isNotBlank()) add(route.dateAssigned)
+                    route.scheduledDates?.forEach { d -> if (d.isNotBlank()) add(d) }
+                }
+            }.distinct().sorted()
+
+            val availDates: List<String> = if (routeDates.isNotEmpty()) {
+                routeDates
             } else {
-                stopRepo.observeByRoute(routeUid)
+                // Fallback compat: rutas legacy sin scheduledDates → fechas de stops
+                stopRepo.getDistinctDates(routeUid)
             }
+
+            if (availDates.isNotEmpty()) {
+                // Seleccionar por defecto la próxima fecha futura (o la primera si todas pasaron)
+                val today = java.time.LocalDate.now().toString()
+                val nextFuture = availDates.firstOrNull { it >= today } ?: availDates.first()
+                val selected   = _ui.value.selectedDate?.takeIf { it in availDates } ?: nextFuture
+                _ui.update { it.copy(availableDates = availDates, selectedDate = selected) }
+                // Asegurar stop_visits creadas para la fecha seleccionada
+                ensureVisitsForDate(routeUid, selected)
+            } else {
+                _ui.update { it.copy(availableDates = emptyList(), selectedDate = null) }
+            }
+
+            // En Modelo C los stops mostrados son TODOS los de la ruta (PDVs únicos).
+            // El selector de fecha solo cambia qué stop_visit se asocia a cada uno.
+            stopRepo.observeByRoute(routeUid)
                 .catch { e -> _ui.update { it.copy(error = e.message) } }
                 .collect { stops ->
                     _baseStops.value = stops
                     applySortMode(_ui.value.sortMode, stops)
                 }
+        }
+
+        // Flow reactivo: cada vez que cambia selectedDate, recargar el mapa
+        // visitsByStop con las visitas reales de esa fecha. Si una visita se
+        // marca "done", el StopCard correspondiente cambia sin recargar todo.
+        viewModelScope.launch {
+            _ui.map { it.selectedDate }
+                .distinctUntilChanged()
+                .flatMapLatest { date ->
+                    if (date.isNullOrBlank()) flowOf(emptyList())
+                    else visitRepo.observeByRouteAndDate(routeUid, date)
+                }
+                .collect { visits ->
+                    _ui.update { it.copy(visitsByStop = visits.associateBy { v -> v.stopUid }) }
+                }
+        }
+    }
+
+    /**
+     * Crea una stop_visit "pending" por cada parada de la ruta para la fecha
+     * dada. Idempotente — si ya existe, no la duplica.
+     */
+    private suspend fun ensureVisitsForDate(routeUid: String, date: String) {
+        val stops = stopRepo.getByRoute(routeUid)
+        stops.forEach { stop ->
+            visitRepo.ensureVisitExists(stop.uid, routeUid, date)
         }
     }
 
@@ -316,8 +374,12 @@ class RouteDetailViewModel @Inject constructor(
     fun onDateSelected(date: String) {
         _ui.update { it.copy(selectedDate = date) }
         viewModelScope.launch {
-            stopRepo.observeByRouteAndDate(routeUid, date)
-                .collect { stops -> applySortMode(_ui.value.sortMode, stops) }
+            // En Modelo C la lista de stops no depende de la fecha: son siempre
+            // los mismos PDVs. Lo que cambia es el mapa visitsByStop, que se
+            // recarga reactivamente vía el flow lanzado en observeStops().
+            // Lo único que falta hacer aquí es asegurar que existan stop_visits
+            // pendientes para la nueva fecha.
+            ensureVisitsForDate(routeUid, date)
         }
     }
 
