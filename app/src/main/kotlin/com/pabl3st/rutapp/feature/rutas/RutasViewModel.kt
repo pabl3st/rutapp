@@ -6,8 +6,11 @@ import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
+import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.AdminRepository
+import com.pabl3st.rutapp.data.repository.SyncRepository
+import com.pabl3st.rutapp.data.repository.SyncResult
 import com.pabl3st.rutapp.data.network.AccountUserDto
 import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,13 +46,19 @@ data class RutasUiState(
     val bulkAssigneeId:     Int?                 = null,
     val bulkReason:         String               = "",
     val isBulkAssigning:    Boolean              = false,
+    // Forzar sync manual (owner/admin) — diagnóstico de subida al servidor
+    val pendingOpsCount:    Int                  = 0,    // qué hay en la cola en este momento
+    val isForceSyncing:     Boolean              = false,
+    val forceSyncResult:    String?              = null, // mensaje que se muestra tras pulsar
 )
 
 @HiltViewModel
 class RutasViewModel @Inject constructor(
-    private val routeRepo:  RouteRepository,
-    private val adminRepo:  AdminRepository,
-    private val session:    SessionManager,
+    private val routeRepo:    RouteRepository,
+    private val adminRepo:    AdminRepository,
+    private val session:      SessionManager,
+    private val syncRepo:     SyncRepository,
+    private val syncQueueDao: SyncQueueDao,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(RutasUiState(
@@ -62,6 +71,7 @@ class RutasViewModel @Inject constructor(
 
     init {
         observeRoutes()
+        observePendingCount()
     }
 
     private fun observeRoutes() {
@@ -76,6 +86,46 @@ class RutasViewModel @Inject constructor(
                 }
         }
     }
+
+    /** Re-cuenta la cola de sync cada 2 segundos. Barato y útil para mostrar
+     *  al owner cuántas operaciones quedan pendientes de subir al servidor. */
+    private fun observePendingCount() {
+        viewModelScope.launch {
+            while (true) {
+                val n = runCatching { syncQueueDao.count() }.getOrDefault(0)
+                _ui.update { it.copy(pendingOpsCount = n) }
+                kotlinx.coroutines.delay(2000)
+            }
+        }
+    }
+
+    /** Fuerza el sync de la cola al servidor — botón explícito para owner/admin.
+     *  Útil tras importar para confirmar que el batch_sync llega: sustituye al
+     *  WorkManager automático que en pruebas no se estaba disparando. */
+    fun forceSync() {
+        _ui.update { it.copy(isForceSyncing = true, forceSyncResult = null) }
+        viewModelScope.launch {
+            val countBefore = runCatching { syncQueueDao.count() }.getOrDefault(0)
+            val result = runCatching { syncRepo.runSync() }
+            val countAfter = runCatching { syncQueueDao.count() }.getOrDefault(-1)
+            val msg = result.fold(
+                onSuccess = { res ->
+                    val processed = (countBefore - countAfter).coerceAtLeast(0)
+                    when (res) {
+                        SyncResult.Success       -> "✓ OK — $processed op subidas, cola: $countAfter"
+                        SyncResult.NoAuth        -> "✗ Sin sesión activa (inicia sesión otra vez)"
+                        SyncResult.Unauthorized  -> "✗ Token rechazado por el servidor (401)"
+                        SyncResult.UploadError   -> "✗ Subida falló — server no recibió. Cola: $countBefore→$countAfter"
+                        SyncResult.DownloadError -> "✓ Subida OK ($processed), descarga falló. Cola: $countAfter"
+                    }
+                },
+                onFailure = { e -> "✗ Excepción: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}" },
+            )
+            _ui.update { it.copy(isForceSyncing = false, forceSyncResult = msg) }
+        }
+    }
+
+    fun clearForceSyncResult() = _ui.update { it.copy(forceSyncResult = null) }
 
     // ── Crear ruta ────────────────────────────────────────────
     fun onShowCreateDialog() {

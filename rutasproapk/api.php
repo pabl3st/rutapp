@@ -150,8 +150,12 @@ function clientIP(): string {
 
 // ── Auth ─────────────────────────────────────────────────────
 function requireAuth(): array {
+    // Sacar la acción que se intentaba ANTES de fallar — para que los 401/403
+    // queden registrados en api_logs y podamos diagnosticar clientes con
+    // token expirado que bombardean el server sin éxito.
+    $intendedAction = $_GET['action'] ?? '';
     $token = $_SERVER['HTTP_X_AUTH_TOKEN'] ?? '';
-    if (strlen($token) !== 64) err('No autenticado', 401);
+    if (strlen($token) !== 64) err('No autenticado', 401, $intendedAction);
 
     $st = db()->prepare(
         'SELECT s.*, u.id as uid, u.account_id, u.username, u.email, u.name,
@@ -165,8 +169,9 @@ function requireAuth(): array {
     $st->execute([$token]);
     $row = $st->fetch();
 
-    if (!$row)             err('Sesión expirada o inválida', 401);
-    if (!$row['active'])   err('Cuenta desactivada',         403);
+    if (!$row)             err('Sesión expirada o inválida', 401, $intendedAction);
+    if (!$row['active'])   err('Cuenta desactivada',         403, $intendedAction,
+                                (int)($row['uid'] ?? 0), (int)($row['account_id'] ?? 0));
 
     // Actualizar last_used_at
     db()->prepare('UPDATE sessions SET last_used_at=NOW() WHERE token=?')->execute([$token]);
@@ -775,16 +780,24 @@ if ($action === 'delta_sync') {
     $sinceMs = (int)(strtotime($since) * 1000);
     $stD->execute([$uid, $sinceMs]);
 
-    // KPI values de stops actualizados en el período
-    $stK = db()->prepare(
-        'SELECT kv.stop_uid, kv.visit_uid, kv.kpi_id, kv.value_text, kv.updated_at
-         FROM kpi_values kv
-         JOIN stops s ON s.uid = kv.stop_uid
-         JOIN routes r ON r.id = s.route_id
-         WHERE r.user_id=? AND kv.updated_at > ?
-         ORDER BY kv.updated_at ASC LIMIT 1000'
-    );
-    $stK->execute([$uid, $since]);
+    // KPI values de stops actualizados en el período.
+    // Usa el mismo $stopsWhere que stops y stop_visits para respetar la
+    // jerarquía: owner ve toda la cuenta, admin/manager ven su subárbol
+    // descendente, agent solo lo suyo. ANTES filtraba solo por user_id=$uid
+    // y por eso un owner que importaba rutas asignadas a un agente NUNCA
+    // veía los KPIs de esas rutas en su delta_sync.
+    $kpiQuery = "SELECT kv.stop_uid, kv.visit_uid, kv.kpi_id, kv.value_text, kv.updated_at
+                 FROM kpi_values kv
+                 JOIN stops s  ON s.uid = kv.stop_uid
+                 JOIN routes r ON r.id  = s.route_id
+                 WHERE {$stopsWhere} AND kv.updated_at > ?
+                 ORDER BY kv.updated_at ASC LIMIT 1000";
+    $stK = db()->prepare($kpiQuery);
+    if ($stopsParam === null) {
+        $stK->execute([...$agentIds, $since]);
+    } else {
+        $stK->execute([$stopsParam, $since]);
+    }
 
     apiLog($action, $uid, $aid);
     // Business profile de la cuenta
@@ -2840,6 +2853,28 @@ if ($action === '_diag') {
     $stErr->execute([$aid]);
     $recentErrors = $stErr->fetchAll();
 
+    // GLOBAL: TODOS los errores recientes (cualquier cuenta), por si los 401
+    // de un cliente con token inválido están entrando con account_id=0 y no
+    // se ven en recent_errors filtrado por cuenta.
+    $stGlobalErr = db()->query(
+        "SELECT id, action, user_id, account_id, status, error_msg, created_at
+         FROM api_logs
+         WHERE status != 200
+         ORDER BY id DESC LIMIT 30"
+    );
+    $globalErrors = $stGlobalErr->fetchAll();
+
+    // GLOBAL: TODAS las acciones batch_sync recientes (cualquier cuenta y estado)
+    // para detectar si el cliente está intentando subir en otra cuenta o si
+    // simplemente nunca llama al server.
+    $stGlobalSync = db()->query(
+        "SELECT id, action, user_id, account_id, status, error_msg, created_at
+         FROM api_logs
+         WHERE action IN ('batch_sync','clear_routes')
+         ORDER BY id DESC LIMIT 20"
+    );
+    $globalSync = $stGlobalSync->fetchAll();
+
     ok([
         'caller'           => ['uid' => $uid, 'role' => $role, 'account_id' => $aid],
         'me_row'           => $me,
@@ -2853,6 +2888,8 @@ if ($action === '_diag') {
         'stops_in_account' => $stopsInAccount,
         'recent_logs'      => $recentLogs,         // últimas 30 llamadas de la cuenta
         'recent_errors'    => $recentErrors,       // últimos 20 errores de la cuenta
+        'global_errors'    => $globalErrors,       // errores de TODAS las cuentas (incluye 401 sin sesión)
+        'global_sync_ops'  => $globalSync,         // batch_sync y clear_routes de TODAS las cuentas
         'server_date'      => date('Y-m-d'),
     ]);
 }

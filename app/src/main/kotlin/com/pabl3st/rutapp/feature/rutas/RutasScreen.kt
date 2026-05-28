@@ -59,6 +59,19 @@ fun RutasScreen(
         }
     }
 
+    // Resultado del botón "Forzar sincronización" — mensaje persistente
+    // hasta que el usuario lo descarte (duración Long).
+    LaunchedEffect(ui.forceSyncResult) {
+        val msg = ui.forceSyncResult
+        if (msg != null) {
+            snackbarHostState.showSnackbar(
+                message  = msg,
+                duration = androidx.compose.material3.SnackbarDuration.Long,
+            )
+            vm.clearForceSyncResult()
+        }
+    }
+
     // Salir del modo selección con el botón atrás del sistema
     androidx.activity.compose.BackHandler(enabled = ui.selectionMode) {
         vm.exitSelectionMode()
@@ -103,6 +116,31 @@ fun RutasScreen(
                                 strokeWidth = 2.dp,
                             )
                             Spacer(Modifier.width(12.dp))
+                        }
+                        // Forzar sync manual: solo owner/admin (canDelete = nivel admin+)
+                        // Muestra badge si hay ops pendientes en la cola local.
+                        if (ui.canDelete) {
+                            BadgedBox(
+                                badge = {
+                                    if (ui.pendingOpsCount > 0) {
+                                        Badge { Text(ui.pendingOpsCount.toString()) }
+                                    }
+                                }
+                            ) {
+                                IconButton(
+                                    onClick = vm::forceSync,
+                                    enabled = !ui.isForceSyncing,
+                                ) {
+                                    if (ui.isForceSyncing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.CloudUpload, contentDescription = "Forzar sincronización")
+                                    }
+                                }
+                            }
                         }
                         // Reasignación masiva: solo manager+ (canCreate cubre owner/admin/manager)
                         if (ui.canCreate && ui.routes.isNotEmpty()) {
