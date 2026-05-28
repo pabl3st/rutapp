@@ -178,6 +178,36 @@ function roleLevel(string $role): int {
     return ['viewer'=>1,'agent'=>2,'manager'=>3,'admin'=>4,'owner'=>5,'god'=>6][$role] ?? 0;
 }
 
+/**
+ * Devuelve todos los user_ids del subárbol descendente de $userId, INCLUIDO él mismo.
+ * Recursivo: hijos, nietos, bisnietos, etc.
+ * Solo cuenta usuarios activos en la misma cuenta.
+ *
+ * Cada rol ve a sí mismo + a quien tenga manager_id apuntando (directa o
+ * transitivamente) hacia él.
+ *
+ * Hard limit a 10 niveles de profundidad como salvaguarda anti-ciclos.
+ */
+function getDescendantUserIds(int $userId, int $accountId): array {
+    $st = db()->prepare("
+        WITH RECURSIVE descendants AS (
+            -- Caso base: el propio usuario
+            SELECT id, manager_id, 0 AS depth
+            FROM users
+            WHERE id = ? AND account_id = ? AND active = 1
+            UNION ALL
+            -- Recursivo: usuarios cuyo manager está ya en el conjunto
+            SELECT u.id, u.manager_id, d.depth + 1
+            FROM users u
+            JOIN descendants d ON u.manager_id = d.id
+            WHERE u.account_id = ? AND u.active = 1 AND d.depth < 10
+        )
+        SELECT DISTINCT id FROM descendants
+    ");
+    $st->execute([$userId, $accountId, $accountId]);
+    return array_map('intval', array_column($st->fetchAll(), 'id'));
+}
+
 // ── Slug generator ───────────────────────────────────────────
 function makeSlug(string $name): string {
     $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $name));
@@ -584,11 +614,29 @@ if ($action === 'token_refresh') {
 // ── routes_list ──────────────────────────────────────────────
 if ($action === 'routes_list') {
     $sess  = requireAuth();
+    $uid   = (int)$sess['uid'];
+    $aid   = (int)$sess['account_id'];
+    $role  = $sess['role'];
     $date  = san($_GET['date']  ?? '', 10);
     $since = san($_GET['since'] ?? '', 30);
 
-    $where  = 'r.user_id = ? AND r.deleted_at IS NULL';
-    $params = [(int)$sess['uid']];
+    // Misma regla que delta_sync:
+    // owner/god → toda la cuenta
+    // admin/manager → subárbol descendente + él mismo
+    // agent/viewer → solo él
+    if ($role === 'owner' || $role === 'god') {
+        $where  = 'r.account_id = ? AND r.deleted_at IS NULL';
+        $params = [$aid];
+    } elseif ($role === 'admin' || $role === 'manager') {
+        $userIds = getDescendantUserIds($uid, $aid);
+        if (empty($userIds)) $userIds = [$uid];
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+        $where  = "r.user_id IN ($placeholders) AND r.deleted_at IS NULL";
+        $params = $userIds;
+    } else {
+        $where  = 'r.user_id = ? AND r.deleted_at IS NULL';
+        $params = [$uid];
+    }
 
     if ($date)  { $where .= ' AND r.date_assigned = ?'; $params[] = $date; }
     if ($since) { $where .= ' AND r.updated_at > ?';    $params[] = $since; }
@@ -620,7 +668,7 @@ if ($action === 'routes_list') {
         'deleted_at'    => $r['deleted_at'],
     ], $st->fetchAll());
 
-    apiLog($action, (int)$sess['uid'], (int)$sess['account_id']);
+    apiLog($action, $uid, $aid);
     ok(['routes' => $routes, 'server_time' => date('c')]);
 }
 
@@ -637,10 +685,10 @@ if ($action === 'delta_sync') {
     $role      = $sess['role'];
 
     // Calcular qué user_ids puede ver el caller:
-    // owner/admin/god → toda la cuenta
-    // manager         → sus agentes directos + él mismo
-    // agent/viewer    → solo él mismo
-    if ($roleLevel >= 4) {                          // owner/admin/god
+    // owner/god        → toda la cuenta
+    // admin/manager    → su propio subárbol descendente (recursivo) + él mismo
+    // agent/viewer     → solo él mismo
+    if ($role === 'owner' || $role === 'god') {                  // toda la cuenta
         $stR = db()->prepare(
             'SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
                        status, notes, created_at, updated_at, deleted_at
@@ -649,15 +697,15 @@ if ($action === 'delta_sync') {
         $stR->execute([$aid, $since]);
         $stopsWhere = 'r.account_id=?';
         $stopsParam = $aid;
-    } elseif ($role === 'manager') {                 // manager: solo sus agentes directos
-        // Obtener IDs de agentes con manager_id = $uid
-        $stMA = db()->prepare(
-            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1'
-        );
-        $stMA->execute([$aid, $uid]);
-        $agentIds = array_column($stMA->fetchAll(), 'id');
-        // manager NO tiene rutas propias — solo supervisa. No añadir $uid.
-        // Si no tiene agentes, devolver vacío para que no vea rutas de otros.
+    } elseif ($role === 'admin' || $role === 'manager') {        // subárbol descendente
+        // Helper getDescendantUserIds devuelve el propio caller + todos sus descendientes
+        // (hijos/nietos/etc) hasta 10 niveles. Cada rol ve su propio subárbol y nada más.
+        $agentIds = getDescendantUserIds($uid, $aid);
+        if (empty($agentIds)) {
+            // Caso extremo: el caller no aparece como activo en su cuenta.
+            // Devolver vacío en lugar de fallar el sync.
+            $agentIds = [$uid];
+        }
         $placeholders = implode(',', array_fill(0, count($agentIds), '?'));
         $stR = db()->prepare(
             "SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
@@ -666,13 +714,9 @@ if ($action === 'delta_sync') {
                 ORDER BY updated_at ASC LIMIT 200"
         );
         $stR->execute([...$agentIds, $since]);
-        // Sin agentes directos → manager ve lista vacía (no sus propias rutas)
-        if (empty($agentIds)) {
-            ok(['routes' => [], 'stops' => [], 'sessions' => []]);
-        }
         $stopsWhere = "r.user_id IN ($placeholders)";
         $stopsParam = null;  // se pasa el array directamente abajo
-    } else {                                         // agent/viewer
+    } else {                                                     // agent/viewer
         $stR = db()->prepare(
             'SELECT uid, account_id, user_id, name, date_assigned, scheduled_dates,
                        status, notes, created_at, updated_at, deleted_at
@@ -762,14 +806,20 @@ if ($action === 'delta_sync') {
     $stKD->execute([$aid]);
     $kpiDefs = $stKD->fetchAll();
 
-    // IDs de agentes bajo supervisión directa del caller (solo si es manager)
+    // IDs de usuarios que el caller puede ver (subárbol descendente).
+    // Owner/god: toda la cuenta. Admin/manager: descendientes + él mismo.
+    // Resto: solo él mismo.
+    // El cliente usa esto en RouteRepository.observeToday para filtrar Room
+    // sin tener que volver a llamar al servidor.
     $managedAgentIds = [];
-    if ($role === 'manager') {
-        $stMA = db()->prepare(
-            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1'
-        );
-        $stMA->execute([$aid, $uid]);
-        $managedAgentIds = array_column($stMA->fetchAll(), 'id');
+    if ($role === 'owner' || $role === 'god') {
+        $stMA = db()->prepare('SELECT id FROM users WHERE account_id=? AND active=1');
+        $stMA->execute([$aid]);
+        $managedAgentIds = array_map('intval', array_column($stMA->fetchAll(), 'id'));
+    } elseif ($role === 'admin' || $role === 'manager') {
+        $managedAgentIds = getDescendantUserIds($uid, $aid);
+    } else {
+        $managedAgentIds = [$uid];
     }
 
     apiLog($action, $uid, $aid);

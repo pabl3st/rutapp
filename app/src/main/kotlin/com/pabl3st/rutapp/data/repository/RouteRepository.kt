@@ -48,22 +48,32 @@ class RouteRepository @Inject constructor(
     private val mapAdapter by lazy { moshi.adapter<Map<String, Any?>>(mapType) }
 
     // ── Roles con visibilidad ampliada ────────────────────────
-    /** True solo para roles con visión completa de la cuenta */
+    /**
+     * True solo para owner/god — únicos que ven TODA la cuenta sin filtro.
+     * Admin/manager/agent quedan acotados a su subárbol descendente, que
+     * llega del servidor en managed_agent_ids y se aplica en isManagedView.
+     */
     private val isFullAccountView: Boolean
-        get() = UserRole.from(session.userRole).canDeleteRoutes
+        get() = UserRole.from(session.userRole) in setOf(UserRole.OWNER, UserRole.GOD)
 
-    /** Manager ve solo sus agentes directos */
+    /**
+     * True para admin/manager — ven su subárbol descendente (hijos, nietos,
+     * etc) + a sí mismos. La lista de user_ids está en session.managedAgentIds,
+     * rellenada por delta_sync.
+     */
     private val isManagedView: Boolean
-        get() = UserRole.from(session.userRole) == UserRole.MANAGER
+        get() = UserRole.from(session.userRole) in setOf(UserRole.ADMIN, UserRole.MANAGER)
 
     fun observeToday(): Flow<List<RouteEntity>> {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         return when {
             isFullAccountView -> routeDao.observeByDateForAccount(session.accountId, today)
             isManagedView     -> {
-                val agentIds = session.managedAgentIds
-                if (agentIds.isEmpty()) routeDao.observeByDate(session.userId, today)
-                else routeDao.observeByDateForUserIds(agentIds + session.userId, today)
+                // managedAgentIds ya incluye al propio usuario (lo añade el servidor).
+                // Si está vacío (primer arranque sin sync) usamos al menos al propio
+                // userId para no mostrar nada de otros.
+                val ids = session.managedAgentIds.takeIf { it.isNotEmpty() } ?: listOf(session.userId)
+                routeDao.observeByDateForUserIds(ids, today)
             }
             else -> routeDao.observeByDate(session.userId, today)
         }
@@ -72,9 +82,8 @@ class RouteRepository @Inject constructor(
     fun observeAll(): Flow<List<RouteEntity>> = when {
         isFullAccountView -> routeDao.observeByAccount(session.accountId)
         isManagedView     -> {
-            val agentIds = session.managedAgentIds
-            if (agentIds.isEmpty()) routeDao.observeByUser(session.userId)
-            else routeDao.observeByUserIds(agentIds + session.userId)
+            val ids = session.managedAgentIds.takeIf { it.isNotEmpty() } ?: listOf(session.userId)
+            routeDao.observeByUserIds(ids)
         }
         else -> routeDao.observeByUser(session.userId)
     }

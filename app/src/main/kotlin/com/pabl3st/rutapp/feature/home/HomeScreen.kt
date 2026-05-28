@@ -144,9 +144,12 @@ private fun RouteListContent(
 
         // ── Panel de equipo para manager ──────────────────────
         if (ui.isManager && ui.routes.isNotEmpty()) {
-            // El owner ve primero los totales globales de toda la cuenta
-            if (UserRole.from(ui.userRole).level >= UserRole.OWNER.level) {
-                item { GlobalTotalsCard(routes = ui.routes) }
+            // Owner y admin ven los totales de su ámbito (cuenta entera para owner,
+            // subárbol descendente para admin). El dato ya viene filtrado de
+            // RouteRepository según rol, así que solo decidimos si mostrar la card.
+            if (UserRole.from(ui.userRole).level >= UserRole.ADMIN.level) {
+                val isOwner = UserRole.from(ui.userRole).level >= UserRole.OWNER.level
+                item { GlobalTotalsCard(routes = ui.routes, isOwner = isOwner) }
             }
             item { ManagerTeamSummary(routes = ui.routes) }
         }
@@ -186,9 +189,9 @@ private fun RouteListContent(
     }
 }
 
-// ── GlobalTotalsCard — totales de toda la cuenta (solo owner) ──
+// ── GlobalTotalsCard — totales del ámbito visible (owner: cuenta; admin: subárbol)
 @Composable
-private fun GlobalTotalsCard(routes: List<RouteWithProgress>) {
+private fun GlobalTotalsCard(routes: List<RouteWithProgress>, isOwner: Boolean) {
     val totalRoutes = routes.size
     val totalStops  = routes.sumOf { it.totalStops }
     val doneStops   = routes.sumOf { it.doneStops }
@@ -198,7 +201,8 @@ private fun GlobalTotalsCard(routes: List<RouteWithProgress>) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
-                "Totales de la empresa — hoy",
+                if (isOwner) "Totales de la empresa — hoy"
+                else         "Totales de tu equipo — hoy",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
