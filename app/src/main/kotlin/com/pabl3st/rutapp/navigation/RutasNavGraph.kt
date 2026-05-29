@@ -155,7 +155,7 @@ fun RutasNavGraph(
                     onStopClick       = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
                     onNavigateToMapa  = { navController.navigate(Screen.Mapa.route) },
                     onNavigateToTeam  = if (UserRole.from(userRole).canViewTeam) {
-                        { navController.navigate(Screen.Team.route) }
+                        { navController.navigate(Screen.Team.createRoute()) }
                     } else null,
                 )
             }
@@ -358,13 +358,27 @@ fun RutasNavGraph(
                 }
                 AdminScreen(
                     onBack             = { navController.popBackStack() },
-                    onNavigateToTeam   = { navController.navigate(Screen.Team.route) },
+                    onNavigateToTeam   = { navController.navigate(Screen.Team.createRoute()) },
                     onNavigateToAgent  = { id -> navController.navigate(Screen.AgentDetail.createRoute(id)) },
                 )
             }
 
             // ── S20: Equipo ──────────────────────────────────────
-            composable(Screen.Team.route) {
+            composable(
+                route     = Screen.Team.route,
+                arguments = listOf(
+                    navArgument("viewAsUserId") {
+                        type           = NavType.StringType  // String para soportar null
+                        nullable       = true
+                        defaultValue   = null
+                    },
+                    navArgument("viewAsUserName") {
+                        type           = NavType.StringType
+                        nullable       = true
+                        defaultValue   = null
+                    },
+                ),
+            ) { backStackEntry ->
                 // Guardia: solo manager, admin, owner, god
                 if (!UserRole.from(userRole).canViewTeam) {
                     navController.popBackStack(); return@composable
@@ -372,6 +386,13 @@ fun RutasNavGraph(
                 TeamScreen(
                     onBack        = { navController.popBackStack() },
                     onAgentDetail = { id -> navController.navigate(Screen.AgentDetail.createRoute(id)) },
+                    // Drill-down: pulsar un admin/manager navega a un TeamScreen
+                    // anidado con su userId. Como la ruta tiene parámetros
+                    // opcionales, navigate() apila una entrada nueva sin
+                    // colisionar con la actual.
+                    onTeamDrillDown = { id, name ->
+                        navController.navigate(Screen.Team.createRoute(id, name))
+                    },
                 )
             }
 
@@ -430,7 +451,7 @@ fun RutasNavGraph(
                             navController.navigate(Screen.Admin.route)
                     },
                     onNavigateToTeam = if (UserRole.from(userRole).canViewTeam) {
-                        { navController.navigate(Screen.Team.route) }
+                        { navController.navigate(Screen.Team.createRoute()) }
                     } else null,
                 )
             }

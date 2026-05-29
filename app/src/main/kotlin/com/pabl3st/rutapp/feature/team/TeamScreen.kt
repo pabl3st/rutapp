@@ -27,8 +27,11 @@ import com.pabl3st.rutapp.data.network.AgentOverviewDto
  */
 @Composable
 fun TeamScreen(
-    onBack:        () -> Unit,
-    onAgentDetail: (Int) -> Unit,
+    onBack:           () -> Unit,
+    onAgentDetail:    (Int) -> Unit,
+    /** Drill-down: pulsar admin/manager navega a un nuevo TeamScreen del
+     *  subárbol de ese usuario. Si null, solo se navega a AgentDetail. */
+    onTeamDrillDown:  ((userId: Int, userName: String) -> Unit)? = null,
     vm: TeamViewModel = hiltViewModel(),
 ) {
     val ui      by vm.ui.collectAsStateWithLifecycle()
@@ -44,7 +47,8 @@ fun TeamScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Mi equipo")
+                        // Drill-down: muestra "Equipo de XXX". Normal: "Mi equipo".
+                        Text(ui.viewAsUserName?.let { "Equipo de $it" } ?: "Mi equipo")
                         if (ui.agents.isNotEmpty()) {
                             val active = ui.agents.count { it.isActive }
                             Text("${ui.agents.size} personas · $active activas ahora",
@@ -107,7 +111,17 @@ fun TeamScreen(
                     items(agents, key = { it.userId }) { agent ->
                         AgentCard(
                             agent   = agent,
-                            onClick = { onAgentDetail(agent.userId) },
+                            // Drill-down: si el usuario pulsado es admin/manager
+                            // navegamos al TeamScreen de su subárbol. Si es agent
+                            // (caso terminal de la jerarquía), navegamos al detalle.
+                            onClick = {
+                                val isLeaf = agent.role == "agent" || agent.role == "viewer"
+                                if (isLeaf || onTeamDrillDown == null) {
+                                    onAgentDetail(agent.userId)
+                                } else {
+                                    onTeamDrillDown(agent.userId, agent.name)
+                                }
+                            },
                         )
                     }
                 }

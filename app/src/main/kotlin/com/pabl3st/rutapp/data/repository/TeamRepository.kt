@@ -17,10 +17,13 @@ class TeamRepository @Inject constructor(
     private val api:     RutasApiService,
     private val session: SessionManager,
 ) {
-    /** Lista de agentes con estado de jornada, GPS y stops de hoy. */
-    suspend fun teamOverview(): Result<List<AgentOverviewDto>> = runCatching {
+    /** Lista de agentes con estado de jornada, GPS y stops de hoy.
+     *  @param forUserId si no es null, devuelve el equipo de ese usuario
+     *                   (drill-down). El usuario debe estar en el subárbol
+     *                   descendente del caller. */
+    suspend fun teamOverview(forUserId: Int? = null): Result<List<AgentOverviewDto>> = runCatching {
         val token = session.token ?: error("Sin sesión activa")
-        val resp  = api.teamOverview(token = token)
+        val resp  = api.teamOverview(token = token, forUserId = forUserId)
         if (!resp.isSuccessful) error("Error del servidor: ${resp.code()}")
         resp.body()?.agents ?: emptyList()
     }

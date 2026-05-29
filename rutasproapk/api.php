@@ -2472,25 +2472,59 @@ if ($action === 'team_overview') {
 
     if (roleLevel($role) < 3) err('Sin permisos', 403);
 
+    // Drill-down (mayo 2026): el cliente puede pedir el equipo de OTRO usuario
+    // (no el propio) pasando ?for_user_id=N. Útil para que un owner/admin
+    // pueda navegar en cascada por la jerarquía: Mi equipo → pulsa Carlos
+    // (admin) → ver el equipo de Carlos → pulsa Ana (manager) → ver el
+    // equipo de Ana → pulsa Javier (agent) → AgentDetail.
+    //
+    // Seguridad: el target debe estar en el subárbol descendente del caller
+    // para evitar que un admin vea el equipo de OTRO admin de su mismo
+    // nivel. Si no, 403.
+    $targetUid  = $uid;
+    $targetRole = $role;
+    if (isset($_GET['for_user_id'])) {
+        $forUserId = (int)$_GET['for_user_id'];
+        if ($forUserId !== $uid) {
+            $descendants = getDescendantUserIds($uid, $aid);
+            if (!in_array($forUserId, $descendants, true)) {
+                err('No tienes permiso para ver el equipo de ese usuario', 403);
+            }
+            $stT = db()->prepare('SELECT role FROM users WHERE id=? AND account_id=? AND active=1 LIMIT 1');
+            $stT->execute([$forUserId, $aid]);
+            $tRow = $stT->fetch();
+            if (!$tRow) err('Usuario no encontrado', 404);
+            // Si el target es un agent, no tiene equipo — devolver lista vacía.
+            // (El cliente debería navegar a AgentDetail en este caso, pero
+            // por seguridad lo manejamos también aquí.)
+            if ($tRow['role'] === 'agent' || $tRow['role'] === 'viewer') {
+                ok(['agents' => []]);
+            }
+            $targetUid  = $forUserId;
+            $targetRole = $tRow['role'];
+        }
+    }
+
     $today = date('Y-m-d');
     $month = date('Y-m');
 
-    // Obtener usuarios según jerarquía
-    if ($role === 'manager') {
+    // Obtener usuarios según jerarquía DEL TARGET (no del caller — eso permite
+    // que un owner pueda "ver como si fuera Carlos" o "como si fuera Ana").
+    if ($targetRole === 'manager') {
         // Manager: solo sus agentes directos
         $stU = db()->prepare(
             'SELECT id, name, username, role, avatar_url FROM users
              WHERE account_id=? AND manager_id=? AND active=1 AND role="agent"
              ORDER BY name ASC'
         );
-        $stU->execute([$aid, $uid]);
-    } elseif ($role === 'admin') {
+        $stU->execute([$aid, $targetUid]);
+    } elseif ($targetRole === 'admin') {
         // Admin: sus managers directos + los agentes de esos managers
         // Primero obtener sus managers directos
         $stMgr = db()->prepare(
             'SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1 AND role="manager"'
         );
-        $stMgr->execute([$aid, $uid]);
+        $stMgr->execute([$aid, $targetUid]);
         $directManagers = array_column($stMgr->fetchAll(), 'id');
 
         if (empty($directManagers)) {
@@ -2511,10 +2545,10 @@ if ($action === 'team_overview') {
                         OR (manager_id IN ($mgrPh) AND role='agent'))
                  ORDER BY role DESC, name ASC"
             );
-            $stU->execute(array_merge([$aid, $uid], $directManagers));
+            $stU->execute(array_merge([$aid, $targetUid], $directManagers));
         }
-    } elseif (roleLevel($role) >= 5) {
-        // Owner/god: toda la cadena (agents + managers)
+    } elseif (roleLevel($targetRole) >= 5) {
+        // Owner/god: toda la cadena (agents + managers + admins)
         $stU = db()->prepare(
             'SELECT id, name, username, role, avatar_url FROM users
              WHERE account_id=? AND active=1 AND role IN ("agent","manager","admin")
@@ -2658,12 +2692,15 @@ if ($action === 'agent_detail') {
     $jornada = $stJ->fetch() ?: null;
 
     // Rutas y stops de hoy
+    // COALESCE en SUMs por la misma razón que en month_kpis: una ruta sin
+    // stops (LEFT JOIN sin match) hace que los SUM devuelvan NULL y el DTO
+    // del cliente declara estos campos como Int no nullable.
     $stR = db()->prepare(
         'SELECT r.uid, r.name, r.status, r.date_assigned,
-                COUNT(s.id)               AS total_stops,
-                SUM(s.status="done")      AS done_stops,
-                SUM(s.status="skipped")   AS skipped_stops,
-                SUM(s.status="pending")   AS pending_stops
+                COUNT(s.id)                              AS total_stops,
+                COALESCE(SUM(s.status="done"), 0)        AS done_stops,
+                COALESCE(SUM(s.status="skipped"), 0)     AS skipped_stops,
+                COALESCE(SUM(s.status="pending"), 0)     AS pending_stops
          FROM routes r
          LEFT JOIN stops s ON s.route_id=r.id AND s.deleted_at IS NULL
          WHERE r.user_id=? AND r.account_id=?
@@ -2686,11 +2723,17 @@ if ($action === 'agent_detail') {
     $recentVisits = $stV->fetchAll();
 
     // KPIs del mes
+    // COALESCE(SUM(...), 0) porque SUM() devuelve NULL cuando no hay filas
+    // (típico cuando el "agente" es realmente un admin/manager sin rutas
+    // propias asignadas con su user_id). El cliente declara estos campos
+    // como Int no nullable → Moshi crashea con "Expected an int but was
+    // NULL at path \$.month_kpis.done" si el server manda null.
     $stKpi = db()->prepare(
-        'SELECT COUNT(s.id) AS total, SUM(s.status="done") AS done,
-                SUM(s.visit_result="contactado") AS contacted,
-                SUM(s.visit_result="no_estaba") AS not_home,
-                SUM(s.visit_result="rechazado") AS rejected
+        'SELECT COUNT(s.id)                                  AS total,
+                COALESCE(SUM(s.status="done"), 0)            AS done,
+                COALESCE(SUM(s.visit_result="contactado"), 0) AS contacted,
+                COALESCE(SUM(s.visit_result="no_estaba"), 0)  AS not_home,
+                COALESCE(SUM(s.visit_result="rechazado"), 0)  AS rejected
          FROM stops s JOIN routes r ON r.id=s.route_id AND r.account_id=?
          WHERE r.user_id=? AND r.date_assigned BETWEEN ? AND ? AND s.deleted_at IS NULL'
     );

@@ -26,7 +26,16 @@ sealed class Screen(val route: String) {
         fun createRoute(stopUid: String) = "editar-parada/$stopUid"
     }
     object LocationOnboarding : Screen("location-onboarding")
-    object Team : Screen("team")
+    object Team : Screen("team?viewAsUserId={viewAsUserId}&viewAsUserName={viewAsUserName}") {
+        /** Equipo del usuario logueado (sin drill-down). */
+        fun createRoute(): String = "team"
+        /** Equipo de OTRO usuario — drill-down. Útil para que owner/admin
+         *  pueda navegar en cascada por la jerarquía. */
+        fun createRoute(viewAsUserId: Int, viewAsUserName: String): String {
+            val encoded = java.net.URLEncoder.encode(viewAsUserName, "UTF-8")
+            return "team?viewAsUserId=$viewAsUserId&viewAsUserName=$encoded"
+        }
+    }
     object AgentDetail : Screen("agent/{agentId}") {
         fun createRoute(agentId: Int) = "agent/$agentId"
     }
