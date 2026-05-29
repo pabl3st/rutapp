@@ -18,9 +18,10 @@ import javax.inject.Singleton
 @Singleton
 class PhotoRepository @Inject constructor(
     @ApplicationContext private val ctx: Context,
-    private val photoDao: VisitPhotoDao,
-    private val api:      RutasApiService,
-    private val session:  SessionManager,
+    private val photoDao:    VisitPhotoDao,
+    private val api:         RutasApiService,
+    private val session:     SessionManager,
+    private val syncGateway: com.pabl3st.rutapp.sync.SyncGateway,
 ) {
 
     fun observeByStop(stopUid: String): Flow<List<VisitPhotoEntity>> =
@@ -29,6 +30,9 @@ class PhotoRepository @Inject constructor(
     // ── Persistir fotos tomadas en la visita ──────────────────
     // Llama desde VisitaViewModel.saveVisit() con los Uris de la sesión.
     // Convierte cada Uri en una VisitPhotoEntity y la guarda en Room.
+    // Dispara trigger al final para que el SyncWorker procese los uploads
+    // de inmediato (las fotos no usan sync_queue — su pipeline es paralelo
+    // y vive en syncIncremental.photoRepo.uploadPending).
     suspend fun savePhotos(stopUid: String, uris: List<Uri>): List<VisitPhotoEntity> {
         val entities = uris.map { uri ->
             VisitPhotoEntity(
@@ -37,7 +41,10 @@ class PhotoRepository @Inject constructor(
                 localPath = uri.toString(),
             )
         }
-        if (entities.isNotEmpty()) photoDao.upsertAll(entities)
+        if (entities.isNotEmpty()) {
+            photoDao.upsertAll(entities)
+            syncGateway.trigger()
+        }
         return entities
     }
 

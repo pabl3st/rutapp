@@ -16,8 +16,8 @@ android {
         applicationId = "com.pabl3st.rutapp"
         minSdk        = libs.versions.minSdk.get().toInt()
         targetSdk     = libs.versions.targetSdk.get().toInt()
-        versionCode   = 141
-        versionName   = "1.0.0-s44-team-drilldown"
+        versionCode   = 142
+        versionName   = "1.0.0-s45-sync-coverage-fix"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "API_BASE_URL",

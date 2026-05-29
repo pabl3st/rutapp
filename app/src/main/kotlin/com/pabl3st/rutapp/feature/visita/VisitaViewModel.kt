@@ -59,6 +59,7 @@ class VisitaViewModel @Inject constructor(
     private val photoRepo:    PhotoRepository,
     private val kpiValueDao:  KpiValueDao,
     private val syncQueueDao: SyncQueueDao,
+    private val syncGateway:  com.pabl3st.rutapp.sync.SyncGateway,
     private val prefsRepo:    UserPrefsRepository,
     private val moshi:        Moshi,
     private val locationMgr:  com.pabl3st.rutapp.core.location.LocationManager,
@@ -242,11 +243,20 @@ class VisitaViewModel @Inject constructor(
                 )
             }
 
-            // 6. Persistir fotos en Room (se subirán al servidor en background via SyncWorker)
+            // 6. Persistir fotos en Room (se subirán al servidor via SyncWorker)
             val currentPhotos = _ui.value.photos
             if (currentPhotos.isNotEmpty()) {
                 photoRepo.savePhotos(stopUid, currentPhotos)
             }
+
+            // 7. Disparar sync INMEDIATAMENTE para subir todo lo encolado en
+            // esta visita (stop_visit, kpi_values, fotos pendientes).
+            // Antes (mayo 2026): solo se encolaba sin disparar — el agent
+            // guardaba visita pero los KPIs y fotos NO subían al server hasta
+            // que llegara el WorkManager periódico (15 min después) o pulsara
+            // el botón Forzar. Era especialmente grave porque el agent es
+            // quien más KPIs genera y normalmente está en campo con red mala.
+            syncGateway.trigger()
 
             _ui.update { it.copy(isSaving = false, saved = true) }
         }

@@ -94,15 +94,24 @@ class SyncRepository @Inject constructor(
     suspend fun syncIncremental(): SyncResult = syncMutex.withLock { incrementalInternal() }
 
     /**
-     * **LOGOUT / FIN DE IMPORT** — solo sube cola al servidor. NO descarga,
-     * NO procesa fotos. Más rápido y no contamina Room con descarga si el
-     * usuario está saliendo o si el wizard ya tiene todos los datos locales.
+     * **LOGOUT / FIN DE IMPORT** — solo sube cola al servidor + fotos pendientes.
+     * NO descarga. Más rápido y no contamina Room con descarga si el usuario
+     * está saliendo o si el wizard ya tiene todos los datos locales.
+     *
+     * Sube también las fotos porque pueden ocupar mucho y quedarse "atascadas"
+     * si solo confiamos en el ciclo periódico. Especialmente importante en
+     * logout: si el agent termina la jornada y cierra sesión, queremos que
+     * sus fotos lleguen antes de que cierre, no quedarse en el móvil.
      */
     suspend fun syncUploadOnly(): SyncResult = syncMutex.withLock {
         val token = session.token ?: return@withLock SyncResult.NoAuth
         reEnqueueOrphans()
         purgeStaleQueueItems()
         val uploaded = uploadPending(token)
+        // Fotos en background — fallo no bloquea el resultado del sync.
+        // Si la red está mala las fotos quedan en Room pendientes para el
+        // siguiente sync (el SyncWorker periódico las recogerá).
+        runCatching { photoRepo.uploadPending() }
         if (uploaded) SyncResult.Success else SyncResult.UploadError
     }
 
