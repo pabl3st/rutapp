@@ -9,6 +9,13 @@ interface SyncQueueDao {
     @Query("SELECT * FROM sync_queue ORDER BY createdAt ASC LIMIT 50")
     suspend fun getNext50(): List<SyncQueueEntity>
 
+    /** Selecciona próximo batch para subir, excluyendo items que han fallado
+     *  repetidamente. Sin el filtro de attempts, un item que el server rechaza
+     *  consistentemente se devolvería en cada iteración del loop de upload y
+     *  bloquearía las ops sanas que vienen detrás. */
+    @Query("SELECT * FROM sync_queue WHERE attempts < :maxAttempts ORDER BY createdAt ASC LIMIT :limit")
+    suspend fun getNextBatch(limit: Int = 50, maxAttempts: Int = 5): List<SyncQueueEntity>
+
     // REPLACE: si ya existe (entity+entityUid+operation), sobreescribe con el payload más reciente
     // Esto implementa "last-write-wins" — solo el último estado se sube al servidor
     @Insert(onConflict = OnConflictStrategy.REPLACE)

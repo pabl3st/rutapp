@@ -141,11 +141,32 @@ class AdminRepository @Inject constructor(
             else      -> emptySet()
         }
         val myLevel = roleLevel(session.userRole)
-        return users.filter { u ->
+        val candidates = users.filter { u ->
             u.role in allowedSupervisorRoles &&
             u.isActive &&
             (isOwner || isGod || roleLevel(u.role) <= myLevel)
         }
+        // Fix (mayo 2026): el server `users_list` EXCLUYE al propio caller de
+        // la lista. Eso hace que owner editando supervisor de un admin no
+        // pudiera elegirse a sí mismo (única opción válida → diálogo vacío
+        // con "Sin supervisor" como único radio button). Si el rol del caller
+        // está permitido como supervisor del target, añadirlo manualmente.
+        val callerRole = session.userRole
+        if (callerRole in allowedSupervisorRoles &&
+            candidates.none { it.userId == session.userId }) {
+            return candidates + AccountUserDto(
+                userId      = session.userId,
+                username    = session.userName,
+                displayName = session.userDisplayName.ifBlank { session.userName },
+                email       = session.userEmail,
+                role        = callerRole,
+                isActive    = true,
+                managerId   = null,
+                managerName = null,
+                createdAt   = "",
+            )
+        }
+        return candidates
     }
 
     private fun roleLevel(role: String) =

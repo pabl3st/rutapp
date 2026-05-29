@@ -190,54 +190,89 @@ class SyncRepository @Inject constructor(
     }
 
     // ── Subir operaciones pendientes de la cola ────────────────
+    /**
+     * Sube TODAS las operaciones pendientes de la cola, no solo las primeras
+     * 50. Esto es crítico para el wizard de importación: el v7 genera ~4500
+     * operaciones (8 rutas + 149 stops + ~1300 stop_visits + ~2995 kpi_values)
+     * y antes (bug mayo 2026) solo se subían 50 por llamada → quedaban 4450
+     * esperando al WorkManager periódico (15 min × 90 ciclos ≈ 22 horas para
+     * vaciar la cola).
+     *
+     * Mecánica del loop:
+     * - getNextBatch filtra items con attempts < 5 → los que fallan
+     *   repetidamente NO bloquean al resto (se quedan para purga posterior).
+     * - Si una iteración no avanza (0 synced), se incrementa stagnantCount.
+     *   3 iteraciones seguidas sin progreso → break (probable error sistémico:
+     *   sin red, server caído, token caducado).
+     * - Límite de seguridad: 200 iteraciones × 50 ops = hasta 10.000 ops por
+     *   llamada. Más que suficiente para cualquier importer realista.
+     * - Si el server devuelve 401, se corta inmediatamente.
+     *
+     * @return true si TODAS las ops accesibles se procesaron sin error de red.
+     *         false si hubo un fallo crítico (red, 401, server down).
+     */
     private suspend fun uploadPending(token: String): Boolean {
-        val items = syncQueueDao.getNext50()
-        if (items.isEmpty()) return true
+        val maxIterations = 200
+        var stagnantCount = 0
+        repeat(maxIterations) { iter ->
+            val items = syncQueueDao.getNextBatch(limit = 50, maxAttempts = 5)
+            if (items.isEmpty()) return true   // cola vacía → éxito
 
-        val ops = items.mapNotNull { item ->
-            val data = runCatching { mapAdapter.fromJson(item.payload) }.getOrNull()
-            if (data == null) { syncQueueDao.delete(item.id); return@mapNotNull null }
-            SyncOperation(
-                entity    = item.entity,
-                uid       = item.entityUid,
-                operation = item.operation,
-                data      = data,
-            )
-        }
+            val ops = items.mapNotNull { item ->
+                val data = runCatching { mapAdapter.fromJson(item.payload) }.getOrNull()
+                if (data == null) { syncQueueDao.delete(item.id); return@mapNotNull null }
+                SyncOperation(
+                    entity    = item.entity,
+                    uid       = item.entityUid,
+                    operation = item.operation,
+                    data      = data,
+                )
+            }
+            if (ops.isEmpty()) return@repeat   // todos eran payloads corruptos, ya borrados
 
-        val resp = runCatching {
-            api.batchSync(token = token, body = BatchSyncRequest(ops))
-        }.getOrNull() ?: return false
+            val resp = runCatching {
+                api.batchSync(token = token, body = BatchSyncRequest(ops))
+            }.getOrNull() ?: return false   // error de red → cortar
 
-        if (resp.code() == 401) return false  // 401 handled at runSync level
-        if (!resp.isSuccessful || resp.body()?.ok != true) return false
+            if (resp.code() == 401) return false  // token caducado
+            if (!resp.isSuccessful || resp.body()?.ok != true) return false
 
-        val body      = resp.body()!!
-        val now       = Instant.now().toString()
-        val syncedSet = body.synced?.map { it.uid }?.toSet() ?: emptySet()
+            val body      = resp.body()!!
+            val now       = Instant.now().toString()
+            val syncedSet = body.synced?.map { it.uid }?.toSet() ?: emptySet()
 
-        // Marcar synced en Room
-        body.synced?.forEach { result ->
-            when (result.entity) {
-                "route"            -> routeDao.updateSyncStatus(result.uid, "synced", now)
-                "stop"             -> stopDao.updateSyncStatus(result.uid, "synced", now)
-                "stop_visit"       -> visitRepo.markSynced(result.uid)
-                "kpi_values"       -> kpiValueDao.markSynced(result.uid)
-                // day_session y business_profile no tienen syncStatus en Room — nada que actualizar
+            // Marcar synced en Room
+            body.synced?.forEach { result ->
+                when (result.entity) {
+                    "route"            -> routeDao.updateSyncStatus(result.uid, "synced", now)
+                    "stop"             -> stopDao.updateSyncStatus(result.uid, "synced", now)
+                    "stop_visit"       -> visitRepo.markSynced(result.uid)
+                    "kpi_values"       -> kpiValueDao.markSynced(result.uid)
+                    // day_session y business_profile no tienen syncStatus en Room — nada que actualizar
+                }
+            }
+
+            // Marcar errores en la queue (attempts++)
+            body.errors?.forEach { err ->
+                items.find { it.entityUid == err.uid }
+                    ?.let { syncQueueDao.markFailed(it.id, err.error ?: "Error desconocido") }
+            }
+
+            // Eliminar de la queue los procesados con éxito
+            items.filter { it.entityUid in syncedSet }
+                .forEach { syncQueueDao.delete(it.id) }
+
+            // Detección de estancamiento: si en esta iteración 0 ops avanzaron
+            // (todos errors o todos silencio), pasamos a la siguiente. Si 3
+            // iteraciones seguidas no avanzan → break para no bucle infinito.
+            if (syncedSet.isEmpty()) {
+                stagnantCount++
+                if (stagnantCount >= 3) return false
+            } else {
+                stagnantCount = 0
             }
         }
-
-        // Marcar errores en la queue
-        body.errors?.forEach { err ->
-            items.find { it.entityUid == err.uid }
-                ?.let { syncQueueDao.markFailed(it.id, err.error ?: "Error desconocido") }
-        }
-
-        // Eliminar de la queue los procesados con éxito
-        items.filter { it.entityUid in syncedSet }
-            .forEach { syncQueueDao.delete(it.id) }
-
-        return true
+        return true   // alcanzamos el límite de iteraciones — paramos sin error
     }
 
     // ── Descargar cambios del servidor desde timestamp ─────────
