@@ -2643,7 +2643,11 @@ if ($action === 'agent_detail') {
     $monthEnd   = date('Y-m-t', strtotime($monthStart));
 
     // Info del agente
-    $stU = db()->prepare('SELECT id, name, username, role, email, avatar_url, created_at FROM users WHERE id=? AND account_id=? LIMIT 1');
+    // account_id incluido porque el UserDto del cliente Android lo declara
+    // obligatorio (compartido con login/me) y sin él Moshi rechaza el JSON
+    // con 'Required value accountId missing at $.agent' — bug que afectaba
+    // a CUALQUIER rol con acceso a Mi equipo (manager/admin/owner).
+    $stU = db()->prepare('SELECT id, name, username, role, email, avatar_url, account_id, created_at FROM users WHERE id=? AND account_id=? LIMIT 1');
     $stU->execute([$targetId, $aid]);
     $agent = $stU->fetch();
     if (!$agent) err('Agente no encontrado', 404);
