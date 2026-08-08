@@ -26,6 +26,7 @@ import com.pabl3st.rutapp.data.local.entity.StopEntity
 @Composable
 fun AddStopsScreen(
     onBack: () -> Unit,
+    onImport: () -> Unit = {},
     vm: AddStopsViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -56,6 +57,10 @@ fun AddStopsScreen(
                     }
                 },
                 actions = {
+                    // Importar paradas desde fichero (CSV/Excel)
+                    IconButton(onClick = onImport) {
+                        Icon(Icons.Default.UploadFile, contentDescription = "Importar paradas")
+                    }
                     // Seleccionar todo
                     if (ui.stops.isNotEmpty()) {
                         IconButton(onClick = {
@@ -171,7 +176,10 @@ fun AddStopsScreen(
                     CircularProgressIndicator()
                 }
                 ui.stops.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier            = Modifier.padding(horizontal = 32.dp),
+                    ) {
                         Icon(Icons.Default.SearchOff, null, Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
                         Spacer(Modifier.height(8.dp))
@@ -179,6 +187,22 @@ fun AddStopsScreen(
                              else "Sin resultados para \"${ui.query}\"",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // Estado vacio real (sin busqueda): ofrecer importar
+                        if (ui.query.isBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Importa tus PDVs desde un CSV o Excel para empezar.",
+                                style     = MaterialTheme.typography.bodySmall,
+                                color     = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = onImport) {
+                                Icon(Icons.Default.UploadFile, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Importar paradas")
+                            }
+                        }
                     }
                 }
                 else -> LazyColumn(

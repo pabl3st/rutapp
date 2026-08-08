@@ -226,7 +226,10 @@ fun RutasNavGraph(
                 if (UserRole.from(userRole).isViewer) {
                     navController.popBackStack(); return@composable
                 }
-                AddStopsScreen(onBack = { navController.popBackStack() })
+                AddStopsScreen(
+                    onBack   = { navController.popBackStack() },
+                    onImport = { navController.navigate(Screen.Importar.route) },
+                )
             }
 
             composable(
