@@ -1,10 +1,15 @@
 package com.pabl3st.rutapp.core.permission
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -83,6 +88,52 @@ class PermissionManager @Inject constructor(
     fun isCameraAvailable(): Boolean = isGranted(AppPermission.Camera)
 
     fun isStorageAvailable(): Boolean = isGranted(storagePermission)
+
+    // ── Localizacion en background ────────────────────────────
+
+    /** El permiso de background solo aplica en Android 10+ (Q). En < Q se hereda del foreground. */
+    fun backgroundLocationApplies(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
+    /** True si ya tenemos background, o si no aplica (heredado del foreground en < Q). */
+    fun isBackgroundLocationGranted(): Boolean =
+        !backgroundLocationApplies() || isGranted(AppPermission.LocationBackground)
+
+    fun wasBackgroundPromptShown(): Boolean =
+        prefs.getBoolean("background_prompt_shown", false)
+
+    fun markBackgroundPromptShown() {
+        prefs.edit().putBoolean("background_prompt_shown", true).apply()
+    }
+
+    // ── Exencion de optimizacion de bateria ───────────────────
+
+    /**
+     * True si la app esta exenta de la optimizacion de bateria (o no hay PowerManager).
+     * Sin exencion, el SO puede matar el ForegroundService de GPS durante la jornada.
+     */
+    fun isIgnoringBatteryOptimizations(): Boolean {
+        val pm = ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+        return pm.isIgnoringBatteryOptimizations(ctx.packageName)
+    }
+
+    /** Intent para pedir al usuario la exencion directa (dialogo del sistema). */
+    @SuppressLint("BatteryLife")
+    fun batteryOptimizationRequestIntent(): Intent =
+        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:${ctx.packageName}")
+        }
+
+    /** Intent de respaldo: lista de ajustes de bateria (si el directo no esta disponible). */
+    fun batteryOptimizationSettingsIntent(): Intent =
+        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+
+    fun wasBatteryPromptShown(): Boolean =
+        prefs.getBoolean("battery_prompt_shown", false)
+
+    fun markBatteryPromptShown() {
+        prefs.edit().putBoolean("battery_prompt_shown", true).apply()
+    }
 }
 
 // ── Modelo de permisos ────────────────────────────────────────

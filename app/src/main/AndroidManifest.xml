@@ -23,6 +23,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Relanzar SyncWorker tras reinicio del dispositivo -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Exencion de optimizacion de bateria: evita que el SO mate el ForegroundService de GPS durante la jornada -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".RutasApp"
