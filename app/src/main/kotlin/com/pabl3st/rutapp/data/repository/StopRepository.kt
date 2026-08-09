@@ -300,14 +300,30 @@ class StopRepository @Inject constructor(
 
     // ── Reordenación de paradas ───────────────────────────────
 
+    /**
+     * Quita la parada de la ruta CONSERVANDOLA: mantiene KPIs, informes,
+     * resultado de visita y datos importados. Queda sin ruta y sin fecha
+     * hasta que se incluya en otra, donde adoptara la fecha de esa ruta.
+     *
+     * Antes hacia softDelete, es decir, borraba el PDV entero con sus datos.
+     */
     suspend fun removeFromRoute(stopUid: String) {
         val now = java.time.Instant.now().toString()
-        stopDao.softDelete(stopUid, now)
+        stopDao.detachFromRoute(stopUid, now)
+        // Sync inmediato. Sin esto el cambio se quedaba solo en Room y el
+        // siguiente delta_sync devolvia la parada tal como sigue en el
+        // servidor: al deslizar para refrescar, reaparecia en la ruta.
+        stopDao.getByUid(stopUid)?.let { enqueue("stop", stopUid, "update", stopToMap(it)) }
     }
 
+    /** Vacia la ruta desvinculando sus paradas (no las borra). */
     suspend fun clearRoute(routeUid: String) {
-        val now = java.time.Instant.now().toString()
-        stopDao.softDeleteByRoute(routeUid, now)
+        val now   = java.time.Instant.now().toString()
+        val stops = stopDao.getByRoute(routeUid)
+        stops.forEach { stopDao.detachFromRoute(it.uid, now) }
+        stops.forEach { st ->
+            stopDao.getByUid(st.uid)?.let { enqueue("stop", st.uid, "update", stopToMap(it)) }
+        }
     }
 
     /** Vincula un stop de la biblioteca a una ruta concreta */
@@ -315,6 +331,9 @@ class StopRepository @Inject constructor(
         val nextIdx = stopDao.nextOrderIndex(routeUid)
         val now     = java.time.Instant.now().toString()
         stopDao.linkToRoute(stopUid, routeUid, dateAssigned, nextIdx, now)
+        // Sync inmediato, igual que al desvincular: si no, el proximo
+        // delta_sync devolveria la parada con su ruta y fecha anteriores.
+        stopDao.getByUid(stopUid)?.let { enqueue("stop", stopUid, "update", stopToMap(it)) }
     }
 
     /** Persiste el orden actual de la lista en Room (bulk update) */

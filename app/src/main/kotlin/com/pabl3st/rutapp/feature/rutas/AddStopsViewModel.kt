@@ -83,6 +83,7 @@ private fun applyFilter(
 class AddStopsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val stopRepo: StopRepository,
+    private val routeRepo: com.pabl3st.rutapp.data.repository.RouteRepository,
     private val session:  SessionManager,
 ) : BaseViewModel() {
 
@@ -143,7 +144,13 @@ class AddStopsViewModel @Inject constructor(
         if (toAdd.isEmpty()) return
         viewModelScope.launch {
             _ui.update { it.copy(isSaving = true) }
-            val date = java.time.LocalDate.now().toString()
+            // La parada adopta la fecha de la ruta de destino, no la de hoy.
+            // Una parada desvinculada queda sin fecha; al reincorporarla debe
+            // heredar la planificacion de su nueva ruta (y sus scheduledDates
+            // del mes en curso), no la fecha en que se hizo el arrastre.
+            val route = routeRepo.getByUid(routeUid)
+            val date  = route?.dateAssigned?.takeIf { it.isNotBlank() }
+                ?: java.time.LocalDate.now().toString()
             toAdd.forEach { uid -> stopRepo.addToRoute(uid, routeUid, date) }
             _ui.update { it.copy(isSaving = false, done = true) }
         }

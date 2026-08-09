@@ -212,6 +212,33 @@ interface StopDao {
     """)
     suspend fun softDeleteByRoute(routeUid: String, now: String)
 
+    /**
+     * Desvincula la parada de su ruta SIN borrarla: conserva KPIs, informes,
+     * resultado de visita y todo el historial. La parada queda huerfana (sin
+     * ruta) y sin fecha asignada hasta que se incluya en otra ruta, momento
+     * en que linkToRoute le pone la fecha de esa nueva ruta.
+     *
+     * routeUid = '' (no NULL) porque la columna es String no-nulo en
+     * StopEntity; cambiarla exigiria migracion de esquema. La cadena vacia
+     * ya encaja con observeOrphaned, que define huerfana como "routeUid que
+     * no apunta a ninguna ruta viva", asi que la parada aparece sola en la
+     * pestana 'Sin ruta' de la Biblioteca.
+     *
+     * Antes esto era un softDelete: quitar una parada de una ruta borraba el
+     * PDV entero junto con sus datos rellenados.
+     */
+    @Query("""
+        UPDATE stops SET
+            routeUid     = '',
+            dateAssigned = NULL,
+            orderIndex   = 0,
+            deletedAt    = NULL,
+            updatedAt    = :now,
+            syncStatus   = 'pending'
+        WHERE uid = :stopUid
+    """)
+    suspend fun detachFromRoute(stopUid: String, now: String)
+
     @Query("""
         UPDATE stops SET
             routeUid     = :routeUid,
