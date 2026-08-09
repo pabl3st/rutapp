@@ -163,6 +163,7 @@ fun RouteMapScreen(
                     items(ui.stops, key = { it.uid }) { item ->
                         StopDistanceCard(
                             item       = item,
+                            onOpenForm = { onStopClick(item.uid) },
                             onNavigate = {
                                 vm.mapProvider.openNavigation(
                                     context     = context,
@@ -283,8 +284,9 @@ private fun ProviderBadge(provider: MapProviderType) {
 // ── Tarjeta de stop con distancia ─────────────────────────────
 @Composable
 private fun StopDistanceCard(
-    item: StopMapMarker,
+    item:       StopMapMarker,
     onNavigate: () -> Unit,
+    onOpenForm: () -> Unit,
 ) {
     val isDone    = item.status == StopStatus.DONE
     val isVisiting = item.status == StopStatus.VISITING
@@ -352,12 +354,20 @@ private fun StopDistanceCard(
                             else MaterialTheme.colorScheme.onSurface)
             }
 
-            // Botón navegar GPS
-            if (!isDone && item.latLng.lat != 0.0) {
-                IconButton(onClick = onNavigate) {
-                    Icon(Icons.Default.Navigation, "Navegar",
+            // Acciones: formulario arriba, navegar GPS debajo
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onOpenForm, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Assignment, "Abrir formulario de visita",
                         modifier = Modifier.size(20.dp),
-                        tint     = MaterialTheme.colorScheme.primary)
+                        tint     = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                                   else MaterialTheme.colorScheme.primary)
+                }
+                if (!isDone && item.latLng.lat != 0.0) {
+                    IconButton(onClick = onNavigate, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.Navigation, "Navegar",
+                            modifier = Modifier.size(20.dp),
+                            tint     = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }

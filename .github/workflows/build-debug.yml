@@ -42,6 +42,22 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      - name: Restaurar keystore debug estable
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$DEBUG_KEYSTORE_B64" ]; then
+            echo "::error::Falta el secret DEBUG_KEYSTORE_B64. Sin el, cada build se firma"
+            echo "::error::con una clave distinta y la actualizacion borra los datos del dispositivo."
+            exit 1
+          fi
+          mkdir -p keystore
+          echo "$DEBUG_KEYSTORE_B64" | base64 -d > keystore/debug.keystore
+          echo "Huella de la clave de firma:"
+          keytool -list -v -keystore keystore/debug.keystore \
+                  -storepass "${DEBUG_STORE_PASSWORD:-android}" 2>/dev/null \
+            | grep -E "SHA256:" | head -1
+
       - name: Read version
         id: ver
         run: |

@@ -211,10 +211,11 @@ fun RouteDetailScreen(
                 ) {
                     itemsIndexed(ui.stops, key = { _, s -> s.uid }) { idx, stop ->
                         StopCard(
-                            modifier = Modifier.semantics { testTag = "stop-card-$idx" },
-                            stop     = stop,
-                            visit    = ui.visitsByStop[stop.uid],
-                            onRemove = if (ui.canEditStops) ({ vm.removeStop(stop.uid) }) else null,
+                            modifier   = Modifier.semantics { testTag = "stop-card-$idx" },
+                            stop       = stop,
+                            visit      = ui.visitsByStop[stop.uid],
+                            onRemove   = if (ui.canEditStops) ({ vm.removeStop(stop.uid) }) else null,
+                            onOpenForm = { onStopClick(stop.uid) },
                         )
                     }
                 }
@@ -454,10 +455,11 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun StopCard(
-    stop:     StopEntity,
-    visit:    StopVisitEntity? = null,
-    onRemove: (() -> Unit)? = null,
-    modifier: Modifier      = Modifier,
+    stop:       StopEntity,
+    visit:      StopVisitEntity? = null,
+    onRemove:   (() -> Unit)? = null,
+    onOpenForm: (() -> Unit)? = null,
+    modifier:   Modifier      = Modifier,
 ) {
     // Modelo C: cuando hay visita de la fecha seleccionada, ella manda.
     // Cuando no la hay (rutas legacy o ruta sin scheduledDates), nos quedamos
@@ -589,6 +591,21 @@ private fun StopCard(
                 } else if (!stop.pdvOpen) {
                     Icon(Icons.Default.StoreMallDirectory, null, Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            // Abrir formulario de visita directamente desde la lista de paradas
+            if (onOpenForm != null) {
+                IconButton(
+                    onClick  = onOpenForm,
+                    modifier = Modifier.size(40.dp).semantics { testTag = "stop-form-${stop.uid}" },
+                ) {
+                    Icon(
+                        Icons.Default.Assignment,
+                        contentDescription = "Abrir formulario de visita",
+                        modifier = Modifier.size(20.dp),
+                        tint     = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant
+                                   else MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
             if (onRemove != null) {

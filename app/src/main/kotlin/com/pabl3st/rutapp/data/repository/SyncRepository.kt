@@ -164,12 +164,12 @@ class SyncRepository @Inject constructor(
     /** Centraliza la purga de items exhaustos / antiguos. Extraída del runSync
      *  para reusarse desde syncUploadOnly también. */
     private suspend fun purgeStaleQueueItems() {
-        val cutoff = java.time.Instant.now()
-            .minusSeconds(30L * 24 * 3600)  // 30 días
-            .atOffset(java.time.ZoneOffset.UTC)
-            .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        // createdAt se guarda como epoch millis (Long) — el cutoff debe ser
+        // del mismo tipo. Con un String ISO, SQLite comparaba INTEGER contra
+        // TEXT y borraba la cola completa en cada sync.
+        val cutoffMillis = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
         syncQueueDao.purgeExhausted(maxAttempts = 20)
-        syncQueueDao.purgeOlderThan(cutoff)
+        syncQueueDao.purgeOlderThan(cutoffMillis)
     }
 
     // ── Re-encolar datos huérfanos ───────────────────────────
@@ -215,7 +215,7 @@ class SyncRepository @Inject constructor(
         val maxIterations = 200
         var stagnantCount = 0
         repeat(maxIterations) { iter ->
-            val items = syncQueueDao.getNextBatch(limit = 50, maxAttempts = 5)
+            val items = syncQueueDao.getNextBatch(limit = 50, maxAttempts = 20)
             if (items.isEmpty()) return true   // cola vacía → éxito
 
             val ops = items.mapNotNull { item ->

@@ -24,6 +24,25 @@ android {
             "\"https://mejoresiagratis.com/rutasproapk/api.php\"")
     }
 
+    // ── Firma debug estable ───────────────────────────────────
+    // Sin esto, AGP genera un debug.keystore nuevo en cada runner de CI y
+    // cada build sale firmado con otra clave: Android rechaza la
+    // actualizacion (INSTALL_FAILED_UPDATE_INCOMPATIBLE) y obliga a
+    // desinstalar, lo que borra Room, la sesion y la cola de sync.
+    // En CI el fichero se restaura desde el secret DEBUG_KEYSTORE_B64.
+    // En local, si no existe, AGP usa su keystore por defecto (~/.android).
+    signingConfigs {
+        getByName("debug") {
+            val ks = rootProject.file("keystore/debug.keystore")
+            if (ks.exists()) {
+                storeFile     = ks
+                storePassword = System.getenv("DEBUG_STORE_PASSWORD") ?: "android"
+                keyAlias      = System.getenv("DEBUG_KEY_ALIAS")      ?: "androiddebugkey"
+                keyPassword   = System.getenv("DEBUG_KEY_PASSWORD")   ?: "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // applicationIdSuffix removido — google-services.json requiere package exacto
@@ -81,6 +100,7 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.moshi)
     ksp(libs.moshi.codegen)
+    testImplementation(libs.moshi.kotlin.reflect)   // KotlinJsonAdapterFactory en tests
 
     // Security — token cifrado en Keystore
     implementation(libs.security.crypto)

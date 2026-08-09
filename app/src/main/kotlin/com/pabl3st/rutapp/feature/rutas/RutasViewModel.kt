@@ -105,6 +105,10 @@ class RutasViewModel @Inject constructor(
     fun forceSync() {
         _ui.update { it.copy(isForceSyncing = true, forceSyncResult = null) }
         viewModelScope.launch {
+            // El boton de sync forzado es una accion explicita del usuario:
+            // reactivamos los ops agotados para que un fallo ya corregido en el
+            // servidor no deje operaciones muertas contando en la cola.
+            runCatching { syncQueueDao.resetExhausted() }
             val countBefore = runCatching { syncQueueDao.count() }.getOrDefault(0)
             val result = runCatching { syncRepo.runSync() }
             val countAfter = runCatching { syncQueueDao.count() }.getOrDefault(-1)

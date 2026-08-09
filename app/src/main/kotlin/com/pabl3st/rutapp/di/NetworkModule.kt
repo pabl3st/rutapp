@@ -2,7 +2,6 @@ package com.pabl3st.rutapp.di
 
 import com.pabl3st.rutapp.data.network.RutasApiService
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import android.content.Context
 import androidx.work.WorkManager
 import dagger.Module
@@ -31,9 +30,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideMoshi(): Moshi = Moshi.Builder()
-        .addLast(KotlinJsonAdapterFactory())
-        .build()
+    // Todos los DTOs usan @JsonClass(generateAdapter = true) -> adaptadores KSP.
+    // Sin fallback reflexivo: un DTO sin anotar debe fallar en tests, no en produccion.
+    fun provideMoshi(): Moshi = Moshi.Builder().build()
 
     @Provides
     @Singleton

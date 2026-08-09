@@ -533,6 +533,7 @@ data class FileUploadResponse(
 
 
 // ── God Dashboard DTOs ────────────────────────────────────────
+@JsonClass(generateAdapter = true)
 data class GodStatsResponse(
     @Json(name = "ok")             val success:       Boolean,
     @Json(name = "message")        val message:       String  = "",
@@ -545,6 +546,7 @@ data class GodStatsResponse(
     @Json(name = "recent_users")   val recentUsers:   List<GodUserDto>     = emptyList(),
 )
 
+@JsonClass(generateAdapter = true)
 data class GodAccountDto(
     @Json(name = "id")            val id:           Int,
     @Json(name = "name")          val name:         String,
@@ -555,6 +557,7 @@ data class GodAccountDto(
     @Json(name = "plan")          val plan:         String  = "free",
 )
 
+@JsonClass(generateAdapter = true)
 data class GodUserDto(
     @Json(name = "id")           val id:          Int,
     @Json(name = "username")     val username:    String,
@@ -569,11 +572,13 @@ data class GodUserDto(
     @Json(name = "avatar_url")    val avatarUrl:    String? = null,
 )
 
+@JsonClass(generateAdapter = true)
 data class GodUsersResponse(
     @Json(name = "ok")      val success: Boolean,
     @Json(name = "users")   val users:   List<GodUserDto> = emptyList(),
 )
 
+@JsonClass(generateAdapter = true)
 data class GodSetRoleRequest(
     @Json(name = "user_id") val userId: Int,
     @Json(name = "role")    val role:   String,
