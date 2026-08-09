@@ -120,7 +120,8 @@ class RutasViewModel @Inject constructor(
                         SyncResult.NoAuth        -> "✗ Sin sesión activa (inicia sesión otra vez)"
                         SyncResult.Unauthorized  -> "✗ Token rechazado por el servidor (401)"
                         SyncResult.UploadError   -> "✗ Subida falló — server no recibió. Cola: $countBefore→$countAfter"
-                        SyncResult.DownloadError -> "✓ Subida OK ($processed), descarga falló. Cola: $countAfter"
+                        SyncResult.DownloadError -> "✓ Subida OK ($processed), descarga falló" +
+                            (syncRepo.lastDownloadError?.let { " [$it]" } ?: "") + ". Cola: $countAfter"
                     }
                 },
                 onFailure = { e -> "✗ Excepción: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}" },

@@ -276,17 +276,30 @@ class SyncRepository @Inject constructor(
     }
 
     // ── Descargar cambios del servidor desde timestamp ─────────
-    private suspend fun downloadDelta(token: String, since: String): Boolean {
-        val resp = runCatching {
-            api.deltaSync(token = token, since = since)
-        }.getOrNull() ?: return false
+    /** Motivo del último fallo de descarga, para que la UI pueda mostrarlo
+     *  en vez del opaco "descarga falló". null = última descarga OK. */
+    @Volatile var lastDownloadError: String? = null
+        private set
 
-        if (resp.code() == 401) return false  // 401 handled at runSync level
-        if (resp.code() == 401) {
-            session.token  // Token still set but server rejects it
+    private suspend fun downloadDelta(token: String, since: String): Boolean {
+        lastDownloadError = null
+        val result = runCatching { api.deltaSync(token = token, since = since) }
+        val resp = result.getOrNull() ?: run {
+            lastDownloadError = result.exceptionOrNull()?.let {
+                "${it.javaClass.simpleName}: ${it.message?.take(120)}"
+            } ?: "sin respuesta"
             return false
         }
-        if (!resp.isSuccessful || resp.body()?.ok != true) return false
+
+        if (resp.code() == 401) { lastDownloadError = "HTTP 401 — sesión expirada"; return false }
+        if (!resp.isSuccessful) {
+            lastDownloadError = "HTTP ${resp.code()}"
+            return false
+        }
+        if (resp.body()?.ok != true) {
+            lastDownloadError = "servidor: ${resp.body()?.error ?: "ok=false"}"
+            return false
+        }
 
         val body = resp.body()!!
         body.routes?.map { it.toEntity(session.userId, session.accountId) }
