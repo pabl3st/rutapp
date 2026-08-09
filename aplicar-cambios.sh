@@ -18,7 +18,9 @@ echo "→ Descomprimiendo (sobrescribe respetando rutas)"
 unzip -o -q "$ZIP" -d .
 
 echo "→ Limpiando ficheros que no van al repo"
-rm -f rutapp-cambios*.zip LEEME-COMO-APLICAR.md rutapp-fixes.bundle
+# Se borra tambien a si mismo: es una herramienta de despliegue, no
+# codigo del proyecto, y no debe acabar commiteada en el repo.
+rm -f rutapp-cambios*.zip LEEME-COMO-APLICAR.md rutapp-fixes.bundle aplicar-cambios.sh
 git rm -q --cached rutapp-fixes.bundle 2>/dev/null || true
 
 echo "→ Cambios a commitear:"
