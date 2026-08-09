@@ -32,7 +32,11 @@ object NetworkModule {
     @Singleton
     // Todos los DTOs usan @JsonClass(generateAdapter = true) -> adaptadores KSP.
     // Sin fallback reflexivo: un DTO sin anotar debe fallar en tests, no en produccion.
-    fun provideMoshi(): Moshi = Moshi.Builder().build()
+    fun provideMoshi(): Moshi = Moshi.Builder()
+        // Escalares laxos (0/1 → Boolean, "39.47" → Double, 54 → String):
+        // MySQL/PDO no serializa TINYINT ni DECIMAL como el DTO espera.
+        .add(com.pabl3st.rutapp.data.network.LenientAdapters)
+        .build()
 
     @Provides
     @Singleton
