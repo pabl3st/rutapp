@@ -371,7 +371,9 @@ class MapLibreProvider(private val context: Context) : MapProvider {
 
         /** Genera un bitmap de círculo azul con borde blanco para el marcador del usuario. */
         private fun buildUserLocationIcon(): org.maplibre.android.annotations.Icon {
-            val size   = 48
+            // 48 -> 72: el punto azul quedaba pequeño y costaba localizarse
+            // en pantalla, sobre todo con el mapa alejado.
+            val size   = 72
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 

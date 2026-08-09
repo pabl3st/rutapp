@@ -163,6 +163,11 @@ fun RouteMapScreen(
                     items(ui.stops, key = { it.uid }) { item ->
                         StopDistanceCard(
                             item       = item,
+                            // Tocar la tarjeta centra el mapa en esa parada.
+                            onFocus    = {
+                                (vm.mapProvider as? com.pabl3st.rutapp.core.map.MapLibreProvider)
+                                    ?.centerOnLocation(item.latLng)
+                            },
                             onOpenForm = { onStopClick(item.uid) },
                             onNavigate = {
                                 vm.mapProvider.openNavigation(
@@ -287,11 +292,13 @@ private fun StopDistanceCard(
     item:       StopMapMarker,
     onNavigate: () -> Unit,
     onOpenForm: () -> Unit,
+    onFocus:    () -> Unit = {},
 ) {
     val isDone    = item.status == StopStatus.DONE
     val isVisiting = item.status == StopStatus.VISITING
 
     Card(
+        onClick  = onFocus,
         modifier = Modifier.fillMaxWidth(),
         colors   = if (isVisiting) CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
