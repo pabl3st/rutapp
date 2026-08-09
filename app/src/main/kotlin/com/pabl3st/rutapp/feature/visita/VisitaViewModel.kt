@@ -159,14 +159,19 @@ class VisitaViewModel @Inject constructor(
             //    a) date del navArgument (cuando se entra desde RouteDetail tras seleccionar fecha)
             //    b) date del stop.dateAssigned (compat con rutas legacy)
             //    c) fecha de hoy (fallback final)
-            val resolvedDate: String = when {
-                !visitDateArg.isNullOrBlank() -> visitDateArg
-                else -> {
-                    val stopRow = _ui.value.stop ?: stopRepo.getByUid(stopUid)
-                    stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
-                        ?: java.time.LocalDate.now().toString()
-                }
-            }
+            // REGLA (ago 2026): la visita SIEMPRE se registra en la fecha
+            // asignada a la parada, la rellene el agente el dia que la rellene.
+            // Antes ganaba visitDateArg (la fecha desde la que se abrio la
+            // pantalla, normalmente hoy): si visitabas el dia 9 una parada
+            // asignada al 10, la stop_visit nacia con fecha 9, la lista
+            // buscaba visitas del 10 y no la encontraba -> la parada seguia
+            // sin marcar y la etiqueta de fecha pintaba un valor descolocado.
+            // dateAssigned manda; visitDateArg solo cubre paradas sin fecha.
+            val stopRow = _ui.value.stop ?: stopRepo.getByUid(stopUid)
+            val resolvedDate: String =
+                stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
+                    ?: visitDateArg?.takeIf { it.isNotBlank() }
+                    ?: java.time.LocalDate.now().toString()
 
             // 2. Crear o recuperar la stop_visit y escribir el informe en ella
             val routeUidForVisit = _ui.value.stop?.routeUid

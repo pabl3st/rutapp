@@ -23,6 +23,7 @@ import com.pabl3st.rutapp.data.session.SessionManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
@@ -67,29 +68,48 @@ class RouteRepository @Inject constructor(
     private val isManagedView: Boolean
         get() = UserRole.from(session.userRole) in setOf(UserRole.ADMIN, UserRole.MANAGER)
 
-    fun observeToday(): Flow<List<RouteEntity>> {
-        val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return when {
-            isFullAccountView -> routeDao.observeByDateForAccount(session.accountId, today)
-            isManagedView     -> {
-                // managedAgentIds ya incluye al propio usuario (lo añade el servidor).
-                // Si está vacío (primer arranque sin sync) usamos al menos al propio
-                // userId para no mostrar nada de otros.
-                val ids = session.managedAgentIds.takeIf { it.isNotEmpty() } ?: listOf(session.userId)
-                routeDao.observeByDateForUserIds(ids, today)
-            }
-            else -> routeDao.observeByDate(session.userId, today)
-        }
-    }
+    // NOTA (ago 2026): estos observadores se reconstruyen con flatMapLatest
+    // sobre session.sessionScope. Antes resolvían el `when` UNA sola vez, al
+    // crear el Flow: un ViewModel nacido antes de que delta_sync rellenara
+    // managedAgentIds quedaba cableado a listOf(userId) de forma permanente,
+    // y la jerarquía que llegaba después no se aplicaba nunca.
+    // Sintoma: el Calendario del tab inferior (ViewModel reutilizado via
+    // saveState/restoreState) salia vacio mientras el mismo Calendario abierto
+    // desde el menu — ViewModel nuevo — si mostraba las rutas.
 
-    fun observeAll(): Flow<List<RouteEntity>> = when {
-        isFullAccountView -> routeDao.observeByAccount(session.accountId)
-        isManagedView     -> {
-            val ids = session.managedAgentIds.takeIf { it.isNotEmpty() } ?: listOf(session.userId)
-            routeDao.observeByUserIds(ids)
+    fun observeToday(): Flow<List<RouteEntity>> =
+        session.sessionScope.flatMapLatest { scope ->
+            val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val role  = UserRole.from(scope.userRole)
+            when {
+                role in setOf(UserRole.OWNER, UserRole.GOD) ->
+                    routeDao.observeByDateForAccount(scope.accountId, today)
+                role in setOf(UserRole.ADMIN, UserRole.MANAGER) -> {
+                    // managedAgentIds ya incluye al propio usuario (lo añade el
+                    // servidor). Si está vacío (primer arranque sin sync) usamos
+                    // al menos el propio userId para no mostrar nada de otros.
+                    val ids = scope.managedAgentIds.takeIf { it.isNotEmpty() }
+                        ?: listOf(scope.userId)
+                    routeDao.observeByDateForUserIds(ids, today)
+                }
+                else -> routeDao.observeByDate(scope.userId, today)
+            }
         }
-        else -> routeDao.observeByUser(session.userId)
-    }
+
+    fun observeAll(): Flow<List<RouteEntity>> =
+        session.sessionScope.flatMapLatest { scope ->
+            val role = UserRole.from(scope.userRole)
+            when {
+                role in setOf(UserRole.OWNER, UserRole.GOD) ->
+                    routeDao.observeByAccount(scope.accountId)
+                role in setOf(UserRole.ADMIN, UserRole.MANAGER) -> {
+                    val ids = scope.managedAgentIds.takeIf { it.isNotEmpty() }
+                        ?: listOf(scope.userId)
+                    routeDao.observeByUserIds(ids)
+                }
+                else -> routeDao.observeByUser(scope.userId)
+            }
+        }
 
     suspend fun getByUid(uid: String): RouteEntity? =
         routeDao.getByUid(uid)

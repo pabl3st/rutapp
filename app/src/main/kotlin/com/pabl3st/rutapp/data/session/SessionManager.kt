@@ -9,6 +9,9 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -101,6 +104,51 @@ class SessionManager @Inject constructor(
         get()      = prefs.getLong(KEY_LAST_FULL_SYNC, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_FULL_SYNC, value).apply()
 
+    // ── Señal reactiva de sesión ──────────────────────────────
+    /**
+     * Se emite cada vez que cambia algo que decide QUÉ DATOS ve el usuario:
+     * userId, rol, cuenta o la jerarquía (managedAgentIds).
+     *
+     * BUG que resuelve (ago 2026): SessionManager era estado plano, y
+     * RouteRepository.observeAll() elegía la consulta UNA sola vez, al
+     * construir el Flow. Si un ViewModel nacía antes de que delta_sync
+     * rellenara managedAgentIds, quedaba cableado a listOf(userId) para
+     * siempre: la jerarquía llegaba después y el Flow ya no se rehacía.
+     *
+     * Síntoma observado: el Calendario del tab inferior (que reutiliza su
+     * ViewModel vía saveState/restoreState) mostraba el mes vacío, mientras
+     * que el mismo Calendario abierto desde el menú — ViewModel nuevo, foto
+     * actual de la sesión — sí mostraba las rutas. Reiniciar la app lo
+     * "arreglaba", que es la pista de que era una foto vieja y no un fallo
+     * de datos.
+     *
+     * Los repositorios deben usar flatMapLatest sobre esta señal en lugar de
+     * leer la sesión una única vez.
+     */
+    private val _sessionScope = MutableStateFlow(currentScope())
+    val sessionScope: StateFlow<SessionScope> = _sessionScope.asStateFlow()
+
+    data class SessionScope(
+        val userId:          Int,
+        val accountId:       Int,
+        val userRole:        String,
+        val managedAgentIds: List<Int>,
+    )
+
+    private fun currentScope() = SessionScope(
+        userId          = prefs.getInt(KEY_USER_ID, 0),
+        accountId       = prefs.getInt(KEY_ACCOUNT_ID, 0),
+        userRole        = prefs.getString(KEY_USER_ROLE, "") ?: "",
+        managedAgentIds = (prefs.getString(KEY_MANAGED_AGENTS, "") ?: "")
+            .split(",").mapNotNull { it.trim().toIntOrNull() },
+    )
+
+    /** Recalcula y emite si algo del alcance cambió. Idempotente. */
+    private fun refreshScope() {
+        val next = currentScope()
+        if (next != _sessionScope.value) _sessionScope.value = next
+    }
+
     /** IDs de agentes que reportan directamente a este manager.
      *  Vacío para roles distintos de manager. */
     var managedAgentIds: List<Int>
@@ -109,7 +157,10 @@ class SessionManager @Inject constructor(
             return if (raw.isBlank()) emptyList()
                    else raw.split(",").mapNotNull { it.trim().toIntOrNull() }
         }
-        set(value) { prefs.edit().putString(KEY_MANAGED_AGENTS, value.joinToString(",")).apply() }
+        set(value) {
+            prefs.edit().putString(KEY_MANAGED_AGENTS, value.joinToString(",")).apply()
+            refreshScope()
+        }
 
     val deviceId: String
         get() = Settings.Secure.getString(
@@ -136,6 +187,7 @@ class SessionManager @Inject constructor(
         this.accountId       = accountId
         this.accountType     = accountType
         this.accountName     = accountName
+        refreshScope()   // login / cambio de usuario: rehacer consultas dependientes
     }
 
     /** Limpieza nuclear: borra TODO (token, datos del usuario, managedAgentIds,
@@ -145,6 +197,7 @@ class SessionManager @Inject constructor(
     fun clear() {
         try { securePrefs.edit().clear().apply() } catch (_: Exception) {}
         prefs.edit().clear().apply()
+        refreshScope()
     }
 
     /** Logout "ligero": borra SOLO el token de autenticación.
@@ -176,6 +229,7 @@ class SessionManager @Inject constructor(
             .remove(KEY_LAST_SYNC)
             .remove(KEY_LAST_FULL_SYNC)
             .apply()
+        refreshScope()
     }
 
     companion object {
