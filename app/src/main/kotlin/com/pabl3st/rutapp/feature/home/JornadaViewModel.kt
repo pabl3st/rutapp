@@ -50,6 +50,13 @@ class JornadaViewModel @Inject constructor(
     private var tickJob:  Job? = null
     private var routeUid: String = ""
 
+    /** Fecha de la jornada en curso. La fijan init() y TODAS las acciones.
+     *  Antes init() observaba la fecha de la ruta pero start/pause/resume/
+     *  finish/reopen usaban todayStr(): se observaba una jornada y se
+     *  manipulaba otra distinta, asi que los contadores no cuadraban y la
+     *  ruta nunca pasaba a 'done' en su dia. */
+    private var jornadaDate: String = ""
+
     /**
      * @param dateOverride fecha de la jornada. Si es null se usa hoy.
      *
@@ -62,6 +69,7 @@ class JornadaViewModel @Inject constructor(
         if (this.routeUid == routeUid) return
         this.routeUid = routeUid
         val dateStr = dateOverride?.takeIf { it.isNotBlank() } ?: jornadaRepo.todayStr()
+        this.jornadaDate = dateStr
 
         viewModelScope.launch {
             jornadaRepo.observe(routeUid, dateStr).collect { session ->
@@ -94,21 +102,21 @@ class JornadaViewModel @Inject constructor(
 
     fun start() {
         viewModelScope.launch {
-            jornadaRepo.start(routeUid, jornadaRepo.todayStr())
+            jornadaRepo.start(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
             startGpsService()
         }
     }
 
     fun pause() {
         viewModelScope.launch {
-            jornadaRepo.pause(routeUid, jornadaRepo.todayStr())
+            jornadaRepo.pause(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
             stopGpsService()
         }
     }
 
     fun resume() {
         viewModelScope.launch {
-            jornadaRepo.resume(routeUid, jornadaRepo.todayStr())
+            jornadaRepo.resume(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
             startGpsService()
         }
     }
@@ -120,7 +128,7 @@ class JornadaViewModel @Inject constructor(
             val elapsedNow  = current.session?.let { jornadaRepo.elapsedMs(it) } ?: current.elapsedMs
             val distanceNow = current.session?.distanceKm ?: current.distanceKm
 
-            jornadaRepo.finish(routeUid, jornadaRepo.todayStr())
+            jornadaRepo.finish(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
             stopGpsService()
 
             val stops = stopRepo.getByRoute(routeUid)
@@ -128,8 +136,13 @@ class JornadaViewModel @Inject constructor(
             val skipped = stops.count { it.status == "skipped" }
             val pending = stops.count { it.status == "pending" || it.status == "visiting" }
 
-            // Sincronizar route.status: si todos done/skipped → ruta done
-            if (stops.isNotEmpty() && stops.all { it.status == "done" || it.status == "skipped" }) {
+            // Sincronizar route.status: la ruta pasa a 'done' si no queda
+            // ninguna parada pendiente. Se cuenta por AUSENCIA de pendientes y
+            // no por igualdad a done/skipped: si una parada quedara en otro
+            // estado (p.ej. importada con un valor inesperado), la condicion
+            // estricta no se cumplia NUNCA y la ruta se quedaba 'Pendiente'
+            // con la barra al 100%.
+            if (stops.isNotEmpty() && pending == 0) {
                 routeRepo.markDone(routeUid)
             }
 
@@ -154,7 +167,7 @@ class JornadaViewModel @Inject constructor(
     fun confirmReopen() {
         _ui.update { it.copy(showReopenDialog = false) }
         viewModelScope.launch {
-            jornadaRepo.reopen(routeUid, jornadaRepo.todayStr())
+            jornadaRepo.reopen(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
             startGpsService()
         }
     }
