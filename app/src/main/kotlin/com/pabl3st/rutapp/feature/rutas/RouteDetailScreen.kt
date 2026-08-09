@@ -136,6 +136,17 @@ fun RouteDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
+            // ── Jornada: iniciar / pausar / finalizar ──────────
+            // Mismo componente que en Hoy, mismo estado (Room es la fuente
+            // de verdad), asi que los contadores coinciden y da igual desde
+            // que pantalla se inicie, pause o finalice.
+            // Se le pasa la fecha de la ruta: una ruta rellenada a posteriori
+            // cierra su jornada en SU dia, no en el de hoy.
+            com.pabl3st.rutapp.feature.home.JornadaBar(
+                routeUid  = routeUid,
+                routeDate = ui.route?.dateAssigned,
+            )
+
             // ── Selector de modo de ordenación ─────────────────
             if (ui.stops.isNotEmpty()) {
                 SortModeSelector(

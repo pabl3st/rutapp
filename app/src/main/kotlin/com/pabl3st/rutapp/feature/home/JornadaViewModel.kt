@@ -50,10 +50,18 @@ class JornadaViewModel @Inject constructor(
     private var tickJob:  Job? = null
     private var routeUid: String = ""
 
-    fun init(routeUid: String) {
+    /**
+     * @param dateOverride fecha de la jornada. Si es null se usa hoy.
+     *
+     * Antes se forzaba SIEMPRE todayStr(): una ruta asignada al dia 11 que se
+     * ejecutaba el 9 abria (y cerraba) la jornada del 9, asi que la del 11
+     * quedaba "sin finalizar" para siempre. La jornada debe pertenecer a la
+     * fecha de la ruta, igual que la visita.
+     */
+    fun init(routeUid: String, dateOverride: String? = null) {
         if (this.routeUid == routeUid) return
         this.routeUid = routeUid
-        val dateStr = jornadaRepo.todayStr()
+        val dateStr = dateOverride?.takeIf { it.isNotBlank() } ?: jornadaRepo.todayStr()
 
         viewModelScope.launch {
             jornadaRepo.observe(routeUid, dateStr).collect { session ->

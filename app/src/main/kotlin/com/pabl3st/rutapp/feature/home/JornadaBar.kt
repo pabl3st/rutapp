@@ -22,9 +22,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun JornadaBar(
     routeUid: String,
     modifier: Modifier = Modifier,
+    /** Fecha de la jornada. null = hoy. Se pasa la fecha de la ruta para que
+     *  una ruta rellenada a posteriori cierre su jornada en SU dia. */
+    routeDate: String? = null,
     vm: JornadaViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(routeUid) { vm.init(routeUid) }
+    LaunchedEffect(routeUid, routeDate) { vm.init(routeUid, routeDate) }
 
     val ui by vm.ui.collectAsStateWithLifecycle()
     val session = ui.session
