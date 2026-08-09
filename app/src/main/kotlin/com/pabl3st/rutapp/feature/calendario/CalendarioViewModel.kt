@@ -31,6 +31,8 @@ data class CalendarioUiState(
     val currentMonth:   YearMonth                      = YearMonth.now(),
     val today:          LocalDate                      = LocalDate.now(),
     val selectedDay:    LocalDate?                     = LocalDate.now(),
+    /** Claves "routeUid|fecha" con la jornada finalizada: el dia esta completo. */
+    val finishedKeys: Set<String> = emptySet(),
     val routesByDate:   Map<String, List<RouteEntity>> = emptyMap(),
     val selectedRoutes: List<RouteEntity>              = emptyList(),
     val holidays:       Map<String, PublicHoliday>     = emptyMap(),
@@ -50,6 +52,7 @@ data class CalendarioUiState(
 @HiltViewModel
 class CalendarioViewModel @Inject constructor(
     private val routeRepo:     RouteRepository,
+    private val jornadaRepo:   com.pabl3st.rutapp.data.repository.JornadaRepository,
     private val userPrefsRepo: UserPrefsRepository,
     private val session:       SessionManager,
 ) : BaseViewModel() {
@@ -66,7 +69,17 @@ class CalendarioViewModel @Inject constructor(
     init {
         observeAllRoutes()
         observeVacations()
+        observeFinishedDays()
         fetchHolidaysForYear(LocalDate.now().year)
+    }
+
+    /** Jornadas finalizadas -> el calendario pinta por DIA, no por ruta. */
+    private fun observeFinishedDays() {
+        viewModelScope.launch {
+            jornadaRepo.observeFinishedKeys().catch { }.collect { keys ->
+                _ui.update { it.copy(finishedKeys = keys) }
+            }
+        }
     }
 
     private fun observeVacations() {

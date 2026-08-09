@@ -10,6 +10,13 @@ interface DaySessionDao {
     @Query("SELECT * FROM day_sessions WHERE routeUid = :routeUid AND dateStr = :dateStr LIMIT 1")
     fun observe(routeUid: String, dateStr: String): Flow<DaySessionEntity?>
 
+    /** Todas las jornadas finalizadas: sirve para pintar el calendario por
+     *  DIA y no por ruta. Una ruta programada varias veces (scheduledDates)
+     *  tiene un unico routes.status, asi que completar una fecha marcaba
+     *  TODAS en verde. El estado real de un dia vive aqui, por routeUid+fecha. */
+    @Query("SELECT * FROM day_sessions WHERE state = 'done'")
+    fun observeFinished(): Flow<List<DaySessionEntity>>
+
     @Query("SELECT * FROM day_sessions WHERE routeUid = :routeUid AND dateStr = :dateStr LIMIT 1")
     suspend fun get(routeUid: String, dateStr: String): DaySessionEntity?
 

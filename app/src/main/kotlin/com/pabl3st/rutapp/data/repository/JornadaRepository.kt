@@ -5,6 +5,7 @@ import android.location.Location
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import com.pabl3st.rutapp.data.local.dao.DaySessionDao
+import kotlinx.coroutines.flow.map
 import com.pabl3st.rutapp.data.local.dao.SyncQueueDao
 import com.pabl3st.rutapp.data.local.entity.DaySessionEntity
 import com.pabl3st.rutapp.data.local.entity.SyncQueueEntity
@@ -167,4 +168,11 @@ class JornadaRepository @Inject constructor(
     }
 
     private fun triggerSync() = syncGateway.trigger()
+
+    /** Pares "routeUid|fecha" con la jornada finalizada. El calendario lo usa
+     *  para saber que DIAS estan completados, en vez de mirar routes.status
+     *  (que es unico por ruta y marcaba todas sus fechas a la vez). */
+    fun observeFinishedKeys(): kotlinx.coroutines.flow.Flow<Set<String>> =
+        dao.observeFinished().map { list -> list.map { "${it.routeUid}|${it.dateStr}" }.toSet() }
+
 }

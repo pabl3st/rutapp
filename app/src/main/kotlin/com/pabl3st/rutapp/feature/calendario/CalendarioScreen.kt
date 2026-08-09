@@ -101,6 +101,7 @@ fun CalendarioScreen(
                 today          = ui.today,
                 selectedDay    = ui.selectedDay,
                 routesByDate   = ui.routesByDate,
+                finishedKeys   = ui.finishedKeys,
                 holidays       = ui.holidays,
                 vacationDays   = ui.vacationDays,
                 onDayClick     = vm::selectDay,
@@ -407,6 +408,8 @@ private fun CalendarGrid(
     today:          LocalDate,
     selectedDay:    LocalDate?,
     routesByDate:   Map<String, List<RouteEntity>>,
+    /** Claves "routeUid|fecha" con jornada finalizada — completado POR DIA. */
+    finishedKeys:   Set<String>                    = emptySet(),
     holidays:       Map<String, PublicHoliday>,
     vacationDays:   Set<String>                    = emptySet(),
     onDayClick:     (LocalDate) -> Unit,
@@ -436,7 +439,11 @@ private fun CalendarGrid(
                         val isSelected = date == selectedDay
                         val isWeekend  = date.dayOfWeek.value >= 6
                         val hasRoutes  = routes.isNotEmpty()
-                        val allDone    = hasRoutes && routes.all { it.status == "done" }
+                        // El dia esta completo si TODAS sus rutas tienen la jornada
+                        // finalizada ESE dia. Antes se miraba route.status, que es
+                        // unico por ruta: una ruta programada el 10 y el 20 marcaba
+                        // ambos dias en verde al completar solo el 10.
+                        val allDone    = hasRoutes && routes.all { "${it.uid}|$dateStr" in finishedKeys }
                         val isVacation = dateStr in vacationDays
 
                         Box(
