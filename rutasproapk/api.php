@@ -680,8 +680,15 @@ if ($action === 'routes_list') {
 // ── delta_sync ───────────────────────────────────────────────
 if ($action === 'delta_sync') {
     $sess  = requireAuth();
-    $since = san($_GET['since'] ?? '', 30);
+    $since = san($_GET['since'] ?? '', 40);
     if (!$since) err('Parámetro since es obligatorio', 400, $action);
+    // Normalizar a formato MySQL. Las columnas updated_at son DATETIME y el
+    // cliente manda ISO-8601 ("2026-08-09T17:25:54.123Z"). Hasta ahora esto
+    // solo funcionaba por la indulgencia del sql_mode del hosting — la misma
+    // que genero las fechas 0000-00-00. Con strict_mode activo, la comparacion
+    // fallaria y el delta devolveria vacio o error.
+    $tsSince = strtotime($since);
+    if ($tsSince !== false) $since = date('Y-m-d H:i:s', $tsSince);
 
     $uid = (int)$sess['uid'];
     $aid = (int)$sess['account_id'];
@@ -836,16 +843,51 @@ if ($action === 'delta_sync') {
     }
 
     apiLog($action, $uid, $aid);
+
+    // ══ CURSOR DE REANUDACION ════════════════════════════════════════
+    // BUG (ago 2026): cada consulta lleva un LIMIT (200 rutas, 500 paradas,
+    // 500 visitas, 1000 kpis) y NO habia paginacion. El cliente guardaba
+    // server_time = date('c') pasara lo que pasara, asi que las filas que se
+    // quedaban fuera del LIMIT — con updated_at ANTERIOR al nuevo cursor —
+    // no se descargaban NUNCA MAS. Perdida silenciosa y permanente. Con 490
+    // paradas en produccion y 7.000+ informes historicos, se cruzaba a diario.
+    //
+    // Ahora: si alguna consulta llega a su tope, el server_time devuelto es
+    // el updated_at mas alto REALMENTE entregado (cursor de reanudacion) y
+    // has_more=true le dice al cliente que vuelva a pedir de inmediato.
+    $rows = [
+        'routes'       => ['data' => $stR->fetchAll(), 'limit' => 200],
+        'stops'        => ['data' => $stS->fetchAll(), 'limit' => 500],
+        'stop_visits'  => ['data' => $stV->fetchAll(), 'limit' => 500],
+        'day_sessions' => ['data' => $stD->fetchAll(), 'limit' => 200],
+        'kpi_values'   => ['data' => $stK->fetchAll(), 'limit' => 1000],
+    ];
+    $hasMore    = false;
+    $cursorMax  = null;
+    foreach ($rows as $r) {
+        if (count($r['data']) >= $r['limit']) {
+            $hasMore = true;
+            foreach ($r['data'] as $row) {
+                $u = $row['updated_at'] ?? null;
+                if ($u && ($cursorMax === null || $u > $cursorMax)) $cursorMax = $u;
+            }
+        }
+    }
+    // Solo retrocedemos el cursor si hubo truncamiento Y sabemos hasta donde
+    // llegamos. Si no, el comportamiento es el de siempre.
+    $serverTime = ($hasMore && $cursorMax !== null) ? $cursorMax : date('c');
+
     ok([
-        'routes'             => $stR->fetchAll(),
-        'stops'              => $stS->fetchAll(),
-        'stop_visits'        => $stV->fetchAll(),
-        'day_sessions'       => $stD->fetchAll(),
-        'kpi_values'         => $stK->fetchAll(),
+        'routes'             => $rows['routes']['data'],
+        'stops'              => $rows['stops']['data'],
+        'stop_visits'        => $rows['stop_visits']['data'],
+        'day_sessions'       => $rows['day_sessions']['data'],
+        'kpi_values'         => $rows['kpi_values']['data'],
+        'has_more'           => $hasMore,
         'business_profile'   => $bp,
         'kpi_definitions'    => $kpiDefs,
         'managed_agent_ids'  => $managedAgentIds,  // [] para no-manager
-        'server_time'        => date('c'),
+        'server_time'        => $serverTime,
     ]);
 }
 
@@ -886,7 +928,13 @@ if ($action === 'batch_sync') {
             $entity    = san($op['entity']    ?? '', 20);
             $operation = san($op['operation'] ?? '', 10);
             $data      = $op['data'] ?? [];
-            $clientUid = san($op['uid'] ?? '', 36);
+            // 128, no 36: day_session envia "<routeUid>|<fecha>" (47 chars).
+            // Truncar a 36 devolvia en el ack justo el uid de la RUTA, con dos
+            // efectos: el item de jornada nunca se confirmaba (inmortal en la
+            // cola del cliente) y un op de ruta rechazado se daba por subido.
+            // Este valor solo se hace eco y se usa en lookups; las columnas
+            // uid de routes/stops siguen recibiendo UUIDs de 36.
+            $clientUid = san($op['uid'] ?? '', 128);
 
             // Bloquear SOLO el delete de rutas/paradas para manager/agent/viewer.
             // El create se permite a todos (con destinatario forzado a sí mismo
@@ -947,7 +995,7 @@ if ($action === 'batch_sync') {
                             )->execute([
                                 $newUserId,
                                 san($data['name'] ?? '', 255),
-                                san($data['date_assigned'] ?? date('Y-m-d'), 10),
+                                san(($data['date_assigned'] ?? '') !== '' ? $data['date_assigned'] : date('Y-m-d'), 10),
                                 isset($data['scheduled_dates']) ? normalizeScheduledDates($data['scheduled_dates']) : null,
                                 san($data['status'] ?? 'pending', 20),
                                 san($data['notes'] ?? '', 5000) ?: null,
@@ -1006,7 +1054,7 @@ if ($action === 'batch_sync') {
                             )->execute([
                                 $clientUid, $aid, $targetUserId,
                                 san($data['name'] ?? '', 255),
-                                san($data['date_assigned'] ?? date('Y-m-d'), 10),
+                                san(($data['date_assigned'] ?? '') !== '' ? $data['date_assigned'] : date('Y-m-d'), 10),
                                 isset($data['scheduled_dates']) ? normalizeScheduledDates($data['scheduled_dates']) : null,
                                 san($data['status'] ?? 'pending', 20),
                                 san($data['notes'] ?? '', 5000) ?: null,
@@ -1322,6 +1370,12 @@ if ($action === 'batch_sync') {
                         )->execute([$clientUid, $aid]);
                         $synced[] = ['uid' => $clientUid, 'entity' => 'stop_visit', 'deleted' => true];
                     }
+                } else {
+                    // Antes caia aqui en silencio: sin entrada en $synced ni en
+                    // $errors. El cliente lo interpretaba como "subido" y perdia
+                    // el dato sin rastro.
+                    $errors[] = ['uid' => $clientUid, 'entity' => $entity,
+                                 'error' => 'Entidad desconocida: ' . $entity];
                 }
             } catch (\Throwable $e) {
                 $errors[] = ['uid' => $clientUid, 'entity' => $entity, 'error' => $e->getMessage()];
@@ -1334,15 +1388,16 @@ if ($action === 'batch_sync') {
     }
 
     apiLog($action, $uid, $aid);
+    // El push iba DESPUES de ok(), que hace exit() — nunca se ejecutaba, y
+    // ademas comparaba un array con un int ($synced > 0, siempre true en PHP8).
+    if (count($synced) > 0) {
+        try { pushSyncToAccount($aid); } catch (\Throwable $e) { /* silencioso */ }
+    }
     ok([
         'synced'      => $synced,
         'errors'      => $errors,
         'server_time' => date('c'),
     ]);
-    // Notificar a otros dispositivos del account cuando hay datos subidos
-    if ($synced > 0) {
-        try { pushSyncToAccount($aid); } catch (Throwable $e) { /* silent fail */ }
-    }
 }
 
 
