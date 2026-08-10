@@ -62,7 +62,10 @@ data class RouteDetailUiState(
     val history:            List<RouteAssignmentDto> = emptyList(),
     // Selector de fecha para rutas multi-día
     val availableDates: List<String>              = emptyList(),
-    val selectedDate:   String?                   = java.time.LocalDate.now().toString(),
+    // null hasta que se cargan las fechas reales de la ruta. Antes arrancaba
+    // valiendo HOY, y ese valor transitorio se filtraba a quien lo leyera antes
+    // de la correccion (la barra de jornada, entre otros).
+    val selectedDate:   String?                   = null,
     // Modelo C: visita actual de cada stop en la fecha seleccionada
     // (stopUid → StopVisitEntity). Si no hay visita aún para esa fecha,
     // el stop no aparece en el mapa y la UI muestra "pending" por defecto.

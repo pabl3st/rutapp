@@ -47,8 +47,9 @@ class JornadaViewModel @Inject constructor(
     private val _ui = MutableStateFlow(JornadaUiState())
     val ui: StateFlow<JornadaUiState> = _ui.asStateFlow()
 
-    private var tickJob:  Job? = null
-    private var routeUid: String = ""
+    private var tickJob:    Job? = null
+    private var observeJob: Job? = null
+    private var routeUid:   String = ""
 
     /** Fecha de la jornada en curso. La fijan init() y TODAS las acciones.
      *  Antes init() observaba la fecha de la ruta pero start/pause/resume/
@@ -66,12 +67,26 @@ class JornadaViewModel @Inject constructor(
      * fecha de la ruta, igual que la visita.
      */
     fun init(routeUid: String, dateOverride: String? = null) {
-        if (this.routeUid == routeUid) return
-        this.routeUid = routeUid
         val dateStr = dateOverride?.takeIf { it.isNotBlank() } ?: jornadaRepo.todayStr()
+
+        // BUG (ago 2026): la guarda miraba SOLO routeUid, asi que un cambio de
+        // fecha con la misma ruta se ignoraba. Dos consecuencias:
+        //   a) al cambiar de chip (11 ago -> 21 ago) la jornada seguia anclada
+        //      a la primera fecha, y finalizar cerraba el dia equivocado.
+        //   b) peor y mas silencioso: RouteDetail arranca con selectedDate =
+        //      HOY y solo despues lo corrige a una fecha real de la ruta. El
+        //      LaunchedEffect llamaba a init() con hoy, la guarda congelaba ese
+        //      valor y la correccion posterior no entraba nunca. Por eso al
+        //      finalizar PS02 (asignada al 11) se cerraba la jornada del 10 y
+        //      el calendario no ponia el 11 en verde: pinta por "routeUid|fecha".
+        if (this.routeUid == routeUid && this.jornadaDate == dateStr) return
+        this.routeUid    = routeUid
         this.jornadaDate = dateStr
 
-        viewModelScope.launch {
+        // Cancelar el observador anterior. Sin esto, cada re-init acumulaba un
+        // collector vivo sobre una fecha vieja y el ultimo en emitir ganaba.
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
             jornadaRepo.observe(routeUid, dateStr).collect { session ->
                 _ui.update {
                     it.copy(
