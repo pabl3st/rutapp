@@ -2093,14 +2093,16 @@ if ($action === 'stats_month') {
                 SUM(s.visit_result = "contactado") AS contacted
              FROM stops s
              JOIN routes r ON r.id = s.route_id
-         WHERE $userFilter AND
              JOIN users u  ON u.id = r.user_id AND u.manager_id = ?
-             WHERE r.date_assigned BETWEEN ? AND ?
+             WHERE $userFilter
+               AND r.date_assigned BETWEEN ? AND ?
                AND s.deleted_at IS NULL
              GROUP BY u.id, u.name, u.username
              ORDER BY done_stops DESC'
         );
-        $stAgents->execute([$aid, $uid, $monthStart, $monthEnd]);
+        // Orden de placeholders: primero el del JOIN (manager_id), luego
+        // $userFilter y por ultimo el BETWEEN.
+        $stAgents->execute([$uid, $aid, $monthStart, $monthEnd]);
     } else {
         $stAgents = db()->prepare(
             'SELECT
@@ -2112,9 +2114,9 @@ if ($action === 'stats_month') {
                 SUM(s.visit_result = "contactado") AS contacted
              FROM stops s
              JOIN routes r ON r.id = s.route_id
-         WHERE $userFilter AND
              JOIN users u  ON u.id = r.user_id
-             WHERE r.date_assigned BETWEEN ? AND ?
+             WHERE $userFilter
+               AND r.date_assigned BETWEEN ? AND ?
                AND s.deleted_at IS NULL
              GROUP BY u.id, u.name, u.username
              ORDER BY done_stops DESC'

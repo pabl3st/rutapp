@@ -159,7 +159,13 @@ class AdminViewModel @Inject constructor(
                             "admin"   -> u.managerId == myId ||
                                          (u.role == UserRole.AGENT.key && u.managerId != null && u.managerId in myDirectManagerIds)
                             // owner: todos (admin/manager/agent)
-                            "owner"   -> UserRole.from(u.role).level >= UserRole.MANAGER.level
+                            // El filtro decia >= MANAGER, que deja fuera justo a
+                            // los agentes — los unicos que hacen rutas. El
+                            // propietario veia "Mi equipo · hoy" con sus mandos
+                            // intermedios y sin la persona que realmente visita
+                            // PDVs. La condicion contradecia a su propio
+                            // comentario.
+                            "owner"   -> UserRole.from(u.role).level >= UserRole.AGENT.level
                             else      -> false
                         }
                     }
