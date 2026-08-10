@@ -35,7 +35,8 @@ fun RouteDetailScreen(
     routeUid: String,
     onBack: () -> Unit,
     onNavigateToMap: (String) -> Unit = {},
-    onStopClick:     (String) -> Unit = {},
+    /** uid de la parada + fecha de la ocasion seleccionada en los chips. */
+    onStopClick:     (String, String?) -> Unit = { _, _ -> },
     onAddStop:       (String) -> Unit = {},
     onEditStop:      (String) -> Unit = {},
     vm: RouteDetailViewModel = hiltViewModel(),
@@ -144,7 +145,11 @@ fun RouteDetailScreen(
             // cierra su jornada en SU dia, no en el de hoy.
             com.pabl3st.rutapp.feature.home.JornadaBar(
                 routeUid  = routeUid,
-                routeDate = ui.route?.dateAssigned,
+                // La ocasion elegida en los chips manda sobre dateAssigned.
+                // Con PS02 (11/8 y 21/8) cerrar la jornada siempre en
+                // dateAssigned dejaba el 21/8 imposible de poner en verde:
+                // el calendario pinta por clave "routeUid|dateStr".
+                routeDate = ui.selectedDate ?: ui.route?.dateAssigned,
             )
 
             // ── Selector de modo de ordenación ─────────────────
@@ -226,7 +231,7 @@ fun RouteDetailScreen(
                             stop       = stop,
                             visit      = ui.visitsByStop[stop.uid],
                             onRemove   = if (ui.canEditStops) ({ vm.removeStop(stop.uid) }) else null,
-                            onOpenForm = { onStopClick(stop.uid) },
+                            onOpenForm = { onStopClick(stop.uid, ui.selectedDate) },
                         )
                     }
                 }
@@ -560,7 +565,13 @@ private fun StopCard(
                     ) {
                         Icon(Icons.Default.History, null, Modifier.size(10.dp), tint = color)
                         Text(label, style = MaterialTheme.typography.labelSmall, color = color)
-                        effectiveVisitedAt?.take(10)?.let { date ->
+                        // La fecha que se pinta es la de la OCASION (visitDate),
+                        // no la del momento real en que se relleno el formulario.
+                        // Si el 10/8 rellenas la parada asignada al 11/8, aqui
+                        // debe leerse 11/8: es la fecha del calendario a la que
+                        // pertenece el trabajo. effectiveVisitedAt guarda el
+                        // instante real y sigue disponible para auditoria.
+                        effectiveVisitDate?.take(10)?.let { date ->
                             Text("· $date", style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

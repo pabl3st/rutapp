@@ -159,17 +159,30 @@ class VisitaViewModel @Inject constructor(
             //    a) date del navArgument (cuando se entra desde RouteDetail tras seleccionar fecha)
             //    b) date del stop.dateAssigned (compat con rutas legacy)
             //    c) fecha de hoy (fallback final)
-            // REGLA (ago 2026): la visita SIEMPRE se registra en la fecha
-            // asignada a la parada, la rellene el agente el dia que la rellene.
-            // Antes ganaba visitDateArg (la fecha desde la que se abrio la
-            // pantalla, normalmente hoy): si visitabas el dia 9 una parada
-            // asignada al 10, la stop_visit nacia con fecha 9, la lista
-            // buscaba visitas del 10 y no la encontraba -> la parada seguia
-            // sin marcar y la etiqueta de fecha pintaba un valor descolocado.
-            // dateAssigned manda; visitDateArg solo cubre paradas sin fecha.
+            // REGLA: la visita se registra en la fecha del CALENDARIO a la que
+            // pertenece el trabajo, nunca en el dia real en que se rellena.
             val stopRow = _ui.value.stop ?: stopRepo.getByUid(stopUid)
+
+            // AJUSTE (ago 2026): antes dateAssigned ganaba SIEMPRE. Eso arreglo
+            // el caso de rellenar a posteriori, pero rompio las rutas con
+            // varias ocasiones: PS02 esta asignada al 11/8 y al 21/8, y con
+            // dateAssigned fijo toda visita caia en el 11/8 — el 21/8 no habia
+            // forma de completarlo.
+            // Ahora manda la ocasion elegida en el calendario (visitDateArg),
+            // pero solo si es una fecha real de la ruta. Asi no puede volver el
+            // fallo antiguo, donde visitDateArg era "hoy" colandose por la
+            // puerta de atras: hoy no esta en scheduledDates y se descarta.
+            val routeRow = stopRow?.let { routeRepo.getByUid(it.routeUid) }
+            val routeDates: Set<String> = buildSet {
+                routeRow?.let { r ->
+                    if (r.dateAssigned.isNotBlank()) add(r.dateAssigned)
+                    r.scheduledDates?.forEach { d -> if (d.isNotBlank()) add(d) }
+                }
+            }
+
             val resolvedDate: String =
-                stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
+                visitDateArg?.takeIf { it.isNotBlank() && it in routeDates }
+                    ?: stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
                     ?: visitDateArg?.takeIf { it.isNotBlank() }
                     ?: java.time.LocalDate.now().toString()
 

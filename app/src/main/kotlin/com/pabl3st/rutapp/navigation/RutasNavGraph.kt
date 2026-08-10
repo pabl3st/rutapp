@@ -191,7 +191,11 @@ fun RutasNavGraph(
                     routeUid        = routeUid,
                     onBack          = { navController.popBackStack() },
                     onNavigateToMap = { uid -> navController.navigate(Screen.RouteMap.createRoute(uid)) },
-                    onStopClick     = { uid -> navController.navigate(Screen.Visita.createRoute(uid)) },
+                    // Se arrastra la fecha de la ocasion seleccionada para que
+                    // la visita se registre en ella y no en el dia real.
+                    onStopClick     = { uid, date ->
+                        navController.navigate(Screen.Visita.createRoute(uid, date))
+                    },
                     onAddStop       = { uid -> navController.navigate(Screen.AddStops.createRoute(uid)) },
                     onEditStop      = { uid -> navController.navigate(Screen.EditarParada.createRoute(uid)) },
                 )
