@@ -269,6 +269,9 @@ data class DeltaSyncResponse(
     @Json(name = "kpi_definitions")  val kpiDefinitions:   List<KpiDefinitionSyncDto>? = null,
     @Json(name = "managed_agent_ids") val managedAgentIds: List<Int>?                  = null,
     @Json(name = "server_time")       val serverTime:      String?,
+    /** true = el servidor trunco la respuesta por LIMIT y quedan filas por
+     *  entregar. serverTime viene entonces como cursor de reanudacion. */
+    @Json(name = "has_more")          val hasMore:         Boolean = false,
     val error: String?,
 )
 

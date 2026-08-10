@@ -144,7 +144,20 @@ class SyncRepository @Inject constructor(
         val since = if (needFullSync) "2000-01-01T00:00:00Z"
                     else session.lastSyncTimestamp.ifEmpty { "2000-01-01T00:00:00Z" }
 
-        val downloaded = downloadDelta(token = token, since = since)
+        // Paginacion real: el servidor limita cada consulta (200 rutas, 500
+        // paradas, 1000 kpis...). Cuando trunca devuelve has_more=true y un
+        // server_time que es el cursor de lo ya entregado. Antes el cliente
+        // ignoraba el corte y avanzaba el cursor igual, asi que todo lo que
+        // quedaba fuera del LIMIT no se descargaba jamas.
+        var downloaded = downloadDelta(token = token, since = since)
+        var pages = 0
+        while (downloaded && lastDownloadHasMore && pages < 50) {
+            pages++
+            downloaded = downloadDelta(
+                token = token,
+                since = session.lastSyncTimestamp.ifEmpty { since },
+            )
+        }
         if (downloaded && needFullSync) {
             session.lastFullSyncMs = now
         }
@@ -214,9 +227,16 @@ class SyncRepository @Inject constructor(
     private suspend fun uploadPending(token: String): Boolean {
         val maxIterations = 200
         var stagnantCount = 0
+        val blockedIds    = mutableSetOf<Int>()   // ids que ya fallaron en esta ejecución
         repeat(maxIterations) { iter ->
-            val items = syncQueueDao.getNextBatch(limit = 50, maxAttempts = 20)
-            if (items.isEmpty()) return true   // cola vacía → éxito
+            // Pedimos de más para poder descartar los bloqueados y aun así
+            // llenar el lote con ops sanas que estaban detrás en la cola.
+            val fetched = syncQueueDao.getNextBatch(
+                limit       = 50 + blockedIds.size,
+                maxAttempts = 20,
+            )
+            val items = fetched.filterNot { it.id in blockedIds }.take(50)
+            if (items.isEmpty()) return blockedIds.isEmpty()  // cola vacía → éxito
 
             val ops = items.mapNotNull { item ->
                 val data = runCatching { mapAdapter.fromJson(item.payload) }.getOrNull()
@@ -237,9 +257,30 @@ class SyncRepository @Inject constructor(
             if (resp.code() == 401) return false  // token caducado
             if (!resp.isSuccessful || resp.body()?.ok != true) return false
 
-            val body      = resp.body()!!
-            val now       = Instant.now().toString()
-            val syncedSet = body.synced?.map { it.uid }?.toSet() ?: emptySet()
+            val body = resp.body()!!
+            val now  = Instant.now().toString()
+
+            // BUG (ago 2026): el ack se casaba SOLO por uid, ignorando la
+            // entidad. day_session usa entityUid = "<routeUid>|<fecha>" (47
+            // chars) y el servidor lo trunca a 36 con san($op['uid'],36) — es
+            // decir, devuelve exactamente el uid de la RUTA. Consecuencias:
+            //   a) el item day_session nunca casaba -> inmortal en la cola,
+            //      reenviado en cada sync, ocupando la cabeza de getNextBatch.
+            //   b) peor: un op de "route" que el servidor habia RECHAZADO se
+            //      borraba de la cola porque su uid aparecia en el ack del
+            //      day_session. Se perdia el push.
+            // Ahora casamos por entidad + uid, aceptando ademas el prefijo
+            // para tolerar servidores que aun trunquen.
+            val syncedKeys = body.synced.orEmpty()
+                .map { it.entity + "|" + it.uid }
+                .toSet()
+            val ackedList = body.synced.orEmpty()
+            val isAcked: (String, String) -> Boolean = { ent, entUid ->
+                syncedKeys.contains(ent + "|" + entUid) ||
+                    ackedList.any { a ->
+                        a.entity == ent && a.uid.isNotEmpty() && entUid.startsWith(a.uid)
+                    }
+            }
 
             // Marcar synced en Room
             body.synced?.forEach { result ->
@@ -254,18 +295,33 @@ class SyncRepository @Inject constructor(
 
             // Marcar errores en la queue (attempts++)
             body.errors?.forEach { err ->
-                items.find { it.entityUid == err.uid }
+                items.find { it.entity == err.entity && it.entityUid.startsWith(err.uid) }
                     ?.let { syncQueueDao.markFailed(it.id, err.error ?: "Error desconocido") }
             }
 
             // Eliminar de la queue los procesados con éxito
-            items.filter { it.entityUid in syncedSet }
-                .forEach { syncQueueDao.delete(it.id) }
+            val ackedItems = items.filter { isAcked(it.entity, it.entityUid) }
+            ackedItems.forEach { syncQueueDao.delete(it.id) }
+
+            // Los que ni se confirmaron ni vinieron en errors quedan en el
+            // limbo: el servidor los ignoro en silencio. Los marcamos como
+            // fallidos para que cuenten intentos y no bloqueen la cabeza.
+            val erroredUids = body.errors.orEmpty().map { it.uid }.toSet()
+            items.filter { it !in ackedItems && it.entityUid !in erroredUids }
+                .forEach { syncQueueDao.markFailed(it.id, "sin respuesta del servidor") }
 
             // Detección de estancamiento: si en esta iteración 0 ops avanzaron
             // (todos errors o todos silencio), pasamos a la siguiente. Si 3
             // iteraciones seguidas no avanzan → break para no bucle infinito.
-            if (syncedSet.isEmpty()) {
+            // Cabeza envenenada: los items que han fallado en ESTA ejecucion se
+            // excluyen de las siguientes iteraciones. Sin esto, getNextBatch
+            // devolvia siempre los mismos 50 mas antiguos y las ops sanas de
+            // detras no se subian NUNCA — solo se desbloqueaban cuando la
+            // purga por attempts>=20 destruia el dato en silencio.
+            items.filterNot { isAcked(it.entity, it.entityUid) }
+                .forEach { blockedIds.add(it.id) }
+
+            if (ackedItems.isEmpty()) {
                 stagnantCount++
                 if (stagnantCount >= 3) return false
             } else {
@@ -281,8 +337,12 @@ class SyncRepository @Inject constructor(
     @Volatile var lastDownloadError: String? = null
         private set
 
+    /** true si la ultima descarga vino truncada por LIMIT del servidor. */
+    @Volatile private var lastDownloadHasMore: Boolean = false
+
     private suspend fun downloadDelta(token: String, since: String): Boolean {
         lastDownloadError = null
+        lastDownloadHasMore = false
         val result = runCatching { api.deltaSync(token = token, since = since) }
         val resp = result.getOrNull() ?: run {
             lastDownloadError = result.exceptionOrNull()?.let {
@@ -302,9 +362,32 @@ class SyncRepository @Inject constructor(
         }
 
         val body = resp.body()!!
-        body.routes?.map { it.toEntity(session.userId, session.accountId) }
-            ?.let { routeDao.upsertAll(it) }
-        body.stops?.mapNotNull { it.toEntity(session.accountId) }
+        lastDownloadHasMore = body.hasMore
+
+        // ══ PROTECCION DE ESCRITURAS LOCALES ══════════════════════════
+        // BUG (ago 2026): los mappers DTO->Entity fijan syncStatus="synced"
+        // y el upsert reemplaza la fila entera. Si una ruta/parada estaba
+        // "pending" (editada en el movil, aun sin subir) y el servidor
+        // devolvia su version anterior en el delta, la descarga:
+        //   1. sobreescribia el cambio local con el dato viejo del servidor
+        //   2. lo marcaba como "synced" — sin haberlo subido nunca
+        //   3. reEnqueueOrphans() dejaba de verlo como pendiente
+        // Resultado: el cambio desaparecia y jamas llegaba al servidor. Y
+        // como cada 12h se fuerza un full sync (since=2000-01-01), el
+        // servidor reenviaba TODAS sus filas y arrasaba con todo lo local
+        // pendiente. Esto ocurria incluso cuando la subida acababa de fallar,
+        // porque downloadDelta se ejecuta despues de uploadPending pase lo
+        // que pase.
+        // Regla: lo pendiente en local gana; se descarta del delta y se sube
+        // en el siguiente ciclo.
+        val pendingRouteUids = routeDao.getPendingSync().map { it.uid }.toSet()
+        val pendingStopUids  = stopDao.getPendingSync().map { it.uid }.toSet()
+
+        body.routes?.filterNot { it.uid in pendingRouteUids }
+            ?.map { it.toEntity(session.userId, session.accountId) }
+            ?.let { if (it.isNotEmpty()) routeDao.upsertAll(it) }
+        body.stops?.filterNot { it.uid in pendingStopUids }
+            ?.mapNotNull { it.toEntity(session.accountId) }
             ?.let { if (it.isNotEmpty()) stopDao.upsertAll(it) }
         // Sincronizar stop_visits desde servidor (Modelo C — informes diarios)
         body.stopVisits?.map { it.toEntity(session.accountId) }
