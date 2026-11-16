@@ -31,18 +31,56 @@ fun BibliotecaScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    // Asignar paradas sueltas: solo en la pestaña "Sin ruta" y para manager+
+    val canSelect = ui.canAssign && ui.tab == BibliotecaTab.ORPHAN
+
+    LaunchedEffect(ui.snackbar) {
+        ui.snackbar?.let { snackbarHostState.showSnackbar(it); vm.clearSnackbar() }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Biblioteca de paradas") },
+                title = {
+                    Text(if (ui.selecting) "${ui.selected.size} seleccionadas" else "Biblioteca de paradas")
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
+                    IconButton(onClick = { if (ui.selecting) vm.toggleSelecting() else onBack() }) {
+                        Icon(
+                            if (ui.selecting) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            if (ui.selecting) "Cancelar selección" else "Volver",
+                        )
+                    }
+                },
+                actions = {
+                    if (canSelect && ui.selecting) {
+                        IconButton(onClick = vm::selectAllVisible) {
+                            Icon(Icons.Default.SelectAll, "Seleccionar todas")
+                        }
+                    } else if (canSelect) {
+                        TextButton(onClick = vm::toggleSelecting) { Text("Asignar") }
                     }
                 },
             )
+        },
+        bottomBar = {
+            if (canSelect && ui.selecting) {
+                Surface(tonalElevation = 3.dp) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("${ui.selected.size} paradas", style = MaterialTheme.typography.titleSmall)
+                        Button(onClick = vm::openAssign, enabled = ui.selected.isNotEmpty()) {
+                            Icon(Icons.Default.PersonAdd, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Asignar a comercial")
+                        }
+                    }
+                }
+            }
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
@@ -87,6 +125,8 @@ fun BibliotecaScreen(
                 )
             }
 
+            if (ui.showAssign) AssignStopsDialog(ui, vm)
+
             when {
                 ui.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -114,7 +154,16 @@ fun BibliotecaScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(ui.filteredStops, key = { it.uid }) { stop ->
-                        BibliotecaStopCard(stop = stop, stopTags = ui.stopTags, onClick = { onStopClick(stop.uid) })
+                        BibliotecaStopCard(
+                            stop     = stop,
+                            stopTags = ui.stopTags,
+                            selecting = canSelect && ui.selecting,
+                            checked   = stop.uid in ui.selected,
+                            onClick   = {
+                                if (canSelect && ui.selecting) vm.toggleSelect(stop.uid)
+                                else onStopClick(stop.uid)
+                            },
+                        )
                     }
                 }
             }
@@ -123,10 +172,59 @@ fun BibliotecaScreen(
 }
 
 @Composable
+private fun AssignStopsDialog(ui: BibliotecaUiState, vm: BibliotecaViewModel) {
+    AlertDialog(
+        onDismissRequest = vm::dismissAssign,
+        title = { Text("Asignar ${ui.selected.size} paradas") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Se crea una ruta con estas paradas y pasa al comercial con todas ellas.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = ui.routeName, onValueChange = vm::onRouteName,
+                    label = { Text("Nombre de la ruta") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Hoy", "Mañana", "Pasado").forEachIndexed { i, l ->
+                        FilterChip(selected = ui.dayOffset == i, onClick = { vm.pickDay(i) }, label = { Text(l) })
+                    }
+                }
+                if (ui.assignableUsers.isEmpty()) {
+                    Text("Cargando equipo…", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    ui.assignableUsers.forEach { u ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = ui.selectedAgentId == u.userId, onClick = { vm.pickAgent(u.userId) })
+                            Text(u.displayName, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = vm::confirmAssign,
+                enabled = ui.selectedAgentId != null && ui.routeName.isNotBlank() && !ui.isAssigning,
+            ) { Text(if (ui.isAssigning) "Asignando…" else "Asignar") }
+        },
+        dismissButton = { TextButton(onClick = vm::dismissAssign) { Text("Cancelar") } },
+    )
+}
+
+@Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun BibliotecaStopCard(
     stop:     StopEntity,
     stopTags: List<StopTagConfig> = emptyList(),
+    selecting: Boolean = false,
+    checked:   Boolean = false,
     onClick:  () -> Unit,
 ) {
     // Biblioteca: solo tags estáticos (ALWAYS, STATUS, DAYS_SINCE_VISIT)
@@ -139,6 +237,10 @@ private fun BibliotecaStopCard(
     Card(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selecting) {
+                    Checkbox(checked = checked, onCheckedChange = { onClick() })
+                    Spacer(Modifier.width(4.dp))
+                }
                 // Indicador GPS
                 Surface(
                     shape    = MaterialTheme.shapes.small,
