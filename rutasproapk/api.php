@@ -2035,6 +2035,16 @@ if ($action === 'agent_location') {
          ON DUPLICATE KEY UPDATE lat=VALUES(lat), lng=VALUES(lng), accuracy=VALUES(accuracy),
                                  route_uid=VALUES(route_uid), updated_at=NOW()'
     )->execute([$uid, $aid, $lat, $lng, $acc, $routeUid]);
+
+    // Distancia acumulada de la jornada en curso (la app solo sincroniza la sesion al
+    // iniciar/pausar/terminar; asi el supervisor ve los km mientras el gestor trabaja).
+    if ($routeUid && isset($body['distance_km']) && is_numeric($body['distance_km'])) {
+        db()->prepare(
+            "UPDATE day_sessions SET distance_km=?, last_lat=?, last_lng=?
+             WHERE user_id=? AND route_uid=? AND date_str=? AND state='running'
+               AND distance_km <= ?"
+        )->execute([(float)$body['distance_km'], $lat, $lng, $uid, $routeUid, date('Y-m-d'), (float)$body['distance_km']]);
+    }
     ok(['saved' => true]);
 }
 
@@ -2609,6 +2619,35 @@ function fetchLiveLocations(array $userIds): array {
     }
 }
 
+// ─── Resumen de la jornada de un dia a partir de sus day_sessions ──────────
+// Un gestor puede tener varias sesiones el mismo dia (una por ruta). $rows debe venir
+// ordenado por updated_at DESC. El tiempo de una sesion EN CURSO no esta en elapsed_ms
+// (solo se acumula al pausar/terminar), asi que se suma ahora - started_at.
+function jornadaSummary(array $rows): ?array {
+    if (!$rows) return null;
+    $nowMs = (int)round(microtime(true) * 1000);
+    $elapsed = 0; $km = 0.0; $lat = null; $lng = null;
+    $anyRunning = false; $anyPaused = false;
+    foreach ($rows as $r) {
+        $elapsed += (int)$r['elapsed_ms'];
+        if ($r['state'] === 'running' && !empty($r['started_at'])) {
+            $elapsed += max(0, $nowMs - (int)$r['started_at']);
+            $anyRunning = true;
+        }
+        if ($r['state'] === 'paused') $anyPaused = true;
+        $km += (float)$r['distance_km'];
+        if ($lat === null && $r['last_lat'] !== null) { $lat = (float)$r['last_lat']; $lng = (float)$r['last_lng']; }
+    }
+    return [
+        'state'       => $anyRunning ? 'running' : ($anyPaused ? 'paused' : $rows[0]['state']),
+        'elapsed_ms'  => $elapsed,
+        'distance_km' => round($km, 3),
+        'last_lat'    => $lat,
+        'last_lng'    => $lng,
+        'updated_at'  => $rows[0]['updated_at'],
+    ];
+}
+
 // ─── nudge_agent: el supervisor avisa a un gestor (p.ej. jornada sin iniciar) ──
 // Solo manager+ y solo a personas de su subarbol. Maximo 1 aviso cada 5 min por gestor.
 if ($action === 'nudge_agent') {
@@ -2745,14 +2784,18 @@ if ($action === 'team_overview') {
 
     // Jornada activa de hoy por agente
     $stJ = db()->prepare(
-        "SELECT user_id, state, elapsed_ms, distance_km, last_lat, last_lng, updated_at
+        "SELECT user_id, state, started_at, elapsed_ms, distance_km, last_lat, last_lng, updated_at
          FROM day_sessions WHERE user_id IN ($ph) AND date_str=? ORDER BY updated_at DESC"
     );
     $paramsJ = array_merge($agentIds, [$today]);
     $stJ->execute($paramsJ);
-    $jornadas = [];
+    $jRows = [];
     foreach ($stJ->fetchAll() as $j) {
-        $jornadas[$j['user_id']] = $j;
+        $jRows[$j['user_id']][] = $j;
+    }
+    $jornadas = [];
+    foreach ($jRows as $uidJ => $rowsJ) {
+        $jornadas[$uidJ] = jornadaSummary($rowsJ);
     }
 
     // Progreso de HOY por agente: lo manda la visita (stop_visits) de HOY, no el
@@ -2876,9 +2919,9 @@ if ($action === 'agent_detail') {
     if (!$agent) err('Agente no encontrado', 404);
 
     // Jornada de hoy
-    $stJ = db()->prepare('SELECT * FROM day_sessions WHERE user_id=? AND date_str=? LIMIT 1');
+    $stJ = db()->prepare('SELECT * FROM day_sessions WHERE user_id=? AND date_str=? ORDER BY updated_at DESC');
     $stJ->execute([$targetId, $today]);
-    $jornada = $stJ->fetch() ?: null;
+    $jornada = jornadaSummary($stJ->fetchAll());
 
     // Rutas de hoy con el progreso de la visita de HOY (stop_visits), no el espejo del stop
     $stR = db()->prepare(

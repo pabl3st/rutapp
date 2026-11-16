@@ -100,6 +100,7 @@ class LocationForegroundService : Service() {
                                     lng      = loc.longitude,
                                     accuracy = if (loc.hasAccuracy()) loc.accuracy.toDouble() else null,
                                     routeUid = routeUid,
+                                    distanceKm = jornadaRepo.get(routeUid, dateStr)?.distanceKm,
                                 ),
                             )
                         }

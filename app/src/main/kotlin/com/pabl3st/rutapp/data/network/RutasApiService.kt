@@ -676,6 +676,8 @@ data class AgentLocationRequest(
     val lng:      Double,
     val accuracy: Double? = null,
     @Json(name = "route_uid") val routeUid: String? = null,
+    /** Km acumulados de la jornada en curso (el servidor los refleja en day_sessions). */
+    @Json(name = "distance_km") val distanceKm: Double? = null,
 )
 
 @JsonClass(generateAdapter = true)

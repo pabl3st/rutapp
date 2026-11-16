@@ -181,11 +181,19 @@ private fun JornadaCard(
     onNavigateToMap: ((Double, Double) -> Unit)?,
 ) {
     val state    = jornada?.get("state") as? String
-    val elapsedMs = (jornada?.get("elapsed_ms") as? Double)?.toLong() ?: 0L
-    val distanceKm = jornada?.get("distance_km") as? Double ?: 0.0
+    // El JSON llega como Map<String, Any?>: segun el campo el numero puede venir como
+    // Double, Long o String (los DECIMAL de MySQL llegan como texto), asi que se
+    // convierte de forma tolerante en vez de usar "as? Double".
+    fun num(key: String): Double? = when (val v = jornada?.get(key)) {
+        is Number -> v.toDouble()
+        is String -> v.toDoubleOrNull()
+        else      -> null
+    }
+    val elapsedMs  = num("elapsed_ms")?.toLong() ?: 0L
+    val distanceKm = num("distance_km") ?: 0.0
     // La posicion en vivo (telefono del gestor) manda sobre la de la jornada sincronizada
-    val lat = live?.lat ?: (jornada?.get("last_lat") as? Double)
-    val lng = live?.lng ?: (jornada?.get("last_lng") as? Double)
+    val lat = live?.lat ?: num("last_lat")
+    val lng = live?.lng ?: num("last_lng")
     val ageSec = live?.ageSec
     val isLive = ageSec != null && ageSec <= 90
 
