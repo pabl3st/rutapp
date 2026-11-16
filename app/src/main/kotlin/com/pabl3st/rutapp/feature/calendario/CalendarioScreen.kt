@@ -62,7 +62,7 @@ fun CalendarioScreen(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                title = { Text("Calendario") },
+                title = { Text(if (ui.isManager) "Agenda" else "Calendario") },
                 navigationIcon = if (showBackButton) {
                     {
                         IconButton(onClick = onBack) {
@@ -85,9 +85,21 @@ fun CalendarioScreen(
             )
         }
     ) { padding ->
+        if (ui.isManager && ui.weekMode) {
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                AgendaModeToggle(weekMode = true, onChange = vm::setWeekMode)
+                AgendaSemana(
+                    ui = ui, onPrevWeek = { vm.shiftWeek(-1) }, onNextWeek = { vm.shiftWeek(1) },
+                    onPick = vm::pickRoute, onCellTap = vm::onWeekCellTap, onRouteClick = onRouteClick,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            return@Scaffold
+        }
         Column(
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
+            if (ui.isManager) AgendaModeToggle(weekMode = false, onChange = vm::setWeekMode)
             // ── Cabecera mes ──────────────────────────────────
             MonthHeader(
                 month   = ui.currentMonth,
@@ -550,6 +562,17 @@ private fun buildDayRows(
         userRoutes.forEach { rows.add(DayRow.RouteItem(it)) }
     }
     return rows
+}
+
+@Composable
+private fun AgendaModeToggle(weekMode: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(selected = weekMode,  onClick = { onChange(true)  }, label = { Text("Semana por comercial") })
+        FilterChip(selected = !weekMode, onClick = { onChange(false) }, label = { Text("Mes") })
+    }
 }
 
 @Composable

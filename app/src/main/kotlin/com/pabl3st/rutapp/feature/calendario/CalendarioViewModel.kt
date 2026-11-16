@@ -59,6 +59,10 @@ data class CalendarioUiState(
     /** userId -> nombre, para rotular de quien es cada ruta. */
     val ownerNames:        Map<Int, String>            = emptyMap(),
     val isAssigning:       Boolean                     = false,
+    // ── Agenda semanal por comercial (solo supervisores) ──
+    val weekMode:          Boolean                     = false,
+    val weekStart:         LocalDate                   = LocalDate.now().with(java.time.DayOfWeek.MONDAY),
+    val pickedRouteUid:    String?                     = null,
 )
 
 @HiltViewModel
@@ -340,6 +344,39 @@ class CalendarioViewModel @Inject constructor(
                 selectedAgentId   = null,
                 snackbar          = "\"${route.name}\" asignada$suffix el ${day.dayOfMonth}/${day.monthValue}",
             )}
+        }
+    }
+
+    // ── Agenda semanal ────────────────────────────────────────
+    fun setWeekMode(on: Boolean) = _ui.update { it.copy(weekMode = on, pickedRouteUid = null) }
+    fun shiftWeek(delta: Int)    = _ui.update { it.copy(weekStart = it.weekStart.plusWeeks(delta.toLong())) }
+    fun pickRoute(uid: String?)  = _ui.update { it.copy(pickedRouteUid = uid) }
+
+    /** Casilla (comercial x dia): con ruta elegida la asigna; si no, abre el selector. */
+    fun onWeekCellTap(agentId: Int, day: LocalDate) {
+        val pickedUid = _ui.value.pickedRouteUid
+        val route = pickedUid?.let { uid -> _ui.value.allRoutes.firstOrNull { it.uid == uid } }
+        if (route == null) {
+            selectDay(day)
+            onAssignToAgent(agentId)
+            return
+        }
+        if (_ui.value.isAssigning) return
+        val dateStr = day.format(fmt)
+        viewModelScope.launch {
+            _ui.update { it.copy(isAssigning = true) }
+            if (route.userId != agentId) {
+                val res = routeRepo.reassignRoute(route.uid, agentId)
+                if (res.isFailure) {
+                    _ui.update { it.copy(isAssigning = false,
+                        snackbar = "No se pudo asignar: ${res.exceptionOrNull()?.message ?: "error"}") }
+                    return@launch
+                }
+            }
+            routeRepo.assignDate(route.uid, dateStr)
+            val who = _ui.value.ownerNames[agentId] ?: "el comercial"
+            _ui.update { it.copy(isAssigning = false, pickedRouteUid = null,
+                snackbar = "\"${route.name}\" asignada a $who el ${day.dayOfMonth}/${day.monthValue}") }
         }
     }
 
