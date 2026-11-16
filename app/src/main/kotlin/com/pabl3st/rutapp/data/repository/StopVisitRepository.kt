@@ -45,6 +45,12 @@ class StopVisitRepository @Inject constructor(
     fun observeByRouteAndDate(routeUid: String, date: String): Flow<List<StopVisitEntity>> =
         visitDao.observeByRouteAndDate(routeUid, date)
 
+    fun observeByRoutesAndDates(routeUids: List<String>, dates: List<String>): Flow<List<StopVisitEntity>> =
+        visitDao.observeByRoutesAndDates(routeUids, dates)
+
+    suspend fun getByRouteAndDate(routeUid: String, date: String): List<StopVisitEntity> =
+        visitDao.getByRouteAndDate(routeUid, date)
+
     fun observeByStop(stopUid: String): Flow<List<StopVisitEntity>> =
         visitDao.observeByStop(stopUid)
 
@@ -151,5 +157,7 @@ class StopVisitRepository @Inject constructor(
         "check_out_ts" to v.checkOutTs,
         "gps_lat_visit" to v.gpsLatVisit,
         "gps_lng_visit" to v.gpsLngVisit,
+        "gps_lat_in"    to v.gpsLatIn,
+        "gps_lng_in"    to v.gpsLngIn,
     )
 }

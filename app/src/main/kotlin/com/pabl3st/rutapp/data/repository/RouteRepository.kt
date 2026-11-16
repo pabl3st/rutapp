@@ -215,9 +215,12 @@ class RouteRepository @Inject constructor(
         val otherDates   = dates.drop(1)
         val newScheduled = if (otherDates.isNotEmpty()) otherDates else null
 
+        // Una fecha nueva es una visita nueva: la ruta deja de estar "completada"
+        // (el estado real por dia vive en stop_visits / day_sessions).
         val updated = route.copy(
             dateAssigned   = newMain,
             scheduledDates = newScheduled,
+            status         = if (route.status == "done") "pending" else route.status,
             updatedAt      = now,
             syncStatus     = "pending",
         )

@@ -43,7 +43,9 @@ data class StopVisitEntity(
     val checkInTs:    Long?   = null,        // epoch ms — apertura del formulario
     val checkOutTs:   Long?   = null,        // epoch ms — guardado
     val gpsLatVisit:  Double? = null,
-    val gpsLngVisit:  Double? = null,
+    val gpsLngVisit:  Double? = null,      // GPS de SALIDA (al guardar)
+    val gpsLatIn:     Double? = null,      // GPS de ENTRADA (al abrir el formulario)
+    val gpsLngIn:     Double? = null,
 
     // ── Auditoría + sync ────────────────────────────────────────
     val createdAt:  String,

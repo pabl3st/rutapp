@@ -41,6 +41,7 @@ class JornadaViewModel @Inject constructor(
     private val jornadaRepo: JornadaRepository,
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
+    private val visitRepo:   com.pabl3st.rutapp.data.repository.StopVisitRepository,
     @ApplicationContext private val appContext: Context,
 ) : BaseViewModel() {
 
@@ -146,7 +147,13 @@ class JornadaViewModel @Inject constructor(
             jornadaRepo.finish(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
             stopGpsService()
 
-            val stops = stopRepo.getByRoute(routeUid)
+            // Estado de la FECHA de la jornada (stop_visits), no el espejo del stop.
+            val visitsByStop = visitRepo
+                .getByRouteAndDate(routeUid, jornadaDate.ifBlank { jornadaRepo.todayStr() })
+                .associateBy { it.stopUid }
+            val stops = stopRepo.getByRoute(routeUid).map { s ->
+                s.copy(status = visitsByStop[s.uid]?.status ?: "pending")
+            }
             val done    = stops.count { it.status == "done" }
             val skipped = stops.count { it.status == "skipped" }
             val pending = stops.count { it.status == "pending" || it.status == "visiting" }

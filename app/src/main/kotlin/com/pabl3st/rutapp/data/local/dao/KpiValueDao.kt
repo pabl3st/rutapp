@@ -4,6 +4,14 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 
+/** Fila de KPI con la fecha de su visita (resultado de [KpiValueDao.getWithDates]). */
+data class KpiValueWithDate(
+    val kpiId:     String,
+    val stopUid:   String,
+    val valueText: String,
+    val visitDate: String,
+)
+
 @Dao
 interface KpiValueDao {
 
@@ -34,6 +42,44 @@ interface KpiValueDao {
           )
     """)
     suspend fun getLastTotalsByStop(stopUid: String): List<KpiValueEntity>
+
+    /** Valores de una visita concreta (formulario ya completado de esa fecha) */
+    @Query("SELECT * FROM kpi_values WHERE visitUid = :visitUid")
+    suspend fun getByVisit(visitUid: String): List<KpiValueEntity>
+
+    /**
+     * Total acumulado del MES para prerrellenar el formulario: por cada KPI, el valor
+     * de la visita mas reciente del PDV dentro de [monthStart, untilDate]. En un mes
+     * nuevo no hay filas y el formulario sale vacio (las stats se reinician el dia 1).
+     */
+    @Query("""
+        SELECT kv.* FROM kpi_values kv
+        JOIN stop_visits sv ON sv.uid = kv.visitUid
+        WHERE kv.stopUid = :stopUid
+          AND sv.deletedAt IS NULL
+          AND sv.visitDate BETWEEN :monthStart AND :untilDate
+          AND sv.visitDate = (
+              SELECT MAX(sv2.visitDate)
+              FROM kpi_values kv2
+              JOIN stop_visits sv2 ON sv2.uid = kv2.visitUid
+              WHERE kv2.stopUid = :stopUid
+                AND kv2.kpiId   = kv.kpiId
+                AND sv2.deletedAt IS NULL
+                AND sv2.visitDate BETWEEN :monthStart AND :untilDate
+          )
+    """)
+    suspend fun getMonthTotalsByStop(stopUid: String, monthStart: String, untilDate: String): List<KpiValueEntity>
+
+    /** Valores con la fecha de su visita, dentro de un rango (stats mensuales) */
+    @Query("""
+        SELECT kv.kpiId AS kpiId, kv.stopUid AS stopUid, kv.valueText AS valueText, sv.visitDate AS visitDate
+        FROM kpi_values kv
+        JOIN stop_visits sv ON sv.uid = kv.visitUid
+        WHERE kv.stopUid IN (:stopUids)
+          AND sv.deletedAt IS NULL
+          AND sv.visitDate BETWEEN :fromDate AND :toDate
+    """)
+    suspend fun getWithDates(stopUids: List<String>, fromDate: String, toDate: String): List<KpiValueWithDate>
 
     /** Carga los kpi_values de múltiples stops — para lógica acumulativa mensual */
     @Query("SELECT * FROM kpi_values WHERE stopUid IN (:stopUids)")

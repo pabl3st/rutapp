@@ -46,6 +46,8 @@ data class RouteDetailUiState(
     val kpiByStop: Map<String, Map<String,String>> = emptyMap(),
     // Permisos — solo owner/admin pueden añadir/eliminar paradas
     val canEditStops: Boolean                     = false,
+    // Solo el gestor (agent) inicia/pausa/finaliza jornada; supervisores solo observan
+    val canRunJornada: Boolean                    = false,
     // Reasignación de ruta
     val canReassign:        Boolean              = false,
     val routeOwnerName:     String?              = null,  // nombre del agente asignado (si != caller)
@@ -90,6 +92,7 @@ class RouteDetailViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(RouteDetailUiState(
         canEditStops = UserRole.from(session.userRole).canEditStops,
+        canRunJornada = UserRole.from(session.userRole) == UserRole.AGENT,
         canReassign  = UserRole.from(session.userRole).canReassignRoutes,
     ))
     val ui: StateFlow<RouteDetailUiState> = _ui.asStateFlow()

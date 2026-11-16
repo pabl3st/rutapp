@@ -143,7 +143,7 @@ fun RouteDetailScreen(
             // que pantalla se inicie, pause o finalice.
             // Se le pasa la fecha de la ruta: una ruta rellenada a posteriori
             // cierra su jornada en SU dia, no en el de hoy.
-            com.pabl3st.rutapp.feature.home.JornadaBar(
+            if (ui.canRunJornada) com.pabl3st.rutapp.feature.home.JornadaBar(
                 routeUid  = routeUid,
                 // La ocasion elegida en los chips manda sobre dateAssigned.
                 // Con PS02 (11/8 y 21/8) cerrar la jornada siempre en
@@ -230,6 +230,7 @@ fun RouteDetailScreen(
                             modifier   = Modifier.semantics { testTag = "stop-card-$idx" },
                             stop       = stop,
                             visit      = ui.visitsByStop[stop.uid],
+                            dateMode   = ui.selectedDate != null,
                             onRemove   = if (ui.canEditStops) ({ vm.removeStop(stop.uid) }) else null,
                             onOpenForm = { onStopClick(stop.uid, ui.selectedDate) },
                         )
@@ -473,6 +474,7 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 private fun StopCard(
     stop:       StopEntity,
     visit:      StopVisitEntity? = null,
+    dateMode:   Boolean       = false,
     onRemove:   (() -> Unit)? = null,
     onOpenForm: (() -> Unit)? = null,
     modifier:   Modifier      = Modifier,
@@ -480,10 +482,12 @@ private fun StopCard(
     // Modelo C: cuando hay visita de la fecha seleccionada, ella manda.
     // Cuando no la hay (rutas legacy o ruta sin scheduledDates), nos quedamos
     // con los campos espejo del stop (lastVisitMirror).
-    val effectiveStatus      = visit?.status      ?: stop.status
-    val effectiveVisitedAt   = visit?.visitedAt   ?: stop.visitedAt
-    val effectiveVisitResult = visit?.visitResult ?: stop.visitResult
-    val effectiveNextAction  = visit?.nextAction  ?: stop.nextAction
+    // En modo fecha (hay fecha seleccionada) NUNCA se usa el espejo del stop:
+    // una visita hecha en agosto no puede marcar como completada la de noviembre.
+    val effectiveStatus      = if (dateMode) (visit?.status ?: "pending") else (visit?.status ?: stop.status)
+    val effectiveVisitedAt   = if (dateMode) visit?.visitedAt   else (visit?.visitedAt   ?: stop.visitedAt)
+    val effectiveVisitResult = if (dateMode) visit?.visitResult else (visit?.visitResult ?: stop.visitResult)
+    val effectiveNextAction  = if (dateMode) visit?.nextAction  else (visit?.nextAction  ?: stop.nextAction)
     val effectiveVisitDate   = visit?.visitDate   ?: stop.dateAssigned
     val isDone = effectiveStatus == "done"
     Card(modifier = modifier.fillMaxWidth()) {
@@ -606,6 +610,20 @@ private fun StopCard(
                             color    = pColor,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                     }
+                }
+                if (dateMode) {
+                    // Estado de ESTA fecha: completada / en curso / pendiente
+                    val stTok = com.pabl3st.rutapp.core.ui.theme.StopStatusTokens.of(effectiveStatus)
+                    Text(
+                        text  = when (effectiveStatus) {
+                            "done"     -> "Completada"
+                            "visiting" -> "En curso"
+                            "skipped"  -> "Saltada"
+                            else       -> "Pendiente"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = stTok.color,
+                    )
                 }
                 if (stop.pdvInactive) {
                     Icon(Icons.Default.Block, null, Modifier.size(14.dp),

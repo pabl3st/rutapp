@@ -108,7 +108,7 @@ fun VisitaScreen(
             )
         },
         bottomBar = {
-            Surface(shadowElevation = 8.dp) {
+            if (!ui.readOnly) Surface(shadowElevation = 8.dp) {
                 Button(
                     onClick  = vm::saveVisit,
                     // Guardar requiere resultado seleccionado — si está en blanco el botón está desactivado
@@ -133,6 +133,23 @@ fun VisitaScreen(
             ui.stop == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Parada no encontrada", color = MaterialTheme.colorScheme.error)
             }
+            // Supervisor (manager/admin/owner): la visita aun no esta completada
+            ui.readOnly && ui.notCompleted -> Box(
+                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Schedule, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Visita pendiente", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "El formulario solo se puede abrir cuando el gestor completa la visita.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            // Supervisor: vista de solo lectura de la visita completada
+            ui.readOnly -> ReadOnlyVisitContent(ui = ui, padding = padding)
             else -> {
                 val stop = ui.stop!!
                 Column(
@@ -644,3 +661,108 @@ private fun KpiField(
 
 
 
+
+
+// ── Vista de solo lectura (manager / admin / owner) ─────────────
+// Solo se llega aqui con la visita completada: resultado, totales del mes
+// que dejo el gestor, GPS de entrada y salida y tiempo en el PDV.
+@Composable
+private fun ReadOnlyVisitContent(ui: VisitaUiState, padding: PaddingValues) {
+    val ctx   = LocalContext.current
+    val visit = ui.visit
+    val stop  = ui.stop
+    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+
+    fun openMap(lat: Double, lng: Double, label: String) {
+        val uri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(${Uri.encode(label)})")
+        runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) }
+    }
+
+    @Composable
+    fun GpsRow(title: String, lat: Double?, lng: Double?, time: Long?) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val hora = time?.let { timeFmt.format(java.util.Date(it)) } ?: "--:--"
+                if (lat != null && lng != null) {
+                    Text("$hora  \u00b7  %.5f, %.5f".format(lat, lng), style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text("$hora  \u00b7  sin GPS", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (lat != null && lng != null) {
+                TextButton(onClick = { openMap(lat, lng, title) }) {
+                    Icon(Icons.Default.Map, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Ver")
+                }
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                stop?.externalId?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                Text(stop?.name ?: "", style = MaterialTheme.typography.titleMedium)
+                stop?.address?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Text("Visita del ${ui.visitDate}  \u00b7  Completada", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
+            }
+        }
+
+        // Tiempo en el PDV y GPS de entrada / salida
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Check-in del gestor", style = MaterialTheme.typography.titleSmall)
+                val inTs  = visit?.checkInTs
+                val outTs = visit?.checkOutTs
+                val dur = if (inTs != null && outTs != null && outTs >= inTs) {
+                    val min = (outTs - inTs) / 60_000
+                    if (min >= 60) "%dh %02dm".format(min / 60, min % 60) else "$min min"
+                } else "sin datos"
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Timer, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Tiempo en el punto: $dur", style = MaterialTheme.typography.bodyMedium)
+                }
+                GpsRow("Entrada", visit?.gpsLatIn, visit?.gpsLngIn, inTs)
+                GpsRow("Salida", visit?.gpsLatVisit, visit?.gpsLngVisit, outTs)
+            }
+        }
+
+        // Resultado, notas, proxima accion
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val resultLabel = VISIT_RESULTS.firstOrNull { it.first == ui.selectedResult }?.second ?: ui.selectedResult
+                Text("Resultado: $resultLabel", style = MaterialTheme.typography.bodyMedium)
+                if (ui.notes.isNotBlank()) Text("Notas: ${ui.notes}", style = MaterialTheme.typography.bodyMedium)
+                if (ui.nextAction.isNotBlank()) Text("Proxima accion: ${ui.nextAction}", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
+        // Totales del mes (los valores guardados son acumulados del mes del PDV)
+        val shown = ui.kpiFields.filter { !ui.kpiValues[it.id].isNullOrBlank() }
+        if (shown.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Totales del mes", style = MaterialTheme.typography.titleSmall)
+                    shown.forEach { def ->
+                        val raw = ui.kpiValues[def.id].orEmpty()
+                        val value = when (def.type) {
+                            "boolean" -> if (raw == "true") "Si" else "No"
+                            else      -> raw + (def.unit?.let { " $it" } ?: "")
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(def.label, style = MaterialTheme.typography.bodyMedium)
+                            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

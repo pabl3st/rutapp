@@ -177,7 +177,7 @@ private fun RouteListContent(
             items(jornadaRoutes, key = { "jornada_${it.route.uid}" }) { rwp ->
                 // Misma fecha que en la lista de paradas: la jornada pertenece
                 // al dia de la ruta, no al dia en que se abre la pantalla.
-                JornadaBar(routeUid = rwp.route.uid, routeDate = rwp.route.dateAssigned)
+                JornadaBar(routeUid = rwp.route.uid, routeDate = rwp.date.ifBlank { rwp.route.dateAssigned })
             }
         }
 

@@ -29,9 +29,17 @@ import com.pabl3st.rutapp.data.network.AgentTodayRouteDto
 fun AgentDetailScreen(
     onBack:         () -> Unit,
     onNavigateToMap: ((Double, Double) -> Unit)? = null,
+    /** Abre el detalle de una ruta del gestor (lista de visitas con su estado). */
+    onOpenRoute:    (String) -> Unit = {},
     vm: AgentDetailViewModel = hiltViewModel(),
 ) {
     val ui   by vm.ui.collectAsStateWithLifecycle()
+    val ctx  = androidx.compose.ui.platform.LocalContext.current
+    // Por defecto la posicion del gestor se abre en la app de mapas del telefono
+    val openMap: (Double, Double) -> Unit = onNavigateToMap ?: { lat, lng ->
+        val uri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng(Gestor)")
+        runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) }
+    }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(ui.error) {
@@ -88,7 +96,7 @@ fun AgentDetailScreen(
                     )
 
                     // ── Jornada de hoy ────────────────────────
-                    JornadaCard(jornada = jornada, onNavigateToMap = onNavigateToMap)
+                    JornadaCard(jornada = jornada, live = detail.liveLocation, onNavigateToMap = openMap)
 
                     // ── KPIs del mes ──────────────────────────
                     detail.monthKpis?.let { kpis ->
@@ -102,7 +110,7 @@ fun AgentDetailScreen(
                     if (detail.todayRoutes.isNotEmpty()) {
                         SectionTitle("Rutas de hoy")
                         detail.todayRoutes.forEach { route ->
-                            TodayRouteCard(route = route)
+                            TodayRouteCard(route = route, onClick = { onOpenRoute(route.uid) })
                         }
                     } else {
                         SectionTitle("Rutas de hoy")
@@ -169,13 +177,17 @@ private fun AgentHeader(name: String, username: String, role: String, email: Str
 @Composable
 private fun JornadaCard(
     jornada: Map<String, Any?>?,
+    live: com.pabl3st.rutapp.data.network.AgentLiveLocationDto?,
     onNavigateToMap: ((Double, Double) -> Unit)?,
 ) {
     val state    = jornada?.get("state") as? String
     val elapsedMs = (jornada?.get("elapsed_ms") as? Double)?.toLong() ?: 0L
     val distanceKm = jornada?.get("distance_km") as? Double ?: 0.0
-    val lat = jornada?.get("last_lat") as? Double
-    val lng = jornada?.get("last_lng") as? Double
+    // La posicion en vivo (telefono del gestor) manda sobre la de la jornada sincronizada
+    val lat = live?.lat ?: (jornada?.get("last_lat") as? Double)
+    val lng = live?.lng ?: (jornada?.get("last_lng") as? Double)
+    val ageSec = live?.ageSec
+    val isLive = ageSec != null && ageSec <= 90
 
     SectionTitle("Jornada de hoy")
     Card {
@@ -212,7 +224,13 @@ private fun JornadaCard(
                     StatItem(Icons.Default.Timer,   "%dh %02dm".format(hours, minutes), "Tiempo activo")
                     StatItem(Icons.Default.Route,   "%.1f km".format(distanceKm), "Distancia")
                     if (lat != null) {
-                        StatItem(Icons.Default.LocationOn, "GPS activo", "Última posición")
+                        val ageLabel = when {
+                            ageSec == null     -> "Última posición"
+                            isLive             -> "En directo"
+                            ageSec < 3600      -> "Hace ${ageSec / 60} min"
+                            else               -> "Hace ${ageSec / 3600} h"
+                        }
+                        StatItem(Icons.Default.LocationOn, if (isLive) "GPS en vivo" else "GPS", ageLabel)
                     }
                 }
             }
@@ -234,8 +252,8 @@ private fun MonthKpisCard(kpis: com.pabl3st.rutapp.data.network.AgentMonthKpisDt
 }
 
 @Composable
-private fun TodayRouteCard(route: AgentTodayRouteDto) {
-    Card(colors = CardDefaults.cardColors(
+private fun TodayRouteCard(route: AgentTodayRouteDto, onClick: () -> Unit) {
+    Card(onClick = onClick, colors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
         Row(Modifier.padding(Spacing.md).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -243,7 +261,10 @@ private fun TodayRouteCard(route: AgentTodayRouteDto) {
             Column(Modifier.weight(1f)) {
                 Text(route.name, style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${route.doneStops}/${route.totalStops} paradas",
+                Text(buildString {
+                        append("${route.doneStops}/${route.totalStops} paradas")
+                        if (route.visitingStops > 0) append(" · ${route.visitingStops} en curso")
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

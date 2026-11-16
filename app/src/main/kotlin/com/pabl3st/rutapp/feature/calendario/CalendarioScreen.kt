@@ -233,7 +233,7 @@ fun CalendarioScreen(
                                     )
                                 }
                                 is DayRow.RouteItem -> CalendarioRouteCard(
-                                    route           = row.route,
+                                    route           = routeForDay(row.route, ui.selectedDay, ui.finishedKeys),
                                     onClick         = { onRouteClick(row.route.uid) },
                                     onRemoveFromDay = { vm.onRemoveRouteFromDay(row.route) },
                                 )
@@ -273,7 +273,7 @@ fun CalendarioScreen(
                 ) {
                     items(ui.selectedRoutes, key = { it.uid }) { route ->
                         CalendarioRouteCard(
-                            route           = route,
+                            route           = routeForDay(route, ui.selectedDay, ui.finishedKeys),
                             onClick         = { onRouteClick(route.uid) },
                             onRemoveFromDay = { vm.onRemoveRouteFromDay(route) },
                         )
@@ -738,6 +738,16 @@ private fun CalendarGrid(
                 }
             }
         }
+    }
+}
+
+/** El estado de la ruta es por DIA: completada solo si su jornada de ese dia termino. */
+private fun routeForDay(route: RouteEntity, day: java.time.LocalDate?, finishedKeys: Set<String>): RouteEntity {
+    val dateStr = day?.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE) ?: return route
+    return when {
+        "${route.uid}|$dateStr" in finishedKeys -> route.copy(status = "done")
+        route.status == "done"                  -> route.copy(status = "pending")
+        else                                    -> route
     }
 }
 

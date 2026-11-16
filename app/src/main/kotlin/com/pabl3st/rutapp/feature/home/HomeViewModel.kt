@@ -12,6 +12,7 @@ import com.pabl3st.rutapp.data.repository.AdminRepository
 import com.pabl3st.rutapp.data.repository.AuthResult
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.repository.StopRepository
+import com.pabl3st.rutapp.data.repository.StopVisitRepository
 import com.pabl3st.rutapp.data.repository.SyncRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import com.pabl3st.rutapp.sync.SyncWorker
@@ -28,6 +29,8 @@ data class RouteWithProgress(
     val progress:         Float        = 0f,   // 0.0 – 1.0
     val nextPendingStop:  StopEntity?  = null, // primera parada pendiente
     val stops:            List<StopEntity> = emptyList(), // lista completa para desglose colapsable
+    /** Fecha concreta que se esta ejecutando (hoy si esta programada, si no dateAssigned). */
+    val date:             String       = "",
 )
 
 data class HomeUiState(
@@ -52,6 +55,7 @@ private val MANAGER_ROLES = setOf("owner", "admin", "manager", "god")
 class HomeViewModel @Inject constructor(
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
+    private val visitRepo:   StopVisitRepository,
     private val syncRepo:    SyncRepository,
     private val adminRepo:   AdminRepository,
     private val session:     SessionManager,
@@ -115,16 +119,46 @@ class HomeViewModel @Inject constructor(
         }
         stopsJob = viewModelScope.launch {
             val routeUids = routes.map { it.uid }
-            stopRepo.observeByRouteUids(routeUids)
+            // Fecha que se ejecuta de cada ruta: hoy si esta programada hoy.
+            val todayStr   = java.time.LocalDate.now().toString()
+            val dateByRoute = routes.associate { r ->
+                val dates = buildList {
+                    if (r.dateAssigned.isNotBlank()) add(r.dateAssigned)
+                    r.scheduledDates?.let { addAll(it) }
+                }
+                r.uid to (if (todayStr in dates) todayStr else r.dateAssigned)
+            }
+            combine(
+                stopRepo.observeByRouteUids(routeUids),
+                visitRepo.observeByRoutesAndDates(routeUids, dateByRoute.values.distinct()),
+            ) { stops, visits -> stops to visits }
                 .catch { e -> _ui.update { it.copy(error = e.message) } }
-                .collect { allStops ->
+                .collect { (allStops, allVisits) ->
                     val stopsByRoute = allStops.groupBy { it.routeUid }
+                    val visitsByKey  = allVisits.associateBy { it.routeUid to it.stopUid }
                     val enriched = routes.map { route ->
-                        val stops   = stopsByRoute[route.uid] ?: emptyList()
+                        val date    = dateByRoute[route.uid].orEmpty()
+                        // Estado EFECTIVO de la fecha en curso: lo manda la visita de
+                        // ese dia, nunca el espejo del stop (que guarda la ultima visita
+                        // de cualquier fecha, p.ej. agosto).
+                        val stops   = (stopsByRoute[route.uid] ?: emptyList()).map { s ->
+                            val v = visitsByKey[route.uid to s.uid]
+                            s.copy(
+                                status       = v?.status ?: "pending",
+                                visitResult  = v?.visitResult,
+                                visitedAt    = v?.visitedAt,
+                            )
+                        }
                         val done    = stops.count { it.status == "done" }
                         val total   = stops.size
+                        val allDone = total > 0 && stops.none { it.status == "pending" || it.status == "visiting" }
                         RouteWithProgress(
-                            route           = route,
+                            // route.status es unico por ruta; aqui se muestra el de ESTA fecha
+                            route           = route.copy(status = when {
+                                allDone                   -> "done"
+                                route.status == "done"    -> "pending"
+                                else                      -> route.status
+                            }),
                             totalStops      = total,
                             doneStops       = done,
                             progress        = if (total > 0) done.toFloat() / total else 0f,
@@ -132,6 +166,7 @@ class HomeViewModel @Inject constructor(
                                 .filter { it.status == "pending" || it.status == "visiting" }
                                 .minByOrNull { it.orderIndex },
                             stops           = stops.sortedBy { it.orderIndex },
+                            date            = date,
                         )
                     }
                     val totalAll   = enriched.sumOf { it.totalStops }

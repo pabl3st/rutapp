@@ -763,6 +763,7 @@ if ($action === 'delta_sync') {
     $visitsQuery = "SELECT sv.uid, sv.stop_uid, sv.route_uid, sv.visit_date, sv.status,
                             sv.visited_at, sv.visit_result, sv.next_action, sv.notes,
                             sv.check_in_ts, sv.check_out_ts, sv.gps_lat_visit, sv.gps_lng_visit,
+                            sv.gps_lat_in, sv.gps_lng_in,
                             sv.created_at, sv.updated_at, sv.deleted_at
                      FROM stop_visits sv
                      JOIN routes r ON r.uid = sv.route_uid
@@ -1319,6 +1320,8 @@ if ($action === 'batch_sync') {
                                     check_out_ts=COALESCE(?,check_out_ts),
                                     gps_lat_visit=COALESCE(?,gps_lat_visit),
                                     gps_lng_visit=COALESCE(?,gps_lng_visit),
+                                    gps_lat_in=COALESCE(?,gps_lat_in),
+                                    gps_lng_in=COALESCE(?,gps_lng_in),
                                     updated_at=NOW()
                                  WHERE uid=? AND account_id=?'
                             )->execute([
@@ -1333,6 +1336,8 @@ if ($action === 'batch_sync') {
                                     (isset($data['gps_lat_visit']) ? (float)$data['gps_lat_visit'] : null),
                                 isset($data['gpsLngVisit']) ? (float)$data['gpsLngVisit'] :
                                     (isset($data['gps_lng_visit']) ? (float)$data['gps_lng_visit'] : null),
+                                isset($data['gps_lat_in']) ? (float)$data['gps_lat_in'] : null,
+                                isset($data['gps_lng_in']) ? (float)$data['gps_lng_in'] : null,
                                 $clientUid, $aid,
                             ]);
                         } else {
@@ -1342,8 +1347,9 @@ if ($action === 'batch_sync') {
                                     (uid, stop_uid, route_uid, account_id, visit_date,
                                      status, visited_at, visit_result, next_action, notes,
                                      check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit,
+                                     gps_lat_in, gps_lng_in,
                                      created_at, updated_at)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
                             )->execute([
                                 $clientUid, $stopUid, $routeUid, $aid, $visitDate,
                                 san($data['status'] ?? 'pending', 20),
@@ -1357,6 +1363,8 @@ if ($action === 'batch_sync') {
                                     (isset($data['gps_lat_visit']) ? (float)$data['gps_lat_visit'] : null),
                                 isset($data['gpsLngVisit']) ? (float)$data['gpsLngVisit'] :
                                     (isset($data['gps_lng_visit']) ? (float)$data['gps_lng_visit'] : null),
+                                isset($data['gps_lat_in']) ? (float)$data['gps_lat_in'] : null,
+                                isset($data['gps_lng_in']) ? (float)$data['gps_lng_in'] : null,
                             ]);
                         }
                         db()->prepare(
@@ -2007,6 +2015,29 @@ if ($action === 'kpi_def_save') {
 // Solo accesible para roles manager, admin, owner, god.
 // ══════════════════════════════════════════════════════════════
 
+// ─── Ubicacion en vivo del gestor ───────────────────────────────────────────
+// El gestor (con jornada en curso) envia su posicion cada ~15 s. Se guarda solo la
+// ULTIMA por usuario: los supervisores la ven en "Mi equipo" / detalle del gestor.
+if ($action === 'agent_location') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    $lat  = isset($body['lat']) ? (float)$body['lat'] : null;
+    $lng  = isset($body['lng']) ? (float)$body['lng'] : null;
+    if ($lat === null || $lng === null || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+        err('lat/lng invalidos', 400, $action);
+    }
+    $acc      = isset($body['accuracy']) ? (float)$body['accuracy'] : null;
+    $routeUid = san($body['route_uid'] ?? '', 36) ?: null;
+    db()->prepare(
+        'INSERT INTO agent_locations (user_id, account_id, lat, lng, accuracy, route_uid, updated_at)
+         VALUES (?,?,?,?,?,?,NOW())
+         ON DUPLICATE KEY UPDATE lat=VALUES(lat), lng=VALUES(lng), accuracy=VALUES(accuracy),
+                                 route_uid=VALUES(route_uid), updated_at=NOW()'
+    )->execute([$uid, $aid, $lat, $lng, $acc, $routeUid]);
+    ok(['saved' => true]);
+}
+
 if ($action === 'stats_month') {
     $sess = requireAuth();
     $uid  = (int)$sess['uid'];
@@ -2057,51 +2088,80 @@ if ($action === 'stats_month') {
     $rangeParams = array_merge($scopeParams, [$monthStart, $monthEnd]);
 
     // ── Totales de visitas del mes ────────────────────────────
+    // Se cuenta por VISITA (stop_visits) y por su fecha, no por la fecha de la ruta
+    // ni por el espejo del stop: asi una ruta con varias fechas reparte bien cada mes.
     $stVisits = db()->prepare(
         'SELECT
-            COUNT(*)                                        AS total_stops,
-            SUM(s.status = "done")                         AS done_stops,
-            SUM(s.status = "skipped")                      AS skipped_stops,
-            SUM(s.status = "pending")                      AS pending_stops,
-            SUM(s.visit_result = "contactado")             AS contacted,
-            SUM(s.visit_result = "no_estaba")              AS not_home,
-            SUM(s.visit_result = "volvemos")               AS return_visit,
-            SUM(s.visit_result = "rechazado")              AS rejected,
-            COUNT(DISTINCT r.user_id)                      AS active_agents,
-            COUNT(DISTINCT r.id)                           AS total_routes,
-            SUM(r.status = "done")                         AS done_routes
-         FROM stops s
-         JOIN routes r ON r.id = s.route_id
+            COUNT(*)                                                         AS total_stops,
+            COALESCE(SUM(sv.status = "done"), 0)                             AS done_stops,
+            COALESCE(SUM(sv.status = "skipped"), 0)                          AS skipped_stops,
+            COALESCE(SUM(sv.status IN ("pending","visiting")), 0)            AS pending_stops,
+            COALESCE(SUM(sv.status = "done" AND sv.visit_result = "contactado"), 0) AS contacted,
+            COALESCE(SUM(sv.status = "done" AND sv.visit_result = "no_estaba"), 0)  AS not_home,
+            COALESCE(SUM(sv.status = "done" AND sv.visit_result = "volvemos"), 0)   AS return_visit,
+            COALESCE(SUM(sv.status = "done" AND sv.visit_result = "rechazado"), 0)  AS rejected,
+            COUNT(DISTINCT r.user_id)                                        AS active_agents,
+            COUNT(DISTINCT r.id)                                             AS total_routes
+         FROM stop_visits sv
+         JOIN routes r ON r.uid = sv.route_uid
          WHERE ' . $scopeSql . '
-           AND r.date_assigned BETWEEN ? AND ?
-           AND s.deleted_at IS NULL'
+           AND sv.visit_date BETWEEN ? AND ?
+           AND sv.deleted_at IS NULL'
     );
     $stVisits->execute($rangeParams);
     $visits = $stVisits->fetch();
 
-    // ── KPI values agregados del mes (número + boolean) ───────
+    // Rutas completadas en el mes: ninguna visita pendiente/en curso en ese mes
+    $stDoneR = db()->prepare(
+        'SELECT COUNT(*) FROM (
+            SELECT sv.route_uid
+            FROM stop_visits sv
+            JOIN routes r ON r.uid = sv.route_uid
+            WHERE ' . $scopeSql . '
+              AND sv.visit_date BETWEEN ? AND ?
+              AND sv.deleted_at IS NULL
+            GROUP BY sv.route_uid
+            HAVING SUM(sv.status IN ("pending","visiting")) = 0
+         ) t'
+    );
+    $stDoneR->execute($rangeParams);
+    $visits['done_routes'] = (int)$stDoneR->fetchColumn();
+
+    // ── KPI del mes (numero + boolean) ─────────────────────────
+    // Los KPI son TOTALES ACUMULADOS DEL MES por PDV: si el dia 6 se puso 6 y el
+    // dia 24 se actualizo a 12, el mes cuenta 12 (no 18). Por (PDV, KPI) se toma
+    // el valor de la visita mas reciente del mes. Cada mes empieza de cero porque
+    // el rango es el mes natural; los meses anteriores siguen consultables.
     $stKpis = db()->prepare(
         'SELECT
-            kv.kpi_id,
+            lv.kpi_id,
             kd.label,
             kd.type,
             kd.unit,
             kd.section,
-            COUNT(kv.id)                                        AS count_entries,
+            COUNT(*)                                            AS count_entries,
             SUM(CASE WHEN kd.type = "number"
-                     THEN CAST(kv.value_text AS DECIMAL(15,4))
+                     THEN CAST(lv.value_text AS DECIMAL(15,4))
                      ELSE 0 END)                                AS total_value,
-            SUM(CASE WHEN kd.type = "boolean" AND kv.value_text = "true"
+            SUM(CASE WHEN kd.type = "boolean" AND lv.value_text = "true"
                      THEN 1 ELSE 0 END)                        AS true_count
-         FROM kpi_values kv
-         JOIN kpi_definitions kd ON kd.id = kv.kpi_id
-         JOIN stops s            ON s.uid  = kv.stop_uid
-         JOIN routes r           ON r.id  = s.route_id
-         WHERE ' . $scopeSql . '
-           AND r.date_assigned BETWEEN ? AND ?
+         FROM (
+            SELECT kv0.kpi_id, kv0.stop_uid, kv0.value_text,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY kv0.stop_uid, kv0.kpi_id
+                       ORDER BY sv0.visit_date DESC, kv0.id DESC
+                   ) AS rn
+            FROM kpi_values kv0
+            JOIN stop_visits sv0 ON sv0.uid = kv0.visit_uid
+            JOIN routes r        ON r.uid   = sv0.route_uid
+            WHERE ' . $scopeSql . '
+              AND sv0.visit_date BETWEEN ? AND ?
+              AND sv0.deleted_at IS NULL
+         ) lv
+         JOIN kpi_definitions kd ON kd.id = lv.kpi_id
+         WHERE lv.rn = 1
            AND kd.type IN ("number", "boolean")
-           AND s.deleted_at IS NULL
-         GROUP BY kv.kpi_id, kd.label, kd.type, kd.unit, kd.section
+         GROUP BY lv.kpi_id, kd.label, kd.type, kd.unit, kd.section
          ORDER BY kd.section ASC, kd.label ASC'
     );
     $stKpis->execute($rangeParams);
@@ -2113,15 +2173,15 @@ if ($action === 'stats_month') {
             u.id           AS user_id,
             u.name,
             u.username,
-            COUNT(s.id)                        AS total_stops,
-            SUM(s.status = "done")             AS done_stops,
-            SUM(s.visit_result = "contactado") AS contacted
-         FROM stops s
-         JOIN routes r ON r.id = s.route_id
+            COUNT(sv.id)                                                     AS total_stops,
+            COALESCE(SUM(sv.status = "done"), 0)                             AS done_stops,
+            COALESCE(SUM(sv.status = "done" AND sv.visit_result = "contactado"), 0) AS contacted
+         FROM stop_visits sv
+         JOIN routes r ON r.uid = sv.route_uid
          JOIN users u  ON u.id = r.user_id
          WHERE ' . $scopeSql . '
-           AND r.date_assigned BETWEEN ? AND ?
-           AND s.deleted_at IS NULL
+           AND sv.visit_date BETWEEN ? AND ?
+           AND sv.deleted_at IS NULL
          GROUP BY u.id, u.name, u.username
          ORDER BY done_stops DESC'
     );
@@ -2523,6 +2583,25 @@ if ($action === 'assign_routes_bulk') {
     ok(['reassigned' => $reassigned, 'skipped' => $skipped]);
 }
 
+// Ultima ubicacion conocida de cada usuario (tabla agent_locations, opcional)
+function fetchLiveLocations(array $userIds): array {
+    if (empty($userIds)) return [];
+    try {
+        $ph = implode(',', array_fill(0, count($userIds), '?'));
+        $st = db()->prepare(
+            "SELECT user_id, lat, lng, accuracy, route_uid, updated_at,
+                    TIMESTAMPDIFF(SECOND, updated_at, NOW()) AS age_sec
+             FROM agent_locations WHERE user_id IN ($ph)"
+        );
+        $st->execute(array_values($userIds));
+        $out = [];
+        foreach ($st->fetchAll() as $r) { $out[(int)$r['user_id']] = $r; }
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 // ─── S20: team_overview ────────────────────────────────────────────────────
 if ($action === 'team_overview') {
     $sess = requireAuth();
@@ -2568,57 +2647,50 @@ if ($action === 'team_overview') {
     $today = date('Y-m-d');
     $month = date('Y-m');
 
-    // Obtener usuarios según jerarquía DEL TARGET (no del caller — eso permite
-    // que un owner pueda "ver como si fuera Carlos" o "como si fuera Ana").
+    // Jerarquia (nov 2026): cada nivel ve a sus subordinados DIRECTOS.
+    //   owner/god -> admins
+    //   admin     -> supervisores (managers) y gestores directos
+    //   manager   -> sus gestores (agents)
+    // Para no dejar a un admin sin ver nada mientras no tenga equipo asignado,
+    // si no tiene subordinados directos se muestran los usuarios sin supervisor.
+    $selCols = 'id, name, username, role, avatar_url';
+    $agents  = [];
     if ($targetRole === 'manager') {
-        // Manager: solo sus agentes directos
         $stU = db()->prepare(
-            'SELECT id, name, username, role, avatar_url FROM users
-             WHERE account_id=? AND manager_id=? AND active=1 AND role="agent"
-             ORDER BY name ASC'
+            "SELECT $selCols FROM users
+             WHERE account_id=? AND manager_id=? AND active=1 AND role='agent'
+             ORDER BY name ASC"
         );
         $stU->execute([$aid, $targetUid]);
+        $agents = $stU->fetchAll();
     } elseif ($targetRole === 'admin') {
-        // Admin: sus managers directos + los agentes de esos managers
-        // Primero obtener sus managers directos
-        $stMgr = db()->prepare(
-            'SELECT id FROM users WHERE account_id=? AND manager_id=? AND active=1 AND role="manager"'
+        $stU = db()->prepare(
+            "SELECT $selCols FROM users
+             WHERE account_id=? AND manager_id=? AND active=1 AND role IN ('manager','agent')
+             ORDER BY role DESC, name ASC"
         );
-        $stMgr->execute([$aid, $targetUid]);
-        $directManagers = array_column($stMgr->fetchAll(), 'id');
-
-        if (empty($directManagers)) {
-            // Sin managers directos → mostrar todos los agentes y managers de la cuenta
+        $stU->execute([$aid, $targetUid]);
+        $agents = $stU->fetchAll();
+        if (empty($agents)) {
             $stU = db()->prepare(
-                'SELECT id, name, username, role, avatar_url FROM users
-                 WHERE account_id=? AND active=1 AND role IN ("agent","manager")
-                 ORDER BY role DESC, name ASC'
-            );
-            $stU->execute([$aid]);
-        } else {
-            // Sus managers + los agentes de esos managers
-            $mgrPh = implode(',', array_fill(0, count($directManagers), '?'));
-            $stU = db()->prepare(
-                "SELECT id, name, username, role, avatar_url FROM users
-                 WHERE account_id=? AND active=1
-                   AND (manager_id=? AND role='manager'
-                        OR (manager_id IN ($mgrPh) AND role='agent'))
+                "SELECT $selCols FROM users
+                 WHERE account_id=? AND manager_id IS NULL AND active=1 AND role IN ('manager','agent')
                  ORDER BY role DESC, name ASC"
             );
-            $stU->execute(array_merge([$aid, $targetUid], $directManagers));
+            $stU->execute([$aid]);
+            $agents = $stU->fetchAll();
         }
     } elseif (roleLevel($targetRole) >= 5) {
-        // Owner/god: toda la cadena (agents + managers + admins)
         $stU = db()->prepare(
-            'SELECT id, name, username, role, avatar_url FROM users
-             WHERE account_id=? AND active=1 AND role IN ("agent","manager","admin")
-             ORDER BY role DESC, name ASC'
+            "SELECT $selCols FROM users
+             WHERE account_id=? AND active=1 AND role='admin'
+             ORDER BY name ASC"
         );
         $stU->execute([$aid]);
+        $agents = $stU->fetchAll();
     } else {
         ok(['agents' => []]);
     }
-    $agents = $stU->fetchAll();
     if (empty($agents)) { ok(['agents' => []]); }
 
     $agentIds = array_column($agents, 'id');
@@ -2638,44 +2710,50 @@ if ($action === 'team_overview') {
         $jornadas[$j['user_id']] = $j;
     }
 
-    // Stops de hoy por agente
+    // Progreso de HOY por agente: lo manda la visita (stop_visits) de HOY, no el
+    // espejo del stop (que guarda la ultima visita de cualquier fecha).
     $stS = db()->prepare(
         "SELECT r.user_id,
-                COUNT(s.id)                         AS total,
-                SUM(s.status='done')                AS done,
-                SUM(s.status='skipped')             AS skipped,
-                SUM(s.visit_result='contactado')    AS contacted
+                COUNT(s.id)                                              AS total,
+                COALESCE(SUM(sv.status='done'), 0)                       AS done,
+                COALESCE(SUM(sv.status='skipped'), 0)                    AS skipped,
+                COALESCE(SUM(sv.status='done' AND sv.visit_result='contactado'), 0) AS contacted
          FROM stops s
          JOIN routes r ON r.id=s.route_id AND r.account_id=?
+         LEFT JOIN stop_visits sv ON sv.stop_uid=s.uid AND sv.visit_date=? AND sv.deleted_at IS NULL
          WHERE r.user_id IN ($ph)
            AND (r.date_assigned=? OR r.scheduled_dates LIKE CONCAT('%',?,'%'))
+           AND r.deleted_at IS NULL
            AND s.deleted_at IS NULL
          GROUP BY r.user_id"
     );
-    $paramsS = array_merge([$aid], $agentIds, [$today, $today]);
+    $paramsS = array_merge([$aid, $today], $agentIds, [$today, $today]);
     $stS->execute($paramsS);
     $stopsMap = [];
     foreach ($stS->fetchAll() as $s) { $stopsMap[$s['user_id']] = $s; }
 
-    // Stops del mes para KPI mensual
+    // Visitas del mes por agente (para el KPI mensual)
     $monthStart = $month . '-01';
     $monthEnd   = date('Y-m-t', strtotime($monthStart));
     $stM = db()->prepare(
         "SELECT r.user_id,
-                COUNT(s.id)                         AS total_month,
-                SUM(s.status='done')                AS done_month,
-                SUM(s.visit_result='contactado')    AS contacted_month
-         FROM stops s
-         JOIN routes r ON r.id=s.route_id AND r.account_id=?
+                COUNT(sv.id)                                             AS total_month,
+                COALESCE(SUM(sv.status='done'), 0)                       AS done_month,
+                COALESCE(SUM(sv.status='done' AND sv.visit_result='contactado'), 0) AS contacted_month
+         FROM stop_visits sv
+         JOIN routes r ON r.uid=sv.route_uid AND r.account_id=?
          WHERE r.user_id IN ($ph)
-           AND r.date_assigned BETWEEN ? AND ?
-           AND s.deleted_at IS NULL
+           AND sv.visit_date BETWEEN ? AND ?
+           AND sv.deleted_at IS NULL
          GROUP BY r.user_id"
     );
     $paramsM = array_merge([$aid], $agentIds, [$monthStart, $monthEnd]);
     $stM->execute($paramsM);
     $monthMap = [];
     foreach ($stM->fetchAll() as $m) { $monthMap[$m['user_id']] = $m; }
+
+    // Ubicacion en vivo (agent_locations), si existe
+    $liveMap = fetchLiveLocations($agentIds);
 
     $result = [];
     foreach ($agents as $ag) {
@@ -2693,9 +2771,9 @@ if ($action === 'team_overview') {
             'jornada_state'   => $jornada['state']        ?? null,
             'elapsed_ms'      => $jornada['elapsed_ms']   ?? 0,
             'distance_km'     => $jornada['distance_km']  ?? 0,
-            'last_lat'        => $jornada['last_lat']      ?? null,
-            'last_lng'        => $jornada['last_lng']      ?? null,
-            'last_gps_at'     => $jornada['updated_at']   ?? null,
+            'last_lat'        => isset($liveMap[$agId]) ? (float)$liveMap[$agId]['lat'] : (isset($jornada['last_lat']) ? (float)$jornada['last_lat'] : null),
+            'last_lng'        => isset($liveMap[$agId]) ? (float)$liveMap[$agId]['lng'] : (isset($jornada['last_lng']) ? (float)$jornada['last_lng'] : null),
+            'last_gps_at'     => isset($liveMap[$agId]) ? $liveMap[$agId]['updated_at'] : ($jornada['updated_at'] ?? null),
             // Stops hoy
             'stops_total'     => (int)($stops['total']     ?? 0),
             'stops_done'      => (int)($stops['done']      ?? 0),
@@ -2722,13 +2800,19 @@ if ($action === 'agent_detail') {
     $targetId = (int)($_GET['user_id'] ?? 0);
     if (!$targetId) err('user_id requerido');
 
-    // Verificar que el caller puede ver este agente
-    if ($callerRole === 'manager') {
-        $chk = db()->prepare('SELECT id FROM users WHERE id=? AND manager_id=? AND account_id=? LIMIT 1');
-        $chk->execute([$targetId, $callerId, $aid]);
-        if (!$chk->fetch()) err('No tienes acceso a este agente', 403);
-    } elseif (roleLevel($callerRole) < 4) {
-        err('Sin permisos para ver detalles de agente', 403);
+    // Verificar que el caller puede ver este usuario: su subarbol descendente
+    // (owner/god: toda la cuenta). Un admin sin equipo asignado tambien ve a los
+    // usuarios sin supervisor, igual que en team_overview.
+    if (roleLevel($callerRole) < 3) err('Sin permisos', 403);
+    if (roleLevel($callerRole) < 5 && $targetId !== $callerId) {
+        $descendants = getDescendantUserIds($callerId, $aid);
+        $allowed = in_array($targetId, $descendants, true);
+        if (!$allowed && $callerRole === 'admin') {
+            $chk = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? AND manager_id IS NULL LIMIT 1');
+            $chk->execute([$targetId, $aid]);
+            $allowed = (bool)$chk->fetch();
+        }
+        if (!$allowed) err('No tienes acceso a este usuario', 403);
     }
 
     $today      = date('Y-m-d');
@@ -2751,33 +2835,42 @@ if ($action === 'agent_detail') {
     $stJ->execute([$targetId, $today]);
     $jornada = $stJ->fetch() ?: null;
 
-    // Rutas y stops de hoy
-    // COALESCE en SUMs por la misma razón que en month_kpis: una ruta sin
-    // stops (LEFT JOIN sin match) hace que los SUM devuelvan NULL y el DTO
-    // del cliente declara estos campos como Int no nullable.
+    // Rutas de hoy con el progreso de la visita de HOY (stop_visits), no el espejo del stop
     $stR = db()->prepare(
         'SELECT r.uid, r.name, r.status, r.date_assigned,
-                COUNT(s.id)                              AS total_stops,
-                COALESCE(SUM(s.status="done"), 0)        AS done_stops,
-                COALESCE(SUM(s.status="skipped"), 0)     AS skipped_stops,
-                COALESCE(SUM(s.status="pending"), 0)     AS pending_stops
+                COUNT(s.id)                                         AS total_stops,
+                COALESCE(SUM(sv.status="done"), 0)                  AS done_stops,
+                COALESCE(SUM(sv.status="skipped"), 0)               AS skipped_stops,
+                COALESCE(SUM(sv.status="visiting"), 0)              AS visiting_stops,
+                COUNT(s.id) - COALESCE(SUM(sv.status IN ("done","skipped")), 0) AS pending_stops
          FROM routes r
          LEFT JOIN stops s ON s.route_id=r.id AND s.deleted_at IS NULL
+         LEFT JOIN stop_visits sv ON sv.stop_uid=s.uid AND sv.visit_date=? AND sv.deleted_at IS NULL
          WHERE r.user_id=? AND r.account_id=?
            AND (r.date_assigned=? OR r.scheduled_dates LIKE CONCAT("%",?,"%"))
            AND r.deleted_at IS NULL
          GROUP BY r.uid, r.name, r.status, r.date_assigned'
     );
-    $stR->execute([$targetId, $aid, $today, $today]);
+    $stR->execute([$today, $targetId, $aid, $today, $today]);
     $todayRoutes = $stR->fetchAll();
+    foreach ($todayRoutes as &$trRow) {
+        // Estado de la ruta EN ESTA FECHA: completada solo si no queda ninguna pendiente
+        $trRow['status'] = ((int)$trRow['total_stops'] > 0 && (int)$trRow['pending_stops'] === 0)
+            ? 'done'
+            : ($trRow['status'] === 'done' ? 'pending' : $trRow['status']);
+    }
+    unset($trRow);
 
-    // Historial últimas 5 visitas completadas
+    // Historial: ultimas 10 visitas completadas (desde stop_visits)
     $stV = db()->prepare(
-        'SELECT s.uid, s.name, s.visit_result, s.visited_at, s.next_action,
-                s.gps_lat_visit, s.gps_lng_visit, r.name AS route_name
-         FROM stops s JOIN routes r ON r.id=s.route_id
-         WHERE r.user_id=? AND r.account_id=? AND s.status="done" AND s.deleted_at IS NULL
-         ORDER BY s.visited_at DESC LIMIT 10'
+        'SELECT sv.uid, s.name, sv.visit_result, sv.visited_at, sv.next_action,
+                sv.gps_lat_visit, sv.gps_lng_visit, r.name AS route_name
+         FROM stop_visits sv
+         JOIN stops s  ON s.uid = sv.stop_uid
+         JOIN routes r ON r.uid = sv.route_uid
+         WHERE r.user_id=? AND r.account_id=? AND sv.status="done"
+           AND sv.deleted_at IS NULL AND s.deleted_at IS NULL
+         ORDER BY sv.visited_at DESC LIMIT 10'
     );
     $stV->execute([$targetId, $aid]);
     $recentVisits = $stV->fetchAll();
@@ -2789,13 +2882,13 @@ if ($action === 'agent_detail') {
     // como Int no nullable → Moshi crashea con "Expected an int but was
     // NULL at path \$.month_kpis.done" si el server manda null.
     $stKpi = db()->prepare(
-        'SELECT COUNT(s.id)                                  AS total,
-                COALESCE(SUM(s.status="done"), 0)            AS done,
-                COALESCE(SUM(s.visit_result="contactado"), 0) AS contacted,
-                COALESCE(SUM(s.visit_result="no_estaba"), 0)  AS not_home,
-                COALESCE(SUM(s.visit_result="rechazado"), 0)  AS rejected
-         FROM stops s JOIN routes r ON r.id=s.route_id AND r.account_id=?
-         WHERE r.user_id=? AND r.date_assigned BETWEEN ? AND ? AND s.deleted_at IS NULL'
+        'SELECT COUNT(sv.id)                                       AS total,
+                COALESCE(SUM(sv.status="done"), 0)                 AS done,
+                COALESCE(SUM(sv.status="done" AND sv.visit_result="contactado"), 0) AS contacted,
+                COALESCE(SUM(sv.status="done" AND sv.visit_result="no_estaba"), 0)  AS not_home,
+                COALESCE(SUM(sv.status="done" AND sv.visit_result="rechazado"), 0)  AS rejected
+         FROM stop_visits sv JOIN routes r ON r.uid=sv.route_uid AND r.account_id=?
+         WHERE r.user_id=? AND sv.visit_date BETWEEN ? AND ? AND sv.deleted_at IS NULL'
     );
     $stKpi->execute([$aid, $targetId, $monthStart, $monthEnd]);
     $kpis = $stKpi->fetch();
@@ -2806,6 +2899,17 @@ if ($action === 'agent_detail') {
         'today_routes' => $todayRoutes,
         'recent_visits'=> $recentVisits,
         'month_kpis'   => $kpis,
+        'live_location'=> (function () use ($targetId) {
+            $l = fetchLiveLocations([$targetId])[$targetId] ?? null;
+            if (!$l) return null;
+            return [
+                'lat'        => (float)$l['lat'],
+                'lng'        => (float)$l['lng'],
+                'accuracy'   => $l['accuracy'] !== null ? (float)$l['accuracy'] : null,
+                'updated_at' => $l['updated_at'],
+                'age_sec'    => (int)$l['age_sec'],
+            ];
+        })(),
     ]);
 }
 
@@ -2837,6 +2941,7 @@ if ($action === 'visits_by_route') {
         'SELECT uid, stop_uid, route_uid, visit_date, status, visited_at,
                 visit_result, next_action, notes,
                 check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit,
+                gps_lat_in, gps_lng_in,
                 created_at, updated_at
          FROM stop_visits
          WHERE route_uid=? AND deleted_at IS NULL
@@ -2885,6 +2990,8 @@ if ($action === 'visit_save') {
                 check_out_ts=COALESCE(?,check_out_ts),
                 gps_lat_visit=COALESCE(?,gps_lat_visit),
                 gps_lng_visit=COALESCE(?,gps_lng_visit),
+                gps_lat_in=COALESCE(?,gps_lat_in),
+                gps_lng_in=COALESCE(?,gps_lng_in),
                 updated_at=NOW()
              WHERE uid=? AND account_id=?'
         )->execute([
@@ -2899,6 +3006,8 @@ if ($action === 'visit_save') {
                 (isset($body['gpsLatVisit']) ? (float)$body['gpsLatVisit'] : null),
             isset($body['gps_lng_visit']) ? (float)$body['gps_lng_visit'] :
                 (isset($body['gpsLngVisit']) ? (float)$body['gpsLngVisit'] : null),
+            isset($body['gps_lat_in']) ? (float)$body['gps_lat_in'] : null,
+            isset($body['gps_lng_in']) ? (float)$body['gps_lng_in'] : null,
             $visitUid, $aid,
         ]);
         apiLog($action, $callerId, $aid);
@@ -2909,8 +3018,9 @@ if ($action === 'visit_save') {
                 (uid, stop_uid, route_uid, account_id, visit_date,
                  status, visited_at, visit_result, next_action, notes,
                  check_in_ts, check_out_ts, gps_lat_visit, gps_lng_visit,
+                 gps_lat_in, gps_lng_in,
                  created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())'
         )->execute([
             $visitUid, $stopUid, $routeUid, $aid, $visitDate,
             san($body['status'] ?? 'pending', 20),
@@ -2924,6 +3034,8 @@ if ($action === 'visit_save') {
                 (isset($body['gpsLatVisit']) ? (float)$body['gpsLatVisit'] : null),
             isset($body['gps_lng_visit']) ? (float)$body['gps_lng_visit'] :
                 (isset($body['gpsLngVisit']) ? (float)$body['gpsLngVisit'] : null),
+            isset($body['gps_lat_in']) ? (float)$body['gps_lat_in'] : null,
+            isset($body['gps_lng_in']) ? (float)$body['gps_lng_in'] : null,
         ]);
         apiLog($action, $callerId, $aid);
         ok(['uid' => $visitUid, 'created' => true]);

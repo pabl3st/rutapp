@@ -411,7 +411,8 @@ fun RutasNavGraph(
                     navController.popBackStack(); return@composable
                 }
                 AgentDetailScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack      = { navController.popBackStack() },
+                    onOpenRoute = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                 )
             }
 

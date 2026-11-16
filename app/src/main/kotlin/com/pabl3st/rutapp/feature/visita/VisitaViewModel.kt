@@ -46,6 +46,13 @@ data class VisitaUiState(
     val error: String?                       = null,
     val previousVisits: List<StopEntity>     = emptyList(),
     val checkInTs: Long?                     = null,   // capturado al abrir el formulario
+    // ── Visita concreta (Modelo C) + vista de supervisor ─────────
+    val visitDate: String                    = "",      // fecha de calendario de ESTA visita
+    val visit: com.pabl3st.rutapp.data.local.entity.StopVisitEntity? = null,
+    val readOnly: Boolean                    = false,   // owner/admin/manager/god: solo lectura
+    val notCompleted: Boolean                = false,   // supervisor y la visita aun no esta completada
+    val entryLat: Double?                    = null,    // GPS de entrada (al abrir)
+    val entryLng: Double?                    = null,
 )
 
 @HiltViewModel
@@ -81,7 +88,6 @@ class VisitaViewModel @Inject constructor(
         loadStop()
         loadKpiFields()
         loadPrefs()
-        loadExistingKpiValues()
         observeExistingPhotos()
     }
 
@@ -118,6 +124,85 @@ class VisitaViewModel @Inject constructor(
                     pdvInactive    = stop?.pdvInactive ?: false,
                 )
             }
+            if (stop != null) loadVisitContext()
+        }
+    }
+
+    /**
+     * Fecha de calendario de la visita: manda la ocasion elegida (visitDateArg) si
+     * es una fecha real de la ruta; si no, dateAssigned del stop; si no, hoy.
+     */
+    private suspend fun resolveVisitDate(): String {
+        val stopRow  = _ui.value.stop ?: stopRepo.getByUid(stopUid)
+        val routeRow = stopRow?.let { routeRepo.getByUid(it.routeUid) }
+        val routeDates: Set<String> = buildSet {
+            routeRow?.let { r ->
+                if (r.dateAssigned.isNotBlank()) add(r.dateAssigned)
+                r.scheduledDates?.forEach { d -> if (d.isNotBlank()) add(d) }
+            }
+        }
+        return visitDateArg?.takeIf { it.isNotBlank() && it in routeDates }
+            ?: stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
+            ?: visitDateArg?.takeIf { it.isNotBlank() }
+            ?: java.time.LocalDate.now().toString()
+    }
+
+    /**
+     * Prepara el formulario para ESTA visita (stop + fecha):
+     *  - supervisor (manager/admin/owner/god): solo lectura y solo si esta completada.
+     *  - gestor: si la visita ya esta hecha muestra sus propios valores; si no, prerrellena
+     *    con el total acumulado del MES (editable) y la marca "en curso" con GPS de entrada.
+     */
+    private suspend fun loadVisitContext() {
+        val date  = resolveVisitDate()
+        val visit = visitRepo.getByStopAndDate(stopUid, date)
+        val supervisor = com.pabl3st.rutapp.core.UserRole.from(session.userRole).canEditStops
+
+        if (supervisor) {
+            if (visit == null || visit.status != "done") {
+                _ui.update { it.copy(readOnly = true, notCompleted = true, visitDate = date, isLoading = false) }
+                return
+            }
+            val vals = kpiValueDao.getByVisit(visit.uid).associate { it.kpiId to it.valueText }
+            _ui.update { it.copy(
+                readOnly       = true,
+                visit          = visit,
+                visitDate      = date,
+                kpiValues      = vals,
+                selectedResult = visit.visitResult ?: "",
+                notes          = visit.notes ?: "",
+                nextAction     = visit.nextAction ?: "",
+            ) }
+            return
+        }
+
+        val monthStart = date.take(7) + "-01"
+        val kpis = if (visit?.status == "done") kpiValueDao.getByVisit(visit.uid)
+                   else kpiValueDao.getMonthTotalsByStop(stopUid, monthStart, date)
+        val entry = locationMgr.getLastLocation()
+        _ui.update { it.copy(
+            visitDate      = date,
+            visit          = visit,
+            kpiValues      = it.kpiValues + kpis.associate { k -> k.kpiId to k.valueText },
+            entryLat       = entry?.latitude,
+            entryLng       = entry?.longitude,
+            // Visita ya hecha: se reabre con sus datos (editable)
+            selectedResult = if (visit?.status == "done") (visit.visitResult ?: it.selectedResult) else it.selectedResult,
+            notes          = if (visit?.status == "done") (visit.notes ?: "") else it.notes,
+            nextAction     = if (visit?.status == "done") (visit.nextAction ?: "") else it.nextAction,
+        ) }
+
+        // "En curso": el supervisor ve que el gestor ha abierto esta visita
+        if (visit == null || visit.status == "pending") {
+            val routeUid = _ui.value.stop?.routeUid ?: return
+            val base = visit ?: visitRepo.ensureVisitExists(stopUid, routeUid, date)
+            val started = visitRepo.updateVisit(base.copy(
+                status    = "visiting",
+                checkInTs = _ui.value.checkInTs ?: base.checkInTs,
+                gpsLatIn  = entry?.latitude  ?: base.gpsLatIn,
+                gpsLngIn  = entry?.longitude ?: base.gpsLngIn,
+            ))
+            _ui.update { it.copy(visit = started) }
         }
     }
 
@@ -161,30 +246,7 @@ class VisitaViewModel @Inject constructor(
             //    c) fecha de hoy (fallback final)
             // REGLA: la visita se registra en la fecha del CALENDARIO a la que
             // pertenece el trabajo, nunca en el dia real en que se rellena.
-            val stopRow = _ui.value.stop ?: stopRepo.getByUid(stopUid)
-
-            // AJUSTE (ago 2026): antes dateAssigned ganaba SIEMPRE. Eso arreglo
-            // el caso de rellenar a posteriori, pero rompio las rutas con
-            // varias ocasiones: PS02 esta asignada al 11/8 y al 21/8, y con
-            // dateAssigned fijo toda visita caia en el 11/8 — el 21/8 no habia
-            // forma de completarlo.
-            // Ahora manda la ocasion elegida en el calendario (visitDateArg),
-            // pero solo si es una fecha real de la ruta. Asi no puede volver el
-            // fallo antiguo, donde visitDateArg era "hoy" colandose por la
-            // puerta de atras: hoy no esta en scheduledDates y se descarta.
-            val routeRow = stopRow?.let { routeRepo.getByUid(it.routeUid) }
-            val routeDates: Set<String> = buildSet {
-                routeRow?.let { r ->
-                    if (r.dateAssigned.isNotBlank()) add(r.dateAssigned)
-                    r.scheduledDates?.forEach { d -> if (d.isNotBlank()) add(d) }
-                }
-            }
-
-            val resolvedDate: String =
-                visitDateArg?.takeIf { it.isNotBlank() && it in routeDates }
-                    ?: stopRow?.dateAssigned?.takeIf { it.isNotBlank() }
-                    ?: visitDateArg?.takeIf { it.isNotBlank() }
-                    ?: java.time.LocalDate.now().toString()
+            val resolvedDate: String = _ui.value.visitDate.ifBlank { resolveVisitDate() }
 
             // 2. Crear o recuperar la stop_visit y escribir el informe en ella
             val routeUidForVisit = _ui.value.stop?.routeUid
@@ -202,6 +264,8 @@ class VisitaViewModel @Inject constructor(
                     checkOutTs   = checkOutTs,
                     gpsLatVisit  = gpsPos?.latitude  ?: existing.gpsLatVisit,
                     gpsLngVisit  = gpsPos?.longitude ?: existing.gpsLngVisit,
+                    gpsLatIn     = _ui.value.entryLat ?: existing.gpsLatIn,
+                    gpsLngIn     = _ui.value.entryLng ?: existing.gpsLngIn,
                 ))
                 existing.uid
             } else null
@@ -290,18 +354,6 @@ class VisitaViewModel @Inject constructor(
                     _ui.update { it.copy(photos = existingUris) }
                 }
             }
-        }
-    }
-
-    private fun loadExistingKpiValues() {
-        viewModelScope.launch {
-            // KPIs son acumulativos: cada visita guarda el total vigente del PDV.
-            // Al abrir el formulario, mostramos el ÚLTIMO total acumulado conocido
-            // (la visita más reciente), no un valor aleatorio entre visitas.
-            // El agente verá ese número y lo incrementará si corresponde.
-            val existing = kpiValueDao.getLastTotalsByStop(stopUid)
-                .associate { it.kpiId to it.valueText }
-            _ui.update { it.copy(kpiValues = it.kpiValues + existing) }
         }
     }
 

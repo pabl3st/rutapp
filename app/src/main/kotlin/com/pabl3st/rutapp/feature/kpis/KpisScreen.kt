@@ -105,10 +105,18 @@ fun KpisScreen(
 
             // ── Selector de período ───────────────────────────
             item {
-                PeriodSelector(
-                    active   = ui.activePeriod,
-                    onSelect = vm::setPeriod,
-                )
+                Column {
+                    PeriodSelector(
+                        active   = ui.activePeriod,
+                        onSelect = vm::setPeriod,
+                    )
+                    if (ui.activePeriod == KpiPeriod.MONTH) {
+                        MonthSwitcher(
+                            month   = ui.selectedMonth,
+                            onShift = vm::shiftMonth,
+                        )
+                    }
+                }
             }
 
             // ── Filtro por ruta ───────────────────────────────
@@ -369,6 +377,30 @@ fun KpisScreen(
     }
 }
 
+// ── Navegador de meses (historial: cada mes queda guardado) ───
+@Composable
+private fun MonthSwitcher(
+    month:   java.time.YearMonth,
+    onShift: (Int) -> Unit,
+) {
+    val label = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es")))
+        .replaceFirstChar { it.uppercase() }
+    val isCurrent = month >= java.time.YearMonth.now()
+    Row(
+        modifier              = Modifier.fillMaxWidth(),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        IconButton(onClick = { onShift(-1) }) {
+            Icon(Icons.Default.ChevronLeft, contentDescription = "Mes anterior")
+        }
+        Text(label, style = MaterialTheme.typography.titleSmall)
+        IconButton(onClick = { onShift(1) }, enabled = !isCurrent) {
+            Icon(Icons.Default.ChevronRight, contentDescription = "Mes siguiente")
+        }
+    }
+}
+
 // ── Selector de período ───────────────────────────────────────
 @Composable
 private fun PeriodSelector(
@@ -378,7 +410,7 @@ private fun PeriodSelector(
     val periods = listOf(
         KpiPeriod.TODAY      to "Hoy",
         KpiPeriod.WEEK       to "7 días",
-        KpiPeriod.MONTH      to "30 días",
+        KpiPeriod.MONTH      to "Mes",
         KpiPeriod.SIX_MONTHS to "6 meses",
     )
     Row(

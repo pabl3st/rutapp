@@ -236,6 +236,8 @@ data class StopVisitDto(
     @Json(name = "check_out_ts")  val checkOutTs: Long? = null,
     @Json(name = "gps_lat_visit") val gpsLatVisit: Double? = null,
     @Json(name = "gps_lng_visit") val gpsLngVisit: Double? = null,
+    @Json(name = "gps_lat_in")    val gpsLatIn: Double? = null,
+    @Json(name = "gps_lng_in")    val gpsLngIn: Double? = null,
     @Json(name = "created_at")    val createdAt: String,
     @Json(name = "updated_at")    val updatedAt: String,
     @Json(name = "deleted_at")    val deletedAt: String? = null,
@@ -631,6 +633,7 @@ data class AgentTodayRouteDto(
     @Json(name = "done_stops")     val doneStops:     Int = 0,
     @Json(name = "skipped_stops")  val skippedStops:  Int = 0,
     @Json(name = "pending_stops")  val pendingStops:  Int = 0,
+    @Json(name = "visiting_stops") val visitingStops: Int = 0,
 )
 
 @JsonClass(generateAdapter = true)
@@ -657,6 +660,24 @@ data class AgentMonthKpisDto(
     val contactRate:    Float get() = if (done  > 0) contacted.toFloat() / done else 0f
 }
 
+/** Ultima posicion en vivo del gestor (la envia su telefono cada ~15 s en jornada). */
+@JsonClass(generateAdapter = true)
+data class AgentLiveLocationDto(
+    val lat:       Double,
+    val lng:       Double,
+    val accuracy:  Double? = null,
+    @Json(name = "updated_at") val updatedAt: String? = null,
+    @Json(name = "age_sec")    val ageSec:    Long   = 0L,
+)
+
+@JsonClass(generateAdapter = true)
+data class AgentLocationRequest(
+    val lat:      Double,
+    val lng:      Double,
+    val accuracy: Double? = null,
+    @Json(name = "route_uid") val routeUid: String? = null,
+)
+
 @JsonClass(generateAdapter = true)
 data class AgentDetailResponse(
     val ok:             Boolean,
@@ -665,6 +686,7 @@ data class AgentDetailResponse(
     @Json(name = "today_routes")   val todayRoutes:   List<AgentTodayRouteDto> = emptyList(),
     @Json(name = "recent_visits")  val recentVisits:  List<AgentRecentVisitDto> = emptyList(),
     @Json(name = "month_kpis")     val monthKpis:     AgentMonthKpisDto?   = null,
+    @Json(name = "live_location")  val liveLocation:  AgentLiveLocationDto? = null,
 )
 
 interface RutasApiService {
@@ -781,6 +803,14 @@ interface RutasApiService {
         @Header("X-Auth-Token") token: String,
         @Query("user_id")       userId: Int,
     ): retrofit2.Response<AgentDetailResponse>
+
+    /** El gestor envia su posicion en vivo mientras tiene la jornada en curso. */
+    @POST(API_PATH)
+    suspend fun agentLocation(
+        @Query("action")        action: String = "agent_location",
+        @Header("X-Auth-Token") token: String,
+        @Body body: AgentLocationRequest,
+    ): retrofit2.Response<BaseResponse>
 
     @POST(API_PATH)
     suspend fun clearRoutes(

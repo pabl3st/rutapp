@@ -6,6 +6,7 @@ import com.pabl3st.rutapp.core.BaseViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pabl3st.rutapp.data.local.dao.KpiValueDao
+import com.pabl3st.rutapp.data.local.dao.KpiValueWithDate
 import com.pabl3st.rutapp.data.local.entity.KpiDefinitionEntity
 import com.pabl3st.rutapp.data.local.entity.KpiValueEntity
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
@@ -105,6 +106,8 @@ data class KpisUiState(
     val availableAgents:   List<AgentOverviewDto> = emptyList(),
     val selectedAgentId:   Int?                   = null,   // null = yo mismo
     val selectedAgentName: String?                = null,
+    // Mes natural consultado en el periodo MONTH (historial: meses anteriores)
+    val selectedMonth:     java.time.YearMonth    = java.time.YearMonth.now(),
 )
 
 // ─────────────────────────────────────────────────────────────
@@ -168,6 +171,15 @@ class KpisViewModel @Inject constructor(
         recalculate(period)
     }
 
+    /** Mes anterior/siguiente (no pasa del mes actual). Recalcula local y servidor. */
+    fun shiftMonth(delta: Int) {
+        val next = _ui.value.selectedMonth.plusMonths(delta.toLong())
+        if (next.isAfter(java.time.YearMonth.now())) return
+        _ui.update { it.copy(selectedMonth = next) }
+        recalculate(_ui.value.activePeriod)
+        if (_ui.value.isManager) loadServerStats(next.toString())
+    }
+
     fun setRouteFilter(routeUid: String?) {
         _ui.update { it.copy(selectedRouteUid = routeUid) }
         recalculate(_ui.value.activePeriod)
@@ -203,7 +215,7 @@ class KpisViewModel @Inject constructor(
             val inPeriod = when (period) {
                 KpiPeriod.TODAY      -> isRouteActiveOn(route, today)
                 KpiPeriod.WEEK       -> isRouteActiveInRange(route, today.minusDays(6), today)
-                KpiPeriod.MONTH      -> isRouteActiveInRange(route, today.minusDays(29), today)
+                KpiPeriod.MONTH      -> isRouteActiveInRange(route, _ui.value.selectedMonth.atDay(1), _ui.value.selectedMonth.atEndOfMonth())
                 KpiPeriod.SIX_MONTHS -> isRouteActiveInRange(route, today.minusDays(179), today)
             }
             val inRoute = _ui.value.selectedRouteUid?.let { it == route.uid } ?: true
@@ -292,8 +304,18 @@ class KpisViewModel @Inject constructor(
         // buildSectorKpis + Plus lógica — en coroutine separada (suspend)
         viewModelScope.launch {
             val stopUids = stops.map { it.uid }
-            val sectorKpis = buildSectorKpis(stopUids)
-            val (plusCount, plusLlCount, totalTelco) = calcPlusMetrics(stopUids)
+            // Rango de fechas del periodo (los KPIs son totales acumulados del MES:
+            // por PDV y KPI cuenta solo el valor mas reciente de cada mes).
+            val selMonth = _ui.value.selectedMonth
+            val (rFrom, rTo) = when (period) {
+                KpiPeriod.TODAY      -> today to today
+                KpiPeriod.WEEK       -> today.minusDays(6) to today
+                KpiPeriod.MONTH      -> selMonth.atDay(1) to selMonth.atEndOfMonth()
+                KpiPeriod.SIX_MONTHS -> today.minusDays(179) to today
+            }
+            val latest = monthlyLatest(stopUids, rFrom.format(fmt), rTo.format(fmt))
+            val sectorKpis = buildSectorKpis(latest)
+            val (plusCount, plusLlCount, totalTelco) = calcPlusMetrics(latest)
             _ui.update { it.copy(
                 sectorKpis = sectorKpis,
                 metrics    = _ui.value.metrics.copy(
@@ -311,20 +333,20 @@ class KpisViewModel @Inject constructor(
      * PlusLL: telco_plus boolean = true
      * Returns Triple(plusCount, plusLlCount, totalTelcoStops)
      */
-    private suspend fun calcPlusMetrics(stopUids: List<String>): Triple<Int, Int, Int> {
-        if (stopUids.isEmpty()) return Triple(0, 0, 0)
+    private suspend fun calcPlusMetrics(latest: List<KpiValueWithDate>): Triple<Int, Int, Int> {
+        if (latest.isEmpty()) return Triple(0, 0, 0)
         val profile = profileRepo.getOrCreateProfile()
         if (profile.sector != "telco") return Triple(0, 0, 0)
 
-        val allValues = kpiValueDao.getByStops(stopUids)
-        val byStop = allValues.groupBy { it.stopUid }
+        val byStop = latest.groupBy { it.stopUid }
 
         var plusCount  = 0
         var plusLlCount = 0
         var telcoCount = 0
 
         for ((_, values) in byStop) {
-            val kpiMap = values.associateBy { it.kpiId }
+            // Un PDV Plus lo es si su total del periodo (ultimo valor) cumple la regla
+            val kpiMap = values.groupBy { it.kpiId }.mapValues { (_, g) -> g.maxBy { it.visitDate } }
             val activaciones = kpiMap["telco_activaciones"]?.valueText?.toDoubleOrNull() ?: 0.0
             val primerBono   = kpiMap["telco_primer_bono"]?.valueText?.toDoubleOrNull() ?: 0.0
             val isPlus       = kpiMap["telco_plus"]?.valueText == "true"
@@ -340,10 +362,20 @@ class KpisViewModel @Inject constructor(
         return Triple(plusCount, plusLlCount, telcoCount)
     }
 
-    private suspend fun buildSectorKpis(
-        stopUids: List<String>
-    ): List<Triple<KpiDefinitionEntity, String, Boolean>> {
+    /** Por (PDV, KPI, mes) deja solo la fila de la visita mas reciente: los KPIs
+     *  son acumulados del mes, no incrementos que se sumen entre si. */
+    private suspend fun monthlyLatest(stopUids: List<String>, from: String, to: String): List<KpiValueWithDate> {
         if (stopUids.isEmpty()) return emptyList()
+        val rows = stopUids.chunked(500).flatMap { kpiValueDao.getWithDates(it, from, to) }
+        return rows
+            .groupBy { Triple(it.stopUid, it.kpiId, it.visitDate.take(7)) }
+            .map { (_, g) -> g.maxBy { it.visitDate } }
+    }
+
+    private suspend fun buildSectorKpis(
+        latest: List<KpiValueWithDate>
+    ): List<Triple<KpiDefinitionEntity, String, Boolean>> {
+        if (latest.isEmpty()) return emptyList()
         val profile = profileRepo.getOrCreateProfile()
         val kpiDefs = profileRepo.getVisibleKpisForSector(profile.sector)
             .filter { it.type == "number" || it.type == "boolean" }
@@ -351,9 +383,7 @@ class KpisViewModel @Inject constructor(
 
         if (kpiDefs.isEmpty()) return emptyList()
 
-        // Carga todos los kpi_values del período en una sola query (eficiente)
-        val allValues = kpiValueDao.getByStops(stopUids)
-        val byKpi = allValues.groupBy { it.kpiId }
+        val byKpi = latest.groupBy { it.kpiId }
 
         return kpiDefs.mapNotNull { def ->
             val values = byKpi[def.id] ?: return@mapNotNull null
@@ -376,7 +406,7 @@ class KpisViewModel @Inject constructor(
     }
 
     // ── Stats del servidor (manager/owner) ───────────────────
-    private fun loadServerStats(month: String = java.time.YearMonth.now().toString()) {
+    private fun loadServerStats(month: String = _ui.value.selectedMonth.toString()) {
         viewModelScope.launch {
             _ui.update { it.copy(isLoadingServer = true) }
             val token = session.token ?: run {

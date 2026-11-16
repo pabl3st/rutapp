@@ -233,6 +233,27 @@ Screen.Importar        // importar
 - RouteMapScreen: "Visitado" en lugar de km para stops done
 - JornadaBar: reabrir jornada finalizada con AlertDialog
 
+
+### S24 — COMPLETADO ✅ (Estado por fecha, KPIs mensuales, equipo y GPS en vivo)
+- Estado por FECHA: lo manda la `stop_visit` de esa fecha, NUNCA el espejo `stop.status`/`route.status`
+  (StopCard modo fecha, Home, Jornada, Calendario, team_overview y agent_detail). `assignDate` resetea `done`->`pending`.
+- KPIs = TOTAL ACUMULADO DEL MES por PDV. Formulario: prerrellena con el ultimo valor del mismo mes natural
+  (`getMonthTotalsByStop`), editable; visita ya hecha muestra sus valores. Stats (cliente y `stats_month`):
+  por (PDV, KPI, mes) cuenta solo el valor de la visita mas reciente (12, no 6+12). Sin borrados el dia 1:
+  el reinicio sale de filtrar por mes; KpisScreen tiene selector de mes (historial).
+- Supervisores (manager/admin/owner/god): formulario SOLO LECTURA y solo si la visita esta completada
+  (totales, GPS entrada/salida, tiempo de check-in). Solo el gestor (agent) usa JornadaBar.
+- Visita "en curso" (`visiting`) al abrir el formulario el gestor. GPS de entrada: Room v18 (`gpsLatIn/gpsLngIn`)
+  + columnas `gps_lat_in/gps_lng_in` en servidor.
+- Jerarquia en "Mi equipo": owner->admins, admin->supervisores (y gestores directos), manager->gestores.
+- GPS en vivo: `LocationForegroundService` envia `agent_location` cada >=15 s; tabla `agent_locations`;
+  `team_overview`/`agent_detail` devuelven la ultima posicion (`live_location`); AgentDetail refresca cada 15 s.
+- SQL a ejecutar en phpMyAdmin: `rutasproapk/migration_v19_gps_entrada_live_estado.sql` (idempotente).
+
+### ERROR 33: fallback al espejo del stop con modelo por fechas
+`visit?.status ?: stop.status` hace que una visita antigua (agosto) marque como completada una fecha nueva.
+Con fecha seleccionada, la ausencia de visita significa "pendiente", nunca "usar el espejo".
+
 ### PENDIENTES ⏳
 
 ### GRUPOS UX A-D — COMPLETADOS ✅ (builds 74-89)

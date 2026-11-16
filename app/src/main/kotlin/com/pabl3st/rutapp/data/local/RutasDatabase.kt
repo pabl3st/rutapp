@@ -36,7 +36,7 @@ import com.pabl3st.rutapp.data.local.entity.VisitPhotoEntity
         KpiValueEntity::class,
         VisitPhotoEntity::class,
     ],
-    version      = 17,
+    version      = 18,
     exportSchema = false,
 )
 abstract class RutasDatabase : RoomDatabase() {
@@ -305,6 +305,14 @@ abstract class RutasDatabase : RoomDatabase() {
                     WHERE deletedAt IS NULL
                       AND (visitedAt IS NOT NULL OR status != 'pending' OR dateAssigned IS NOT NULL)
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // GPS de ENTRADA de la visita (el de salida ya existia: gpsLatVisit/gpsLngVisit)
+                db.execSQL("ALTER TABLE stop_visits ADD COLUMN gpsLatIn REAL")
+                db.execSQL("ALTER TABLE stop_visits ADD COLUMN gpsLngIn REAL")
             }
         }
 

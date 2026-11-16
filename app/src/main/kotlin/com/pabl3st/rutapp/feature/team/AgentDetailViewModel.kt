@@ -28,7 +28,20 @@ class AgentDetailViewModel @Inject constructor(
     private val _ui = MutableStateFlow(AgentDetailUiState())
     val ui: StateFlow<AgentDetailUiState> = _ui.asStateFlow()
 
-    init { load() }
+    init { load(); startLivePolling() }
+
+    /** Posicion en vivo: refresco silencioso cada 15 s mientras la pantalla esta abierta. */
+    private fun startLivePolling() {
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(15_000L)
+                if (!_ui.value.isLoading) {
+                    teamRepo.agentDetail(agentId)
+                        .onSuccess { detail -> _ui.update { it.copy(detail = detail) } }
+                }
+            }
+        }
+    }
 
     fun load() {
         viewModelScope.launch {

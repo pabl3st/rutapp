@@ -11,7 +11,10 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.pabl3st.rutapp.MainActivity
 import com.pabl3st.rutapp.R
+import com.pabl3st.rutapp.data.network.AgentLocationRequest
+import com.pabl3st.rutapp.data.network.RutasApiService
 import com.pabl3st.rutapp.data.repository.JornadaRepository
+import com.pabl3st.rutapp.data.session.SessionManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +36,8 @@ class LocationForegroundService : Service() {
 
     @Inject lateinit var locationMgr:  LocationManager
     @Inject lateinit var jornadaRepo:  JornadaRepository
+    @Inject lateinit var api:          RutasApiService
+    @Inject lateinit var session:      SessionManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -73,11 +78,33 @@ class LocationForegroundService : Service() {
     private fun startTracking(routeUid: String) {
         val dateStr = jornadaRepo.todayStr()
         serviceScope.launch {
+            var lastPing = 0L
             locationMgr.locationUpdates(
                 intervalMs  = 10_000L,   // cada 10 segundos
                 minDistance = 20f,        // mínimo 20 metros de movimiento
             ).collect { loc ->
                 jornadaRepo.updateGps(routeUid, dateStr, loc.latitude, loc.longitude)
+
+                // Posicion en vivo para supervisores: como mucho 1 envio cada 15 s.
+                // Si falla la red se ignora; el siguiente punto lo reintenta.
+                val now = System.currentTimeMillis()
+                if (now - lastPing >= 15_000L) {
+                    lastPing = now
+                    val token = session.token
+                    if (!token.isNullOrBlank()) {
+                        runCatching {
+                            api.agentLocation(
+                                token = token,
+                                body  = AgentLocationRequest(
+                                    lat      = loc.latitude,
+                                    lng      = loc.longitude,
+                                    accuracy = if (loc.hasAccuracy()) loc.accuracy.toDouble() else null,
+                                    routeUid = routeUid,
+                                ),
+                            )
+                        }
+                    }
+                }
             }
         }
     }

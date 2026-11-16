@@ -35,6 +35,7 @@ object DatabaseModule {
                 RutasDatabase.MIGRATION_14_15,
                 RutasDatabase.MIGRATION_15_16,
                 RutasDatabase.MIGRATION_16_17,
+                RutasDatabase.MIGRATION_17_18,
             )
             .build()
 
