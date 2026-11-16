@@ -51,6 +51,8 @@ fun PerfilScreen(
     onNavigateToCalendario:      () -> Unit = {},
     onNavigateToAdmin:           () -> Unit = {},
     onNavigateToTeam:            (() -> Unit)? = null,
+    onNavigateToBiblioteca:      (() -> Unit)? = null,
+    onNavigateToImportar:        (() -> Unit)? = null,
     vm:      PerfilViewModel  = hiltViewModel(),
     themeVm: ThemeViewModel   = hiltViewModel(),
 ) {
@@ -109,6 +111,38 @@ fun PerfilScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(Spacing.xs))
                         RolChip(ui.role)
+                    }
+                }
+            }
+
+            // ── Accesos rapidos (supervisores) ─────────────────
+            if (onNavigateToTeam != null) {
+                SectionTitle("Accesos rápidos")
+                val shortcuts = listOfNotNull(
+                    Triple(Icons.Default.Groups, "Mi equipo", onNavigateToTeam),
+                    onNavigateToBiblioteca?.let { Triple(Icons.Default.LocalLibrary, "Biblioteca de paradas", it) },
+                    onNavigateToImportar?.let { Triple(Icons.Default.UploadFile, "Importar CSV", it) },
+                    Triple(Icons.Default.Tune, "Negocio y KPIs", onNavigateToBusinessProfile),
+                )
+                shortcuts.chunked(2).forEach { rowItems ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                        rowItems.forEach { (icon, label, action) ->
+                            Card(
+                                onClick  = action,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(Spacing.lg),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                ) {
+                                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+                                    Text(label, style = MaterialTheme.typography.labelLarge,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                }
+                            }
+                        }
+                        if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }

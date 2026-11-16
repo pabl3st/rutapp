@@ -465,6 +465,12 @@ fun RutasNavGraph(
                     onNavigateToTeam = if (UserRole.from(userRole).canViewTeam) {
                         { navController.navigate(Screen.Team.createRoute()) }
                     } else null,
+                    onNavigateToBiblioteca = if (UserRole.from(userRole).canReassignRoutes) {
+                        { navController.navigate(Screen.Biblioteca.route) }
+                    } else null,
+                    onNavigateToImportar = if (UserRole.from(userRole).canReassignRoutes) {
+                        { navController.navigate(Screen.Importar.route) }
+                    } else null,
                 )
             }
 

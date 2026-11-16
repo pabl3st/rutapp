@@ -130,6 +130,10 @@ fun KpisScreen(
                 }
             }
 
+            // ── Equipo (manager+): primero ────────────────────
+            teamBlock(ui)
+            if (ui.isManager) item { SectionTitle("Mis visitas") }
+
             // ── Métricas principales (2x2 grid) ───────────────
             item {
                 Text(
@@ -329,48 +333,6 @@ fun KpisScreen(
                 }
             }
 
-            // ── Equipo este mes (solo manager/owner) ──────────
-            if (ui.isManager) {
-                item {
-                    Spacer(Modifier.height(Spacing.sm))
-                    SectionTitle("Equipo este mes")
-                }
-                if (ui.isLoadingServer) {
-                    item {
-                        Box(
-                            Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
-                            contentAlignment = androidx.compose.ui.Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                        }
-                    }
-                } else {
-                    ui.serverStats?.let { sv -> item { TeamSummaryCard(sv) } }
-                    if (ui.serverAgents.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Por agente",
-                                style    = MaterialTheme.typography.labelSmall,
-                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp),
-                            )
-                        }
-                        items(ui.serverAgents) { agent -> AgentRow(agent) }
-                    }
-                    if (ui.serverKpis.isNotEmpty()) {
-                        item {
-                            Text(
-                                "KPIs del equipo",
-                                style    = MaterialTheme.typography.labelSmall,
-                                color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            )
-                        }
-                        items(ui.serverKpis) { kpi -> ServerKpiRow(kpi) }
-                    }
-                }
-            }
-
             // Padding inferior
             item { Spacer(Modifier.height(Spacing.xl)) }
         }
@@ -378,6 +340,52 @@ fun KpisScreen(
 }
 
 // ── Navegador de meses (historial: cada mes queda guardado) ───
+/** Equipo este mes: primero para el supervisor (su pregunta es "como va mi equipo"). */
+private fun androidx.compose.foundation.lazy.LazyListScope.teamBlock(ui: KpisUiState) {
+    if (ui.isManager) {
+        item {
+            Spacer(Modifier.height(Spacing.sm))
+            SectionTitle("Equipo este mes")
+        }
+        if (ui.isLoadingServer) {
+            item {
+                Box(
+                    Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            }
+        } else {
+            ui.serverStats?.let { sv -> item { TeamSummaryCard(sv) } }
+            if (ui.serverAgents.isNotEmpty()) {
+                item {
+                    Text(
+                        "Por agente",
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+                items(ui.serverAgents.sortedByDescending { a ->
+                if (a.totalStops > 0) a.doneStops.toFloat() / a.totalStops else -1f
+            }) { agent -> AgentRow(agent) }
+            }
+            if (ui.serverKpis.isNotEmpty()) {
+                item {
+                    Text(
+                        "KPIs del equipo",
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    )
+                }
+                items(ui.serverKpis) { kpi -> ServerKpiRow(kpi) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MonthSwitcher(
     month:   java.time.YearMonth,
