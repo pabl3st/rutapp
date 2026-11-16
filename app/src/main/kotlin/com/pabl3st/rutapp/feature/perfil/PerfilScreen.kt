@@ -122,9 +122,7 @@ fun PerfilScreen(
                     Triple(Icons.Default.Groups, "Mi equipo", onNavigateToTeam),
                     onNavigateToBiblioteca?.let { Triple(Icons.Default.LocalLibrary, "Biblioteca de paradas", it) },
                     onNavigateToImportar?.let { Triple(Icons.Default.UploadFile, "Importar CSV", it) },
-                    if (UserRole.from(ui.role).canEditBusinessProfile)
-                        Triple(Icons.Default.Tune, "Negocio y KPIs", onNavigateToBusinessProfile)
-                    else null,
+                    Triple(Icons.Default.Tune, "Negocio y KPIs", onNavigateToBusinessProfile),
                 )
                 shortcuts.chunked(2).forEach { rowItems ->
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {

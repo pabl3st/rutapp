@@ -42,7 +42,7 @@ enum class UserRole(val key: String, val level: Int) {
     val canEditStops: Boolean get() = level >= MANAGER.level
 
     /** Puede configurar perfil de negocio (sector, KPIs) */
-    val canEditBusinessProfile: Boolean get() = level >= ADMIN.level || this == GOD
+    val canEditBusinessProfile: Boolean get() = level >= MANAGER.level
 
     /** Puede ver el God Dashboard */
     val isGod: Boolean get() = this == GOD
