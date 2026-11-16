@@ -85,12 +85,24 @@ fun KpisScreen(
             return@Scaffold
         }
 
+        var detailOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
         LazyColumn(
             modifier        = Modifier.fillMaxSize().padding(padding),
             contentPadding  = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
 
+            // ── Equipo (manager+): primero ────────────────────
+            teamBlock(ui)
+            if (ui.isManager) {
+                item {
+                    OutlinedButton(onClick = { detailOpen = !detailOpen }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (detailOpen) "Ocultar detalle" else "Ver detalle (visitas, GPS, rutas, KPIs)")
+                    }
+                }
+            }
+            val showDetail = !ui.isManager || detailOpen
+            if (showDetail) {
             // ── Selector de período ───────────────────────────
             item {
                 Column {
@@ -107,9 +119,6 @@ fun KpisScreen(
                 }
             }
 
-            // ── Equipo (manager+): primero ────────────────────
-            teamBlock(ui)
-            if (ui.isManager) item { SectionTitle("Detalle") }
             // ── Selector de agente (solo manager/admin/owner) ──
             if (ui.availableAgents.isNotEmpty()) {
                 item {
@@ -316,7 +325,10 @@ fun KpisScreen(
             }
 
             // ── KPIs del sector activo ────────────────────────
-            if (ui.sectorKpis.isEmpty() && !ui.isLoading) {
+            val teamKpisShown = ui.isManager && ui.selectedAgentId == null && ui.serverKpis.isNotEmpty()
+            if (teamKpisShown) {
+                // ya se muestran arriba los del equipo
+            } else if (ui.sectorKpis.isEmpty() && !ui.isLoading) {
                 item {
                     EmptyStateBox(
                         icon        = Icons.Default.BarChart,
@@ -332,6 +344,8 @@ fun KpisScreen(
                     SectorKpisGrid(sectorKpis = ui.sectorKpis)
                 }
             }
+
+            } // showDetail
 
             // Padding inferior
             item { Spacer(Modifier.height(Spacing.xl)) }
