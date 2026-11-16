@@ -49,6 +49,8 @@ data class HomeUiState(
     // Estado del equipo hoy (team_overview) para la vista de manager
     val team:           List<com.pabl3st.rutapp.data.network.AgentOverviewDto> = emptyList(),
     val teamLoading:    Boolean = false,
+    /** Gestores a los que ya se ha avisado en esta sesion (para mostrar "Enviado"). */
+    val nudgedIds:      Set<Int> = emptySet(),
     val error:          String? = null,
 )
 
@@ -64,6 +66,8 @@ class HomeViewModel @Inject constructor(
     private val teamRepo:    com.pabl3st.rutapp.data.repository.TeamRepository,
     private val session:     SessionManager,
     private val workManager: WorkManager,
+    val mapProvider:         com.pabl3st.rutapp.core.map.MapProvider,
+    val mapConfig:           com.pabl3st.rutapp.core.map.MapConfig,
 ) : BaseViewModel() {
 
     private val _ui = MutableStateFlow(
@@ -98,6 +102,16 @@ class HomeViewModel @Inject constructor(
                 is AuthResult.Success -> _ui.update { it.copy(teamMembers = res.data) }
                 else -> Unit  // sin team data, ManagerTeamSummary cae a lista plana
             }
+        }
+    }
+
+    /** Push al gestor que no ha iniciado jornada. */
+    fun nudge(userId: Int) {
+        if (userId in _ui.value.nudgedIds) return
+        viewModelScope.launch {
+            teamRepo.nudgeAgent(userId)
+                .onSuccess { _ui.update { it.copy(nudgedIds = it.nudgedIds + userId) } }
+                .onFailure { e -> _ui.update { it.copy(error = e.message ?: "No se pudo enviar el aviso") } }
         }
     }
 

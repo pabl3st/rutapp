@@ -122,6 +122,46 @@ fun HomeScreen(
                 onRouteClick = onRouteClick,
                 onStopClick  = onStopClick,
                 onAgentClick = onAgentClick,
+                onNudge      = vm::nudge,
+                liveMap      = { agents, onPick ->
+                    val markers = remember(agents) {
+                        agents.filter { it.lastLat != null && it.lastLng != null }.map { a ->
+                            com.pabl3st.rutapp.core.map.StopMapMarker(
+                                uid           = a.userId.toString(),
+                                name          = a.name.substringBefore(' ') + if (a.jornadaState == null) " · sin iniciar" else "",
+                                externalId    = null,
+                                latLng        = com.pabl3st.rutapp.core.map.MapLatLng(a.lastLat!!, a.lastLng!!),
+                                // en ruta = verde, en pausa = ambar, sin jornada = gris
+                                status        = when { a.isActive -> "done"; a.isPaused -> "visiting"; else -> "skipped" },
+                                distanceLabel = "",
+                                orderIndex    = 0,
+                            )
+                        }
+                    }
+                    if (markers.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Nadie ha enviado posición todavía",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        vm.mapProvider.MapView(
+                            modifier     = Modifier.fillMaxSize(),
+                            config       = vm.mapConfig.copy(
+                                routeUid = "team_live",
+                                markers  = vm.mapConfig.markers.copy(
+                                    style = com.pabl3st.rutapp.core.map.MarkerStyle.DOT,
+                                    showExternalId = false),
+                                cluster  = vm.mapConfig.cluster.copy(enabled = false),
+                            ),
+                            stops        = markers,
+                            userLocation = null,
+                            onStopClick  = { id -> agents.firstOrNull { it.userId.toString() == id }?.let(onPick) },
+                            onMapClick   = {},
+                            onCameraIdle = { _, _ -> },
+                        )
+                    }
+                },
             )
         }
     }
@@ -135,8 +175,12 @@ private fun RouteListContent(
     onRouteClick: (String) -> Unit,
     onStopClick:  (String) -> Unit = {},
     onAgentClick: (com.pabl3st.rutapp.data.network.AgentOverviewDto) -> Unit = {},
+    onNudge:      (Int) -> Unit = {},
+    liveMap:      @Composable (List<com.pabl3st.rutapp.data.network.AgentOverviewDto>,
+                               (com.pabl3st.rutapp.data.network.AgentOverviewDto) -> Unit) -> Unit = { _, _ -> },
 ) {
     val teamView = ui.isManager && UserRole.from(ui.userRole) != UserRole.GOD
+    var hoyMap by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var hoyFilter by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("todos") }
     LazyColumn(
         modifier            = modifier.fillMaxSize(),
@@ -148,6 +192,9 @@ private fun RouteListContent(
             managerHoyItems(
                 team = ui.team, loading = ui.teamLoading, onAgentClick = onAgentClick,
                 filter = hoyFilter, onFilter = { hoyFilter = it },
+                nudgedIds = ui.nudgedIds, onNudge = { onNudge(it.userId) },
+                showMap = hoyMap, onShowMap = { hoyMap = it },
+                liveMap = { agents -> liveMap(agents, onAgentClick) },
             )
         } else {
         // ── Stats del día (agente) ────────────────────────────

@@ -790,6 +790,13 @@ interface RutasApiService {
         @Body body: Map<String, @JvmSuppressWildcards Any>,
     ): retrofit2.Response<BaseResponse>
 
+    @POST(API_PATH)
+    suspend fun nudgeAgent(
+        @Query("action")        action: String = "nudge_agent",
+        @Header("X-Auth-Token") token: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any>,
+    ): retrofit2.Response<BaseResponse>
+
     @GET(API_PATH)
     suspend fun teamOverview(
         @Query("action")        action: String = "team_overview",

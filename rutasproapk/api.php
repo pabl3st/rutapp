@@ -2609,6 +2609,44 @@ function fetchLiveLocations(array $userIds): array {
     }
 }
 
+// ─── nudge_agent: el supervisor avisa a un gestor (p.ej. jornada sin iniciar) ──
+// Solo manager+ y solo a personas de su subarbol. Maximo 1 aviso cada 5 min por gestor.
+if ($action === 'nudge_agent') {
+    $sess = requireAuth();
+    $uid  = (int)$sess['uid'];
+    $aid  = (int)$sess['account_id'];
+    if (roleLevel($sess['role']) < 3) err('Sin permisos', 403);
+
+    $targetId = (int)($body['user_id'] ?? 0);
+    if (!$targetId) err('user_id requerido');
+    $descendants = getDescendantUserIds($uid, $aid);
+    if (!in_array($targetId, $descendants, true)) err('No puedes avisar a ese usuario', 403);
+
+    $kind = san($body['kind'] ?? 'jornada', 20);
+    $texts = [
+        'jornada' => ['Jornada pendiente', ($sess['name'] ?? 'Tu supervisor') . ' te recuerda iniciar la jornada.'],
+    ];
+    $msg = $texts[$kind] ?? $texts['jornada'];
+
+    // Antirrebote sin tabla nueva: un fichero de bloqueo por supervisor+gestor
+    $lock = sys_get_temp_dir() . '/nudge_' . $uid . '_' . $targetId;
+    if (is_file($lock) && (time() - filemtime($lock)) < 300) {
+        ok(['sent' => false, 'throttled' => true]);
+    }
+    @touch($lock);
+
+    try {
+        pushToUser($targetId, [
+            'type'  => 'nudge',
+            'title' => $msg[0],
+            'body'  => $msg[1],
+        ]);
+    } catch (Throwable $e) { /* el aviso no debe romper la respuesta */ }
+
+    apiLog($action, $uid, $aid);
+    ok(['sent' => true]);
+}
+
 // ─── S20: team_overview ────────────────────────────────────────────────────
 if ($action === 'team_overview') {
     $sess = requireAuth();

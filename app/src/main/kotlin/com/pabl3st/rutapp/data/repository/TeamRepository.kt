@@ -28,6 +28,14 @@ class TeamRepository @Inject constructor(
         resp.body()?.agents ?: emptyList()
     }
 
+    /** Avisa por push a un gestor (jornada sin iniciar). El servidor aplica antirrebote de 5 min. */
+    suspend fun nudgeAgent(userId: Int): Result<Boolean> = runCatching {
+        val token = session.token ?: error("Sin sesión activa")
+        val resp  = api.nudgeAgent(token = token, body = mapOf("user_id" to userId, "kind" to "jornada"))
+        if (!resp.isSuccessful) error("Error del servidor: ${resp.code()}")
+        resp.body()?.let { it.ok } ?: false
+    }
+
     /** Detalle completo de un agente — jornada, rutas de hoy, visitas recientes, KPIs del mes. */
     suspend fun agentDetail(userId: Int): Result<AgentDetailResponse> = runCatching {
         val token = session.token ?: error("Sin sesión activa")

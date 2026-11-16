@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,6 +30,11 @@ fun LazyListScope.managerHoyItems(
     onAgentClick: (AgentOverviewDto) -> Unit,
     filter:       String = "todos",
     onFilter:     (String) -> Unit = {},
+    nudgedIds:    Set<Int> = emptySet(),
+    onNudge:      (AgentOverviewDto) -> Unit = {},
+    showMap:      Boolean = false,
+    onShowMap:    (Boolean) -> Unit = {},
+    liveMap:      @Composable (List<AgentOverviewDto>) -> Unit = {},
 ) {
     val withRoute = team.filter { it.stopsTotal > 0 }
     val done      = team.sumOf { it.stopsDone }
@@ -67,13 +73,44 @@ fun LazyListScope.managerHoyItems(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onTertiaryContainer)
                     }
-                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                    if (a.userId in nudgedIds) {
+                        Text("✓ Enviado", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    } else {
+                        FilledTonalButton(onClick = { onNudge(a) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                            Icon(Icons.Default.NotificationsActive, null, Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Avisar")
+                        }
+                    }
                 }
             }
         }
     }
 
     item(key = "mh_team_title") { HoySectionLabel("EQUIPO HOY — ${team.size} ${if (team.size == 1) "persona" else "personas"}") }
+
+    item(key = "mh_view") {
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(selected = !showMap, onClick = { onShowMap(false) },
+                shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text("Lista") }
+            SegmentedButton(selected = showMap, onClick = { onShowMap(true) },
+                shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text("Mapa en vivo") }
+        }
+    }
+    if (showMap) {
+        item(key = "mh_map") {
+            Column {
+                Box(Modifier.fillMaxWidth().height(340.dp)
+                    .clip(MaterialTheme.shapes.large)) { liveMap(team) }
+                Text("Posición actualizada cada 15 s · toca una persona para ver su detalle",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+    }
 
     item(key = "mh_filters") {
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
