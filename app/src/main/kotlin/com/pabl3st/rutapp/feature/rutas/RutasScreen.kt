@@ -104,11 +104,6 @@ fun RutasScreen(
             } else {
                 TopAppBar(
                     title = { Text("Rutas") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                        }
-                    },
                     actions = {
                         if (ui.isSyncing) {
                             CircularProgressIndicator(
@@ -151,8 +146,11 @@ fun RutasScreen(
                         }
                         // Importar: owner, admin y manager pueden importar rutas
                         if (ui.canCreate) {
-                            IconButton(onClick = onImport) {
-                                Icon(Icons.Default.UploadFile, contentDescription = "Importar CSV")
+                            TextButton(onClick = onImport) {
+                                Icon(Icons.Default.UploadFile, contentDescription = null,
+                                    modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Importar")
                             }
                         }
                     }
@@ -240,14 +238,49 @@ fun RutasScreen(
                     }
                 }
             }
-            else -> LazyColumn(
+            else -> Column(Modifier.fillMaxSize()) {
+            val todayStr = remember { LocalDate.now().toString() }
+            val grouped  = remember(ui.routes) { ui.routes.groupBy { routeTab(it, todayStr) } }
+            val activeTab = ui.tab
+                ?: RutasTab.values().firstOrNull { !grouped[it].isNullOrEmpty() }
+                ?: RutasTab.HOY
+            val shown = grouped[activeTab].orEmpty().let { l ->
+                if (activeTab == RutasTab.HECHAS) l.sortedByDescending { it.dateAssigned }
+                else l.sortedBy { it.allDates().filter { d -> d >= todayStr }.minOrNull() ?: it.dateAssigned }
+            }
+            if (!ui.selectionMode) {
+                ScrollableTabRow(selectedTabIndex = activeTab.ordinal, edgePadding = 8.dp) {
+                    RutasTab.values().forEach { t ->
+                        Tab(
+                            selected = t == activeTab,
+                            onClick  = { vm.selectTab(t) },
+                            text     = { Text("${t.label} ${grouped[t]?.size ?: 0}") },
+                        )
+                    }
+                }
+            }
+            if (shown.isEmpty()) {
+                Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.Center) {
+                    Text(
+                        when (activeTab) {
+                            RutasTab.HOY       -> "No hay rutas programadas para hoy"
+                            RutasTab.PROXIMAS  -> "No hay rutas programadas a futuro"
+                            RutasTab.SIN_FECHA -> "Todas las rutas tienen fecha"
+                            RutasTab.HECHAS    -> "Aun no hay rutas terminadas"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else LazyColumn(
                 contentPadding = PaddingValues(
                     start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                itemsIndexed(ui.routes, key = { _, r -> r.uid }) { idx, route ->
+                itemsIndexed(shown, key = { _, r -> r.uid }) { idx, route ->
                     val agentName = if (route.userId != ui.currentUserId)
                         ui.teamMembers[route.userId] else null
                     RouteListItem(
@@ -270,6 +303,7 @@ fun RutasScreen(
                     )
                 }
             }
+            } // Column con pestañas
         }
         } // PullToRefreshBox
     }

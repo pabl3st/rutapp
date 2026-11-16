@@ -20,8 +20,30 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
+/** Subpestañas de la lista de rutas. */
+enum class RutasTab(val label: String) {
+    HOY("Hoy"), PROXIMAS("Próximas"), SIN_FECHA("Sin fecha"), HECHAS("Hechas")
+}
+
+/** Todas las fechas en que esta programada una ruta (dateAssigned + scheduledDates). */
+fun RouteEntity.allDates(): List<String> =
+    (listOf(dateAssigned) + (scheduledDates ?: emptyList())).filter { it.isNotBlank() }.distinct()
+
+/** Pestaña a la que pertenece una ruta: depende de sus fechas, no del espejo de estado. */
+fun routeTab(r: RouteEntity, today: String): RutasTab {
+    val dates = r.allDates()
+    return when {
+        today in dates                -> RutasTab.HOY
+        dates.any { it > today }      -> RutasTab.PROXIMAS
+        r.status == "done"            -> RutasTab.HECHAS
+        else                          -> RutasTab.SIN_FECHA
+    }
+}
+
 data class RutasUiState(
     val routes: List<RouteEntity> = emptyList(),
+    /** null = automatica (Hoy si tiene rutas, si no la primera con contenido). */
+    val tab: RutasTab?            = null,
     val isLoading: Boolean        = true,
     val isSyncing: Boolean        = false,
     val showCreateDialog: Boolean = false,
@@ -70,8 +92,23 @@ class RutasViewModel @Inject constructor(
     val ui: StateFlow<RutasUiState> = _ui.asStateFlow()
 
     init {
+        loadTeamNames()
         observeRoutes()
         observePendingCount()
+    }
+
+    fun selectTab(t: RutasTab) = _ui.update { it.copy(tab = t) }
+
+    /** Nombres del equipo para mostrar el comercial asignado en cada tarjeta (manager+). */
+    private fun loadTeamNames() {
+        if (!UserRole.from(session.userRole).canCreateRoutes) return
+        viewModelScope.launch {
+            when (val r = adminRepo.listUsers()) {
+                is com.pabl3st.rutapp.data.repository.AuthResult.Success ->
+                    _ui.update { it.copy(teamMembers = r.data.associate { u -> u.userId to u.displayName }) }
+                else -> Unit
+            }
+        }
     }
 
     private fun observeRoutes() {
