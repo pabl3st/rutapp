@@ -137,6 +137,7 @@ private fun RouteListContent(
     onAgentClick: (com.pabl3st.rutapp.data.network.AgentOverviewDto) -> Unit = {},
 ) {
     val teamView = ui.isManager && UserRole.from(ui.userRole) != UserRole.GOD
+    var hoyFilter by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("todos") }
     LazyColumn(
         modifier            = modifier.fillMaxSize(),
         contentPadding      = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
@@ -144,7 +145,10 @@ private fun RouteListContent(
     ) {
         // ── Manager/admin/owner: estado del equipo hoy ────────
         if (teamView) {
-            managerHoyItems(team = ui.team, loading = ui.teamLoading, onAgentClick = onAgentClick)
+            managerHoyItems(
+                team = ui.team, loading = ui.teamLoading, onAgentClick = onAgentClick,
+                filter = hoyFilter, onFilter = { hoyFilter = it },
+            )
         } else {
         // ── Stats del día (agente) ────────────────────────────
         item {
@@ -190,17 +194,17 @@ private fun RouteListContent(
             }
         }
 
-        // ── Sección rutas ─────────────────────────────────────
-        item {
+        // ── Sección rutas (el supervisor ya ve el estado por persona arriba) ──
+        if (!teamView) item {
             Text(
-                text  = if (teamView) "RUTAS DE HOY DEL EQUIPO" else "RUTAS DE HOY",
+                text  = "RUTAS DE HOY",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.xs),
             )
         }
 
-        items(ui.routes, key = { it.route.uid }) { rwp ->
+        if (!teamView) items(ui.routes, key = { it.route.uid }) { rwp ->
             RouteProgressCard(
                 rwp         = rwp,
                 onClick     = { onRouteClick(rwp.route.uid) },

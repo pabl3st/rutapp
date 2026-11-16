@@ -22,7 +22,7 @@ import javax.inject.Inject
 
 /** Subpestañas de la lista de rutas. */
 enum class RutasTab(val label: String) {
-    HOY("Hoy"), PROXIMAS("Próximas"), SIN_FECHA("Sin fecha"), HECHAS("Hechas")
+    HOY("Hoy"), PROXIMAS("Próximas"), SIN_FECHA("Sin asignar"), HECHAS("Hechas")
 }
 
 /** Todas las fechas en que esta programada una ruta (dateAssigned + scheduledDates). */
@@ -44,6 +44,8 @@ data class RutasUiState(
     val routes: List<RouteEntity> = emptyList(),
     /** null = automatica (Hoy si tiene rutas, si no la primera con contenido). */
     val tab: RutasTab?            = null,
+    /** Filtro por comercial (userId); null = todos. */
+    val agentFilter: Int?         = null,
     val isLoading: Boolean        = true,
     val isSyncing: Boolean        = false,
     val showCreateDialog: Boolean = false,
@@ -98,6 +100,13 @@ class RutasViewModel @Inject constructor(
     }
 
     fun selectTab(t: RutasTab) = _ui.update { it.copy(tab = t) }
+    fun setAgentFilter(id: Int?) = _ui.update { it.copy(agentFilter = id) }
+
+    /** Reasignar una sola ruta: reutiliza el dialogo de reasignacion masiva. */
+    fun reassignOne(uid: String) {
+        enterSelectionMode()
+        _ui.update { it.copy(selectedRouteUids = setOf(uid), showBulkDialog = true, bulkAssigneeId = null, bulkReason = "") }
+    }
 
     /** Nombres del equipo para mostrar el comercial asignado en cada tarjeta (manager+). */
     private fun loadTeamNames() {

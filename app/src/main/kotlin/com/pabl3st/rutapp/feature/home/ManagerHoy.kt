@@ -27,6 +27,8 @@ fun LazyListScope.managerHoyItems(
     team:         List<AgentOverviewDto>,
     loading:      Boolean,
     onAgentClick: (AgentOverviewDto) -> Unit,
+    filter:       String = "todos",
+    onFilter:     (String) -> Unit = {},
 ) {
     val withRoute = team.filter { it.stopsTotal > 0 }
     val done      = team.sumOf { it.stopsDone }
@@ -73,6 +75,18 @@ fun LazyListScope.managerHoyItems(
 
     item(key = "mh_team_title") { HoySectionLabel("EQUIPO HOY — ${team.size} ${if (team.size == 1) "persona" else "personas"}") }
 
+    item(key = "mh_filters") {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            listOf(
+                Triple("todos", "Todos", team.size),
+                Triple("ruta",  "En ruta", inRoute),
+                Triple("sin",   "Sin iniciar", notStarted.size),
+            ).forEach { (k, l, n) ->
+                FilterChip(selected = filter == k, onClick = { onFilter(k) }, label = { Text("$l $n") })
+            }
+        }
+    }
+
     if (team.isEmpty()) {
         item(key = "mh_empty") {
             Card(Modifier.fillMaxWidth()) {
@@ -85,7 +99,12 @@ fun LazyListScope.managerHoyItems(
             }
         }
     } else {
-        items(team, key = { "mh_agent_${it.userId}" }) { a -> HoyAgentCard(a) { onAgentClick(a) } }
+        val shown = when (filter) {
+            "ruta" -> team.filter { it.isActive || it.isPaused }
+            "sin"  -> notStarted
+            else   -> team
+        }
+        items(shown, key = { "mh_agent_${it.userId}" }) { a -> HoyAgentCard(a) { onAgentClick(a) } }
     }
 }
 

@@ -61,7 +61,7 @@ fun KpisScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("KPIs")
+                        Text(if (ui.isManager) "Resultados" else "KPIs")
                         if (ui.selectedAgentName != null) {
                             Text(ui.selectedAgentName!!,
                                 style = MaterialTheme.typography.labelSmall,
@@ -91,18 +91,6 @@ fun KpisScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
 
-            // ── Selector de agente (solo manager/admin/owner) ──
-            if (ui.availableAgents.isNotEmpty()) {
-                item {
-                    AgentSelector(
-                        agents          = ui.availableAgents,
-                        selectedAgentId = ui.selectedAgentId,
-                        selectedAgentName = ui.selectedAgentName,
-                        onSelect        = { id, name -> vm.onAgentSelected(id, name) },
-                    )
-                }
-            }
-
             // ── Selector de período ───────────────────────────
             item {
                 Column {
@@ -119,6 +107,21 @@ fun KpisScreen(
                 }
             }
 
+            // ── Equipo (manager+): primero ────────────────────
+            teamBlock(ui)
+            if (ui.isManager) item { SectionTitle("Detalle") }
+            // ── Selector de agente (solo manager/admin/owner) ──
+            if (ui.availableAgents.isNotEmpty()) {
+                item {
+                    AgentSelector(
+                        agents          = ui.availableAgents,
+                        selectedAgentId = ui.selectedAgentId,
+                        selectedAgentName = ui.selectedAgentName,
+                        onSelect        = { id, name -> vm.onAgentSelected(id, name) },
+                    )
+                }
+            }
+
             // ── Filtro por ruta ───────────────────────────────
             if (ui.routes.size > 1) {
                 item {
@@ -130,9 +133,6 @@ fun KpisScreen(
                 }
             }
 
-            // ── Equipo (manager+): primero ────────────────────
-            teamBlock(ui)
-            if (ui.isManager) item { SectionTitle("Mis visitas") }
 
             // ── Métricas principales (2x2 grid) ───────────────
             item {
@@ -342,46 +342,122 @@ fun KpisScreen(
 // ── Navegador de meses (historial: cada mes queda guardado) ───
 /** Equipo este mes: primero para el supervisor (su pregunta es "como va mi equipo"). */
 private fun androidx.compose.foundation.lazy.LazyListScope.teamBlock(ui: KpisUiState) {
-    if (ui.isManager) {
+    if (!ui.isManager) return
+    item { SectionTitle("Equipo este mes") }
+    if (ui.isLoadingServer) {
         item {
-            Spacer(Modifier.height(Spacing.sm))
-            SectionTitle("Equipo este mes")
+            Box(Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
+                contentAlignment = androidx.compose.ui.Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            }
         }
-        if (ui.isLoadingServer) {
-            item {
-                Box(
-                    Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
-                    contentAlignment = androidx.compose.ui.Alignment.Center,
-                ) {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        return
+    }
+    ui.serverStats?.let { sv -> item { TeamRingCard(sv) } }
+    if (ui.serverAgents.isNotEmpty()) {
+        item { SectionTitle("Por gestor") }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)) {
+                    ui.serverAgents.sortedByDescending { a ->
+                        if (a.totalStops > 0) a.doneStops.toFloat() / a.totalStops else -1f
+                    }.forEachIndexed { i, a ->
+                        if (i > 0) HorizontalDivider()
+                        AgentRankRow(a)
+                    }
                 }
             }
-        } else {
-            ui.serverStats?.let { sv -> item { TeamSummaryCard(sv) } }
-            if (ui.serverAgents.isNotEmpty()) {
-                item {
-                    Text(
-                        "Por agente",
-                        style    = MaterialTheme.typography.labelSmall,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
-                items(ui.serverAgents.sortedByDescending { a ->
-                if (a.totalStops > 0) a.doneStops.toFloat() / a.totalStops else -1f
-            }) { agent -> AgentRow(agent) }
+        }
+    }
+    if (ui.serverKpis.isNotEmpty()) {
+        item { SectionTitle("KPIs del sector") }
+        items(ui.serverKpis.chunked(2)) { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                pair.forEach { k -> KpiTile(k, Modifier.weight(1f)) }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
-            if (ui.serverKpis.isNotEmpty()) {
-                item {
-                    Text(
-                        "KPIs del equipo",
-                        style    = MaterialTheme.typography.labelSmall,
-                        color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
+        }
+    }
+}
+
+@Composable
+private fun TeamRingCard(sv: StatsMonthVisits) {
+    val frac = if (sv.totalStops > 0) sv.doneStops.toFloat() / sv.totalStops else 0f
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    val color = MaterialTheme.colorScheme.primary
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(Spacing.lg), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
+            Box(Modifier.size(104.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 12.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    val inset = 6.dp.toPx()
+                    val sz = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2)
+                    val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+                    drawArc(track, 0f, 360f, false, tl, sz, style = stroke)
+                    drawArc(color, -90f, 360f * frac, false, tl, sz, style = stroke)
                 }
-                items(ui.serverKpis) { kpi -> ServerKpiRow(kpi) }
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    Text("${"%.0f".format(frac * 100)}%", style = MaterialTheme.typography.titleLarge,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold)
+                    Text("completado", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
+            Column {
+                Text("Visitas completadas", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+                    Text("${sv.doneStops}", style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold)
+                    Text(" / ${sv.totalStops}", style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (sv.totalStops > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("${"%.0f".format(sv.contacted * 100f / sv.totalStops)}% contactados",
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AgentRankRow(agent: StatsMonthAgent) {
+    val frac = if (agent.totalStops > 0) agent.doneStops.toFloat() / agent.totalStops else 0f
+    Column(Modifier.fillMaxWidth().padding(vertical = Spacing.sm)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(agent.name, style = MaterialTheme.typography.bodyMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text("${"%.0f".format(frac * 100)}%", style = MaterialTheme.typography.bodyMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold)
+        }
+        LinearProgressIndicator(progress = { frac },
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).height(8.dp))
+        Text("${agent.doneStops} de ${agent.totalStops} visitas",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun KpiTile(kpi: StatsMonthKpi, modifier: Modifier = Modifier) {
+    val display = when (kpi.type) {
+        "boolean" -> "${kpi.trueCount}/${kpi.countEntries}"
+        "number"  -> {
+            val v = kpi.totalValue
+            val f = if (v == v.toLong().toDouble()) "${v.toLong()}" else "%.1f".format(v)
+            kpi.unit?.let { "$f $it" } ?: f
+        }
+        else -> kpi.countEntries.toString()
+    }
+    Card(modifier) {
+        Column(Modifier.padding(Spacing.md)) {
+            Text(kpi.label, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+            Text(display, style = MaterialTheme.typography.titleLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold)
         }
     }
 }

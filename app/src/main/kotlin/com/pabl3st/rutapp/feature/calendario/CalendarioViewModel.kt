@@ -88,7 +88,10 @@ class CalendarioViewModel @Inject constructor(
         observeVacations()
         observeFinishedDays()
         fetchHolidaysForYear(LocalDate.now().year)
-        if (_ui.value.isManager) loadTeam()
+        if (_ui.value.isManager) {
+            loadTeam()
+            _ui.update { it.copy(weekMode = true) }  // vista semana x comercial por defecto
+        }
     }
 
     /** Carga los usuarios visibles para el supervisor: comerciales asignables y nombres. */

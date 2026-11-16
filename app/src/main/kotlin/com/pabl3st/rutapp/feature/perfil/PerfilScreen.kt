@@ -63,12 +63,7 @@ fun PerfilScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Perfil") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
-                    }
-                }
+                title = { Text(if (onNavigateToTeam != null) "Más" else "Perfil") },
             )
         }
     ) { padding ->

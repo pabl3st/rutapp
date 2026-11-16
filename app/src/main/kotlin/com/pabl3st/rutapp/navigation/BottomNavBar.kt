@@ -69,8 +69,14 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
             NAV_ITEMS
     }
 
+    val supervisor = role.level >= UserRole.MANAGER.level && role != UserRole.GOD
     NavigationBar {
         visibleItems.forEach { item ->
+            val label = if (!supervisor) item.label else when (item.screen) {
+                Screen.Kpis   -> "Resultados"
+                Screen.Perfil -> "Más"
+                else          -> item.label
+            }
             val selected = currentRoute == item.screen.route
             NavigationBarItem(
                 selected     = selected,
@@ -87,10 +93,10 @@ fun RutasBottomBar(navController: NavHostController, userRole: String = "agent")
                 icon  = {
                     Icon(
                         imageVector        = if (selected) item.selectedIcon else item.icon,
-                        contentDescription = item.label,
+                        contentDescription = label,
                     )
                 },
-                label = { Text(item.label) },
+                label = { Text(label) },
             )
         }
     }

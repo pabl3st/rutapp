@@ -177,6 +177,7 @@ fun RutasNavGraph(
                     onRouteClick = { uid -> navController.navigate(Screen.RouteDetail.createRoute(uid)) },
                     onBack       = { navController.popBackStack() },
                     onImport     = { navController.navigate(Screen.Importar.route) },
+                    onBiblioteca = { navController.navigate(Screen.Biblioteca.route) },
                 )
             }
 

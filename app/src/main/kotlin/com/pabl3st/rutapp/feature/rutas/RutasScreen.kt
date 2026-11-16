@@ -43,6 +43,7 @@ fun RutasScreen(
     onRouteClick: (String) -> Unit,
     onBack: () -> Unit,
     onImport: () -> Unit = {},
+    onBiblioteca: () -> Unit = {},
     vm: RutasViewModel = hiltViewModel(),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -146,12 +147,7 @@ fun RutasScreen(
                         }
                         // Importar: owner, admin y manager pueden importar rutas
                         if (ui.canCreate) {
-                            TextButton(onClick = onImport) {
-                                Icon(Icons.Default.UploadFile, contentDescription = null,
-                                    modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Importar")
-                            }
+                            // Importar pasa a boton flotante rotulado (ver FAB)
                         }
                     }
                 )
@@ -159,8 +155,15 @@ fun RutasScreen(
         },
         floatingActionButton = {
             if (ui.canCreate && !ui.selectionMode) {
-                FloatingActionButton(onClick = vm::onShowCreateDialog) {
-                    Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SmallFloatingActionButton(onClick = vm::onShowCreateDialog) {
+                        Icon(Icons.Default.Add, contentDescription = "Nueva ruta")
+                    }
+                    ExtendedFloatingActionButton(
+                        onClick = onImport,
+                        icon    = { Icon(Icons.Default.UploadFile, contentDescription = null) },
+                        text    = { Text("Importar CSV") },
+                    )
                 }
             }
         },
@@ -240,7 +243,10 @@ fun RutasScreen(
             }
             else -> Column(Modifier.fillMaxSize()) {
             val todayStr = remember { LocalDate.now().toString() }
-            val grouped  = remember(ui.routes) { ui.routes.groupBy { routeTab(it, todayStr) } }
+            val baseRoutes = remember(ui.routes, ui.agentFilter) {
+                ui.agentFilter?.let { id -> ui.routes.filter { it.userId == id } } ?: ui.routes
+            }
+            val grouped  = remember(baseRoutes) { baseRoutes.groupBy { routeTab(it, todayStr) } }
             val activeTab = ui.tab
                 ?: RutasTab.values().firstOrNull { !grouped[it].isNullOrEmpty() }
                 ?: RutasTab.HOY
@@ -249,13 +255,48 @@ fun RutasScreen(
                 else l.sortedBy { it.allDates().filter { d -> d >= todayStr }.minOrNull() ?: it.dateAssigned }
             }
             if (!ui.selectionMode) {
-                ScrollableTabRow(selectedTabIndex = activeTab.ordinal, edgePadding = 8.dp) {
-                    RutasTab.values().forEach { t ->
-                        Tab(
+                SingleChoiceSegmentedButtonRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    RutasTab.values().forEachIndexed { i, t ->
+                        SegmentedButton(
                             selected = t == activeTab,
                             onClick  = { vm.selectTab(t) },
-                            text     = { Text("${t.label} ${grouped[t]?.size ?: 0}") },
-                        )
+                            shape    = SegmentedButtonDefaults.itemShape(i, RutasTab.values().size),
+                            icon     = {},
+                        ) {
+                            Text("${t.label} ${grouped[t]?.size ?: 0}",
+                                maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                if (ui.canCreate) {
+                    OutlinedButton(
+                        onClick  = onBiblioteca,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    ) {
+                        Icon(Icons.Default.PinDrop, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Asignar paradas sueltas a un comercial")
+                    }
+                    val owners = remember(ui.routes) { ui.routes.map { it.userId }.distinct() }
+                    if (owners.size > 1) {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            item {
+                                FilterChip(selected = ui.agentFilter == null,
+                                    onClick = { vm.setAgentFilter(null) }, label = { Text("Todos") })
+                            }
+                            items(owners) { id ->
+                                FilterChip(
+                                    selected = ui.agentFilter == id,
+                                    onClick  = { vm.setAgentFilter(id) },
+                                    label    = { Text(if (id == ui.currentUserId) "Yo" else (ui.teamMembers[id] ?: "Usuario $id")) },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -281,6 +322,7 @@ fun RutasScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 itemsIndexed(shown, key = { _, r -> r.uid }) { idx, route ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val agentName = if (route.userId != ui.currentUserId)
                         ui.teamMembers[route.userId] else null
                     RouteListItem(
@@ -301,6 +343,16 @@ fun RutasScreen(
                             }
                         },
                     )
+                    if (ui.canCreate && !ui.selectionMode && activeTab != RutasTab.HECHAS) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            FilledTonalButton(onClick = { vm.reassignOne(route.uid) }) {
+                                Icon(Icons.Default.Groups, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(if (activeTab == RutasTab.SIN_FECHA) "Asignar" else "Reasignar")
+                            }
+                        }
+                    }
+                    } // Column item
                 }
             }
             } // Column con pestañas
