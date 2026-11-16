@@ -10,6 +10,9 @@ import com.pabl3st.rutapp.data.local.entity.RouteEntity
 import com.pabl3st.rutapp.data.repository.RouteRepository
 import com.pabl3st.rutapp.data.session.SessionManager
 import com.pabl3st.rutapp.data.repository.UserPrefsRepository
+import com.pabl3st.rutapp.data.repository.AdminRepository
+import com.pabl3st.rutapp.data.repository.AuthResult
+import com.pabl3st.rutapp.data.network.AccountUserDto
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -46,7 +49,16 @@ data class CalendarioUiState(
     val snackbar:          String?                     = null,
     val error:             String?                     = null,
     val vacationDays:      Set<String>                 = emptySet(),
+    /** True para manager/admin/owner: asignan rutas a comerciales concretos, no a si mismos. */
     val isManager:         Boolean                     = false,
+    // ── Asignacion a un comercial concreto (solo supervisores) ──
+    val showAgentSelector: Boolean                     = false,
+    val agents:            List<AccountUserDto>        = emptyList(),
+    val loadingAgents:     Boolean                     = false,
+    val selectedAgentId:   Int?                        = null,
+    /** userId -> nombre, para rotular de quien es cada ruta. */
+    val ownerNames:        Map<Int, String>            = emptyMap(),
+    val isAssigning:       Boolean                     = false,
 )
 
 @HiltViewModel
@@ -55,6 +67,7 @@ class CalendarioViewModel @Inject constructor(
     private val jornadaRepo:   com.pabl3st.rutapp.data.repository.JornadaRepository,
     private val userPrefsRepo: UserPrefsRepository,
     private val session:       SessionManager,
+    private val adminRepo:     AdminRepository,
 ) : BaseViewModel() {
 
     private val fmt = DateTimeFormatter.ISO_LOCAL_DATE
@@ -71,6 +84,25 @@ class CalendarioViewModel @Inject constructor(
         observeVacations()
         observeFinishedDays()
         fetchHolidaysForYear(LocalDate.now().year)
+        if (_ui.value.isManager) loadTeam()
+    }
+
+    /** Carga los usuarios visibles para el supervisor: comerciales asignables y nombres. */
+    private fun loadTeam() {
+        viewModelScope.launch {
+            _ui.update { it.copy(loadingAgents = true) }
+            when (val r = adminRepo.listUsers()) {
+                is AuthResult.Success -> {
+                    val names = r.data.associate { u -> u.userId to u.displayName }.toMutableMap()
+                    names[session.userId] = session.userDisplayName
+                    val agents = r.data.filter { u ->
+                        u.isActive && UserRole.from(u.role) == UserRole.AGENT
+                    }
+                    _ui.update { it.copy(ownerNames = names, agents = agents, loadingAgents = false) }
+                }
+                is AuthResult.Error -> _ui.update { it.copy(loadingAgents = false) }
+            }
+        }
     }
 
     /** Jornadas finalizadas -> el calendario pinta por DIA, no por ruta. */
@@ -245,23 +277,68 @@ class CalendarioViewModel @Inject constructor(
 
     // ── Mostrar selector de ruta para asignar ─────────────
     fun onShowRouteSelector() {
+        // Un supervisor no se asigna rutas a si mismo: primero elige comercial.
+        if (_ui.value.isManager) { onShowAgentSelector(); return }
         _ui.update { it.copy(showDayMenu = false, showRouteSelector = true) }
     }
 
+    fun onShowAgentSelector() {
+        _ui.update { it.copy(showDayMenu = false, showAgentSelector = true, selectedAgentId = null) }
+        if (_ui.value.agents.isEmpty() && !_ui.value.loadingAgents) loadTeam()
+    }
+
+    fun onSelectAgent(agentId: Int) {
+        _ui.update { it.copy(showAgentSelector = false, selectedAgentId = agentId, showRouteSelector = true) }
+    }
+
+    /** Atajo desde la fila "Sin ruta" de un comercial en el dia seleccionado. */
+    fun onAssignToAgent(agentId: Int) {
+        val day = _ui.value.selectedDay ?: return
+        _ui.update {
+            it.copy(menuDay = day, showDayMenu = false, showAgentSelector = false,
+                    selectedAgentId = agentId, showRouteSelector = true)
+        }
+    }
+
     fun onDismissRouteSelector() {
-        _ui.update { it.copy(showRouteSelector = false, menuDay = null) }
+        _ui.update {
+            it.copy(showRouteSelector = false, showAgentSelector = false,
+                    selectedAgentId = null, menuDay = null)
+        }
     }
 
     /** Asigna la ruta seleccionada al día del menú contextual */
     fun onAssignRouteToDay(route: RouteEntity) {
         val day = _ui.value.menuDay ?: return
         val dateStr = day.format(fmt)
+        val agentId = _ui.value.selectedAgentId
+        // Un supervisor siempre asigna a un comercial concreto, nunca a si mismo.
+        if (_ui.value.isManager && agentId == null) return
+        if (_ui.value.isAssigning) return
         viewModelScope.launch {
+            _ui.update { it.copy(isAssigning = true) }
+            // Si la ruta es de otro comercial, pasa a ser de este. Se reasigna
+            // PRIMERO y se anade la fecha DESPUES: reassignRoute marca la ruta
+            // como sincronizada y pisaria una fecha pendiente de subir.
+            if (agentId != null && route.userId != agentId) {
+                val res = routeRepo.reassignRoute(route.uid, agentId)
+                if (res.isFailure) {
+                    _ui.update { it.copy(
+                        isAssigning = false,
+                        snackbar    = "No se pudo asignar: ${res.exceptionOrNull()?.message ?: "error"}",
+                    )}
+                    return@launch
+                }
+            }
             routeRepo.assignDate(route.uid, dateStr)
+            val who = agentId?.let { _ui.value.ownerNames[it] }
+            val suffix = if (who != null) " a $who" else ""
             _ui.update { it.copy(
+                isAssigning       = false,
                 showRouteSelector = false,
                 menuDay           = null,
-                snackbar          = "\"${route.name}\" asignada al ${day.dayOfMonth}/${day.monthValue}",
+                selectedAgentId   = null,
+                snackbar          = "\"${route.name}\" asignada$suffix el ${day.dayOfMonth}/${day.monthValue}",
             )}
         }
     }

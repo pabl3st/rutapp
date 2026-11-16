@@ -29,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pabl3st.rutapp.core.ui.theme.Spacing
 import com.pabl3st.rutapp.data.local.entity.RouteEntity
+import com.pabl3st.rutapp.data.network.AccountUserDto
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -166,7 +167,7 @@ fun CalendarioScreen(
                     contentAlignment = Alignment.Center,
                 ) { CircularProgressIndicator() }
 
-                ui.selectedRoutes.isEmpty() -> Box(
+                ui.selectedRoutes.isEmpty() && !(ui.isManager && ui.agents.isNotEmpty()) -> Box(
                     Modifier.fillMaxWidth().weight(1f),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -190,6 +191,77 @@ fun CalendarioScreen(
                             Icon(Icons.Default.AddCircleOutline, null, Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Asignar ruta", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+
+                ui.isManager -> {
+                    // Supervisor: cada comercial con su ruta del dia (o "Sin ruta").
+                    val rows = remember(ui.selectedRoutes, ui.agents, ui.ownerNames) {
+                        buildDayRows(ui.selectedRoutes, ui.agents, ui.ownerNames)
+                    }
+                    LazyColumn(
+                        modifier        = Modifier.fillMaxWidth().weight(1f),
+                        contentPadding  = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        items(
+                            rows,
+                            key = { row ->
+                                when (row) {
+                                    is DayRow.Header    -> row.key
+                                    is DayRow.RouteItem -> "r-" + row.route.uid
+                                    is DayRow.Empty     -> "e-" + row.agentId
+                                }
+                            },
+                        ) { row ->
+                            when (row) {
+                                is DayRow.Header -> Row(
+                                    modifier          = Modifier.padding(top = Spacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Default.Person, null,
+                                        Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        row.name,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                is DayRow.RouteItem -> CalendarioRouteCard(
+                                    route           = row.route,
+                                    onClick         = { onRouteClick(row.route.uid) },
+                                    onRemoveFromDay = { vm.onRemoveRouteFromDay(row.route) },
+                                )
+                                is DayRow.Empty -> Card(
+                                    onClick  = { vm.onAssignToAgent(row.agentId) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors   = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    ),
+                                ) {
+                                    Row(
+                                        modifier          = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AddCircleOutline, null,
+                                            Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Spacer(Modifier.width(Spacing.md))
+                                        Text(
+                                            "Sin ruta asignada · toca para asignar",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -236,9 +308,17 @@ fun CalendarioScreen(
                     ) {
                         Icon(Icons.Default.AddCircleOutline, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(if (hasRoute) "Añadir otra ruta a este día" else "Asignar ruta a este día")
+                        Text(
+                            when {
+                                ui.isManager -> "Asignar ruta a un comercial"
+                                hasRoute     -> "Añadir otra ruta a este día"
+                                else         -> "Asignar ruta a este día"
+                            }
+                        )
                     }
-                    if (hasRoute) {
+                    // El supervisor quita rutas una a una desde la tarjeta de cada comercial;
+                    // este atajo vaciaria el dia de TODO el equipo.
+                    if (hasRoute && !ui.isManager) {
                         TextButton(
                             onClick  = vm::onRemoveRoute,
                             modifier = Modifier.fillMaxWidth(),
@@ -274,18 +354,91 @@ fun CalendarioScreen(
         )
     }
 
+    // ── Paso 1 (supervisor): elegir comercial ─────────────
+    if (ui.showAgentSelector) {
+        AlertDialog(
+            onDismissRequest = vm::onDismissRouteSelector,
+            title = { Text("¿Para qué comercial?") },
+            text = {
+                when {
+                    ui.loadingAgents -> Box(
+                        Modifier.fillMaxWidth().padding(Spacing.lg),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator() }
+
+                    ui.agents.isEmpty() -> Text(
+                        "No tienes comerciales a tu cargo. Asígnalos desde el panel de Admin.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    else -> LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(ui.agents, key = { it.userId }) { agent ->
+                            Card(
+                                onClick  = { vm.onSelectAgent(agent.userId) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors   = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                ),
+                            ) {
+                                Row(
+                                    modifier          = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        Icons.Default.Person, null,
+                                        Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        agent.displayName,
+                                        style    = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Icon(
+                                        Icons.Default.ChevronRight, null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = vm::onDismissRouteSelector) { Text("Cancelar") }
+            },
+        )
+    }
+
     // ── Selector de ruta para asignar al día ──────────────
     if (ui.showRouteSelector) {
         val dayLabel = ui.menuDay?.let {
             it.format(DateTimeFormatter.ofPattern("d MMMM", Locale("es")))
         } ?: ""
 
-        // Todas las rutas son asignables a cualquier día sin restricción
-        val assignableRoutes = ui.allRoutes
+        val agentId       = ui.selectedAgentId
+        val agentName     = agentId?.let { ui.ownerNames[it] }
+        val menuDateStr   = ui.menuDay?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: ""
+        // Supervisor: primero las rutas del comercial elegido, luego el resto del equipo.
+        val assignableRoutes = if (agentId != null) {
+            ui.allRoutes.sortedWith(
+                compareByDescending<RouteEntity> { it.userId == agentId }.thenBy { it.name }
+            )
+        } else ui.allRoutes
 
         AlertDialog(
             onDismissRequest = vm::onDismissRouteSelector,
-            title = { Text("Asignar ruta al $dayLabel") },
+            title = {
+                Text(if (agentName != null) "Ruta para $agentName · $dayLabel" else "Asignar ruta al $dayLabel")
+            },
             text = {
                 if (assignableRoutes.isEmpty()) {
                     Text(
@@ -299,8 +452,11 @@ fun CalendarioScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         items(assignableRoutes, key = { it.uid }) { route ->
+                            val alreadyOnDay = route.dateAssigned == menuDateStr ||
+                                route.scheduledDates?.contains(menuDateStr) == true
                             Card(
                                 onClick   = { vm.onAssignRouteToDay(route) },
+                                enabled   = !alreadyOnDay && !ui.isAssigning,
                                 modifier  = Modifier.fillMaxWidth(),
                                 colors    = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -330,8 +486,18 @@ fun CalendarioScreen(
                                                 && !dates.contains(route.dateAssigned)) dates.add(0, route.dateAssigned)
                                             dates.size
                                         }
+                                        if (agentId != null) {
+                                            val ownerLabel = ui.ownerNames[route.userId] ?: "otro usuario"
+                                            Text(
+                                                if (route.userId == agentId) "De $ownerLabel"
+                                                else "De $ownerLabel · pasará a $agentName",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                         Text(
-                                            if (dateCount > 0) "$dateCount día${if (dateCount > 1) "s" else ""} asignado${if (dateCount > 1) "s" else ""}"
+                                            if (alreadyOnDay) "Ya asignada a este día"
+                                            else if (dateCount > 0) "$dateCount día${if (dateCount > 1) "s" else ""} asignado${if (dateCount > 1) "s" else ""}"
                                             else "Sin fechas asignadas",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (dateCount > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
@@ -355,6 +521,35 @@ fun CalendarioScreen(
             },
         )
     }
+}
+
+/** Filas del panel del dia para un supervisor: un bloque por comercial. */
+private sealed interface DayRow {
+    data class Header(val key: String, val name: String) : DayRow
+    data class RouteItem(val route: RouteEntity) : DayRow
+    data class Empty(val agentId: Int) : DayRow
+}
+
+private fun buildDayRows(
+    routes: List<RouteEntity>,
+    agents: List<AccountUserDto>,
+    names:  Map<Int, String>,
+): List<DayRow> {
+    val byUser = routes.groupBy { it.userId }
+    val rows   = mutableListOf<DayRow>()
+    agents.sortedBy { it.displayName.lowercase() }.forEach { agent ->
+        rows.add(DayRow.Header("h-" + agent.userId, agent.displayName))
+        val agentRoutes = byUser[agent.userId].orEmpty()
+        if (agentRoutes.isEmpty()) rows.add(DayRow.Empty(agent.userId))
+        else agentRoutes.forEach { rows.add(DayRow.RouteItem(it)) }
+    }
+    // Rutas del dia cuyo dueno no es un comercial de la lista (p. ej. un manager).
+    val agentIds = agents.map { it.userId }.toSet()
+    byUser.filterKeys { it !in agentIds }.forEach { (userId, userRoutes) ->
+        rows.add(DayRow.Header("h-" + userId, names[userId] ?: "Usuario $userId"))
+        userRoutes.forEach { rows.add(DayRow.RouteItem(it)) }
+    }
+    return rows
 }
 
 @Composable
