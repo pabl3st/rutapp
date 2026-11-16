@@ -1595,6 +1595,20 @@ if ($action === 'assign_manager') {
         err('Solo puedes asignar supervisores a usuarios de menor rango que tú', 403);
     }
 
+    // admin/manager solo pueden tocar a usuarios de SU equipo (subarbol
+    // descendente) o a usuarios todavia sin supervisor. Antes bastaba con ser
+    // de rango superior: un manager podia dejar sin supervisor a un agente de
+    // otro manager de la misma cuenta.
+    if ($myRole !== 'owner' && $myRole !== 'god') {
+        $stCur = db()->prepare('SELECT manager_id FROM users WHERE id=? AND account_id=? LIMIT 1');
+        $stCur->execute([$targetId, $aid]);
+        $currentManagerId = $stCur->fetchColumn();
+        $isUnassigned     = ($currentManagerId === null || $currentManagerId === false || (int)$currentManagerId === 0);
+        if (!$isUnassigned && !in_array($targetId, getDescendantUserIds($uid, $aid), true)) {
+            err('Ese usuario no pertenece a tu equipo', 403, $action, $uid, $aid);
+        }
+    }
+
     // ── Validar que el supervisor es el rol inmediatamente superior ──
     // Jerarquía fija: owner > admin > manager > agent/viewer
     // owner puede supervisar a todos
@@ -2009,25 +2023,38 @@ if ($action === 'stats_month') {
     $monthStart = $month . '-01';
     $monthEnd   = date('Y-m-t', strtotime($monthStart)); // último día del mes
 
-    // ── Filtro por agente específico (para KpisScreen selector de agente) ─
+    // ── Ambito visible (misma regla que delta_sync / routes_list) ─────────
+    //   owner/god      -> toda la cuenta
+    //   admin/manager  -> su subarbol descendente (el propio usuario incluido)
+    // Con target_user_id se acota a ese usuario, que debe estar en el ambito.
+    //
+    // BUG (nov 2026): las consultas iban en comillas simples con $userFilter
+    // dentro, asi que PHP no lo interpolaba y MySQL recibia el texto literal
+    // "$userFilter"; ademas la de KPIs pasaba 3 parametros para 2 placeholders.
+    // Resultado: 500 para todo admin/manager. Ahora el filtro se concatena.
     $targetUid = isset($_GET['target_user_id']) ? (int)$_GET['target_user_id'] : null;
+    $fullAccount = ($role === 'owner' || $role === 'god');
+    $scopeIds    = $fullAccount ? [] : getDescendantUserIds($uid, $aid);
+    if (!$fullAccount && empty($scopeIds)) $scopeIds = [$uid];
+
     if ($targetUid) {
-        // Validar que el caller puede ver este agente
-        if ($role === 'manager') {
-            $chk = db()->prepare('SELECT id FROM users WHERE id=? AND manager_id=? AND account_id=? LIMIT 1');
-            $chk->execute([$targetUid, $uid, $aid]);
-            if (!$chk->fetch()) err('No tienes acceso a este agente', 403);
-        } elseif (roleLevel($role) < 4) {
-            err('Sin permisos para ver stats de otro usuario', 403);
-        }
-        // Verificar que el target pertenece a la cuenta
         $chk2 = db()->prepare('SELECT id FROM users WHERE id=? AND account_id=? LIMIT 1');
         $chk2->execute([$targetUid, $aid]);
-        if (!$chk2->fetch()) err('Usuario no encontrado', 404);
+        if (!$chk2->fetch()) err('Usuario no encontrado', 404, $action);
+        if (!$fullAccount && !in_array($targetUid, $scopeIds, true)) {
+            err('No tienes acceso a este agente', 403, $action);
+        }
+        $scopeIds = [$targetUid];
     }
-    // userFilter: si hay target_user_id filtramos por ese agente, si no por la cuenta
-    $userFilter     = $targetUid ? 'r.user_id = ?' : 'r.account_id = ?';
-    $userFilterVal  = $targetUid ?? $aid;
+
+    // Siempre se filtra por cuenta; si hay ambito, tambien por usuarios.
+    $scopeSql    = 'r.account_id = ?';
+    $scopeParams = [$aid];
+    if (!empty($scopeIds)) {
+        $scopeSql   .= ' AND r.user_id IN (' . implode(',', array_fill(0, count($scopeIds), '?')) . ')';
+        $scopeParams = array_merge($scopeParams, $scopeIds);
+    }
+    $rangeParams = array_merge($scopeParams, [$monthStart, $monthEnd]);
 
     // ── Totales de visitas del mes ────────────────────────────
     $stVisits = db()->prepare(
@@ -2045,11 +2072,11 @@ if ($action === 'stats_month') {
             SUM(r.status = "done")                         AS done_routes
          FROM stops s
          JOIN routes r ON r.id = s.route_id
-         WHERE $userFilter
+         WHERE ' . $scopeSql . '
            AND r.date_assigned BETWEEN ? AND ?
            AND s.deleted_at IS NULL'
     );
-    $stVisits->execute([$userFilterVal, $monthStart, $monthEnd]);
+    $stVisits->execute($rangeParams);
     $visits = $stVisits->fetch();
 
     // ── KPI values agregados del mes (número + boolean) ───────
@@ -2070,59 +2097,35 @@ if ($action === 'stats_month') {
          JOIN kpi_definitions kd ON kd.id = kv.kpi_id
          JOIN stops s            ON s.uid  = kv.stop_uid
          JOIN routes r           ON r.id  = s.route_id
-         WHERE r.date_assigned BETWEEN ? AND ?
+         WHERE ' . $scopeSql . '
+           AND r.date_assigned BETWEEN ? AND ?
            AND kd.type IN ("number", "boolean")
            AND s.deleted_at IS NULL
          GROUP BY kv.kpi_id, kd.label, kd.type, kd.unit, kd.section
          ORDER BY kd.section ASC, kd.label ASC'
     );
-    $stKpis->execute([$userFilterVal, $monthStart, $monthEnd]);
+    $stKpis->execute($rangeParams);
     $kpiAggregates = $stKpis->fetchAll();
 
-    // ── Por agente (para desglose opcional) ──────────────────
-    // Manager solo ve los agentes que tiene asignados directamente
-    $isManager = $role === 'manager';
-    if ($isManager) {
-        $stAgents = db()->prepare(
-            'SELECT
-                u.id           AS user_id,
-                u.name,
-                u.username,
-                COUNT(s.id)                        AS total_stops,
-                SUM(s.status = "done")             AS done_stops,
-                SUM(s.visit_result = "contactado") AS contacted
-             FROM stops s
-             JOIN routes r ON r.id = s.route_id
-             JOIN users u  ON u.id = r.user_id AND u.manager_id = ?
-             WHERE $userFilter
-               AND r.date_assigned BETWEEN ? AND ?
-               AND s.deleted_at IS NULL
-             GROUP BY u.id, u.name, u.username
-             ORDER BY done_stops DESC'
-        );
-        // Orden de placeholders: primero el del JOIN (manager_id), luego
-        // $userFilter y por ultimo el BETWEEN.
-        $stAgents->execute([$uid, $aid, $monthStart, $monthEnd]);
-    } else {
-        $stAgents = db()->prepare(
-            'SELECT
-                u.id           AS user_id,
-                u.name,
-                u.username,
-                COUNT(s.id)                        AS total_stops,
-                SUM(s.status = "done")             AS done_stops,
-                SUM(s.visit_result = "contactado") AS contacted
-             FROM stops s
-             JOIN routes r ON r.id = s.route_id
-             JOIN users u  ON u.id = r.user_id
-             WHERE $userFilter
-               AND r.date_assigned BETWEEN ? AND ?
-               AND s.deleted_at IS NULL
-             GROUP BY u.id, u.name, u.username
-             ORDER BY done_stops DESC'
-        );
-        $stAgents->execute([$userFilterVal, $monthStart, $monthEnd]);
-    }
+    // ── Por agente (desglose): mismo ambito que los totales ──
+    $stAgents = db()->prepare(
+        'SELECT
+            u.id           AS user_id,
+            u.name,
+            u.username,
+            COUNT(s.id)                        AS total_stops,
+            SUM(s.status = "done")             AS done_stops,
+            SUM(s.visit_result = "contactado") AS contacted
+         FROM stops s
+         JOIN routes r ON r.id = s.route_id
+         JOIN users u  ON u.id = r.user_id
+         WHERE ' . $scopeSql . '
+           AND r.date_assigned BETWEEN ? AND ?
+           AND s.deleted_at IS NULL
+         GROUP BY u.id, u.name, u.username
+         ORDER BY done_stops DESC'
+    );
+    $stAgents->execute($rangeParams);
     $agents = $stAgents->fetchAll();
 
     apiLog($action, $uid, $aid);
