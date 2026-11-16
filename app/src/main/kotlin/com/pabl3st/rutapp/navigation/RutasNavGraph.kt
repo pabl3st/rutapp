@@ -157,6 +157,10 @@ fun RutasNavGraph(
                     onNavigateToTeam  = if (UserRole.from(userRole).canViewTeam) {
                         { navController.navigate(Screen.Team.createRoute()) }
                     } else null,
+                    onAgentClick      = { a ->
+                        if (a.role == "agent") navController.navigate(Screen.AgentDetail.createRoute(a.userId))
+                        else navController.navigate(Screen.Team.createRoute(a.userId, a.name))
+                    },
                 )
             }
 

@@ -46,6 +46,9 @@ data class HomeUiState(
     // Jerarquía del equipo (solo para roles manager+) — para renderizar el árbol
     // del bloque "Equipo hoy". Vacío para agents.
     val teamMembers:    List<AccountUserDto> = emptyList(),
+    // Estado del equipo hoy (team_overview) para la vista de manager
+    val team:           List<com.pabl3st.rutapp.data.network.AgentOverviewDto> = emptyList(),
+    val teamLoading:    Boolean = false,
     val error:          String? = null,
 )
 
@@ -58,6 +61,7 @@ class HomeViewModel @Inject constructor(
     private val visitRepo:   StopVisitRepository,
     private val syncRepo:    SyncRepository,
     private val adminRepo:   AdminRepository,
+    private val teamRepo:    com.pabl3st.rutapp.data.repository.TeamRepository,
     private val session:     SessionManager,
     private val workManager: WorkManager,
 ) : BaseViewModel() {
@@ -77,6 +81,7 @@ class HomeViewModel @Inject constructor(
     init {
         observeRoutes()
         loadTeamMembers()
+        startTeamPolling()
         schedulePeriodicSync()
         syncNow()
     }
@@ -92,6 +97,20 @@ class HomeViewModel @Inject constructor(
             when (val res = adminRepo.listUsers()) {
                 is AuthResult.Success -> _ui.update { it.copy(teamMembers = res.data) }
                 else -> Unit  // sin team data, ManagerTeamSummary cae a lista plana
+            }
+        }
+    }
+
+    /** Estado del equipo hoy: carga inicial y refresco cada 60 s (solo manager+). */
+    private fun startTeamPolling() {
+        if (session.userRole !in MANAGER_ROLES || session.userRole == "god") return
+        viewModelScope.launch {
+            _ui.update { it.copy(teamLoading = true) }
+            while (true) {
+                teamRepo.teamOverview().onSuccess { list ->
+                    _ui.update { it.copy(team = list, teamLoading = false) }
+                }.onFailure { _ui.update { it.copy(teamLoading = false) } }
+                kotlinx.coroutines.delay(60_000L)
             }
         }
     }

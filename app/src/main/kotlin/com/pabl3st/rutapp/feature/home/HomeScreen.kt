@@ -44,6 +44,7 @@ fun HomeScreen(
     onStopClick:       (String) -> Unit   = {},
     onNavigateToMapa:  () -> Unit          = {},
     onNavigateToTeam:  (() -> Unit)?       = null,  // solo manager/admin/owner/god
+    onAgentClick:      (com.pabl3st.rutapp.data.network.AgentOverviewDto) -> Unit = {},
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val ui    by vm.ui.collectAsStateWithLifecycle()
@@ -120,6 +121,7 @@ fun HomeScreen(
                 modifier     = Modifier.padding(padding),
                 onRouteClick = onRouteClick,
                 onStopClick  = onStopClick,
+                onAgentClick = onAgentClick,
             )
         }
     }
@@ -132,13 +134,19 @@ private fun RouteListContent(
     modifier: Modifier = Modifier,
     onRouteClick: (String) -> Unit,
     onStopClick:  (String) -> Unit = {},
+    onAgentClick: (com.pabl3st.rutapp.data.network.AgentOverviewDto) -> Unit = {},
 ) {
+    val teamView = ui.isManager && UserRole.from(ui.userRole) != UserRole.GOD
     LazyColumn(
         modifier            = modifier.fillMaxSize(),
         contentPadding      = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // ── Stats del día ─────────────────────────────────────
+        // ── Manager/admin/owner: estado del equipo hoy ────────
+        if (teamView) {
+            managerHoyItems(team = ui.team, loading = ui.teamLoading, onAgentClick = onAgentClick)
+        } else {
+        // ── Stats del día (agente) ────────────────────────────
         item {
             DayStatsRow(
                 totalRoutes   = ui.routes.size,
@@ -146,9 +154,10 @@ private fun RouteListContent(
                 pendingStops  = ui.pendingStops,
             )
         }
+        }
 
-        // ── Panel de equipo para manager ──────────────────────
-        if (ui.isManager && ui.routes.isNotEmpty()) {
+        // ── Panel de equipo (solo god, que no usa la vista nueva) ──
+        if (ui.isManager && !teamView && ui.routes.isNotEmpty()) {
             // Owner y admin ven los totales de su ámbito (cuenta entera para owner,
             // subárbol descendente para admin). El dato ya viene filtrado de
             // RouteRepository según rol, así que solo decidimos si mostrar la card.
@@ -184,7 +193,7 @@ private fun RouteListContent(
         // ── Sección rutas ─────────────────────────────────────
         item {
             Text(
-                text  = "RUTAS DE HOY",
+                text  = if (teamView) "RUTAS DE HOY DEL EQUIPO" else "RUTAS DE HOY",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.xs),
