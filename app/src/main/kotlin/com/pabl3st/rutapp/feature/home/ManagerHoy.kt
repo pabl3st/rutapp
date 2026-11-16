@@ -198,7 +198,8 @@ private fun HoyAgentCard(a: AgentOverviewDto, onClick: () -> Unit) {
                     Text(a.name, style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val extra = buildList {
-                        if (a.distanceKm > 0) add("%.1f km".format(java.util.Locale("es"), a.distanceKm))
+                        if (a.elapsedMs > 0 && (a.isActive || a.isPaused)) add(com.pabl3st.rutapp.core.formatDuration(a.elapsedMs))
+                        if (a.distanceKm > 0) add(com.pabl3st.rutapp.core.formatKm(a.distanceKm))
                         if (a.lastLat != null) add("GPS activo")
                     }.joinToString(" · ")
                     Text(if (extra.isEmpty()) stateLabel else "$stateLabel · $extra",

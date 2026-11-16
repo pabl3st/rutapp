@@ -236,7 +236,7 @@ private fun AgentCard(agent: AgentOverviewDto, onClick: () -> Unit) {
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     if (agent.distanceKm > 0.1) {
-                        StatChip(Icons.Default.Route, "%.1f km".format(agent.distanceKm))
+                        StatChip(Icons.Default.Route, com.pabl3st.rutapp.core.formatKm(agent.distanceKm))
                     }
                     if (agent.stopsContacted > 0) {
                         StatChip(Icons.Default.CheckCircle, "${agent.stopsContacted} contactados")

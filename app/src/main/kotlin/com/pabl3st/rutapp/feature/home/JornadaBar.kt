@@ -60,7 +60,7 @@ fun JornadaBar(
                 )
                 if (state != "idle") {
                     Text(
-                        text  = "%.1f km".format(ui.distanceKm),
+                        text  = com.pabl3st.rutapp.core.formatKm(ui.distanceKm),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -154,7 +154,7 @@ fun JornadaBar(
                             icon  = Icons.Default.Timer,
                         )
                         SummaryMetric(
-                            value = "%.1f km".format(summary.distanceKm),
+                            value = com.pabl3st.rutapp.core.formatKm(summary.distanceKm),
                             label = "Recorrido",
                             icon  = Icons.Default.Route,
                         )

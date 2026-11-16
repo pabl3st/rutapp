@@ -230,7 +230,7 @@ private fun JornadaCard(
                     val hours   = elapsedMs / 3_600_000
                     val minutes = (elapsedMs % 3_600_000) / 60_000
                     StatItem(Icons.Default.Timer,   "%dh %02dm".format(hours, minutes), "Tiempo activo")
-                    StatItem(Icons.Default.Route,   "%.1f km".format(distanceKm), "Distancia")
+                    StatItem(Icons.Default.Route,   com.pabl3st.rutapp.core.formatKm(distanceKm), "Distancia")
                     if (lat != null) {
                         val ageLabel = when {
                             ageSec == null     -> "Última posición"
