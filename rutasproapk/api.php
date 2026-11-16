@@ -2482,18 +2482,16 @@ if ($action === 'assign_route') {
         $reason,
     ]);
 
-    // FCM push al nuevo agente
-    $fcmToken = db()->prepare('SELECT fcm_token FROM users WHERE id=? AND fcm_token IS NOT NULL LIMIT 1');
-    $fcmToken->execute([$newUserId]);
-    $tokenRow = $fcmToken->fetch();
-    if ($tokenRow && $tokenRow['fcm_token']) {
-        sendFcmNotification(
-            $tokenRow['fcm_token'],
-            'Nueva ruta asignada',
-            'Se te ha asignado la ruta: ' . $routeRow['name'],
-            ['type' => 'route_assigned', 'route_uid' => $routeUid]
-        );
-    }
+    // Push al nuevo agente (tokens en sessions.fcm_token; users NO tiene esa columna).
+    // Un fallo de push nunca debe romper la asignacion ya guardada.
+    try {
+        pushToUser($newUserId, [
+            'type'      => 'route_assigned',
+            'route_uid' => $routeUid,
+            'title'     => 'Nueva ruta asignada',
+            'body'      => 'Se te ha asignado la ruta: ' . $routeRow['name'],
+        ]);
+    } catch (Throwable $e) { /* ignorar */ }
 
     apiLog($action, $callerId, $aid);
     ok(['assigned' => true, 'route_uid' => $routeUid, 'new_user_id' => $newUserId]);
@@ -2579,6 +2577,15 @@ if ($action === 'assign_routes_bulk') {
         $reassigned++;
     }
 
+    if ($reassigned > 0) {
+        try {
+            pushToUser($newUserId, [
+                'type'  => 'route_assigned',
+                'title' => 'Rutas asignadas',
+                'body'  => $reassigned === 1 ? 'Se te ha asignado 1 ruta' : "Se te han asignado $reassigned rutas",
+            ]);
+        } catch (Throwable $e) { /* ignorar */ }
+    }
     apiLog($action, $callerId, $aid);
     ok(['reassigned' => $reassigned, 'skipped' => $skipped]);
 }
