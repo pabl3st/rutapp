@@ -73,14 +73,21 @@ interface RouteDao {
      * una parada como visitada actualiza el contador sin esperar al servidor.
      */
     @Query("""
-        SELECT routeUid AS routeUid,
+        SELECT s.routeUid AS routeUid,
                COUNT(*) AS total,
-               COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) AS done
-        FROM stops
-        WHERE deletedAt IS NULL
-        GROUP BY routeUid
+               COALESCE((
+                   SELECT COUNT(*) FROM stop_visits v
+                   WHERE v.routeUid = s.routeUid AND v.status = 'done' AND v.deletedAt IS NULL
+                     AND v.visitDate = (
+                         SELECT MAX(v2.visitDate) FROM stop_visits v2
+                         WHERE v2.routeUid = s.routeUid AND v2.deletedAt IS NULL
+                           AND v2.visitDate <= :today)
+               ), 0) AS done
+        FROM stops s
+        WHERE s.deletedAt IS NULL
+        GROUP BY s.routeUid
     """)
-    fun observeStopCounts(): Flow<List<RouteStopCount>>
+    fun observeStopCounts(today: String): Flow<List<RouteStopCount>>
 
     @Query("SELECT * FROM routes WHERE name = :name AND userId = :userId AND deletedAt IS NULL LIMIT 1")
     suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity?

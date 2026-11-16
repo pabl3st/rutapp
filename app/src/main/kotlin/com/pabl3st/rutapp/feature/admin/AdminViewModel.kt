@@ -74,6 +74,7 @@ class AdminViewModel @Inject constructor(
     private val syncRepo:  SyncRepository,
     private val routeRepo: RouteRepository,
     private val stopRepo:  StopRepository,
+    private val visitRepo: com.pabl3st.rutapp.data.repository.StopVisitRepository,
     private val adminRepo: AdminRepository,
 ) : BaseViewModel() {
 
@@ -190,7 +191,10 @@ class AdminViewModel @Inject constructor(
                         (r.dateAssigned == today || r.scheduledDates?.contains(today) == true)
                     }
                     val routeUids = todayRoutes.map { it.uid }
-                    stopRepo.observeByRouteUids(routeUids).map { stops ->
+                    kotlinx.coroutines.flow.combine(
+                        stopRepo.observeByRouteUids(routeUids),
+                        visitRepo.observeByRoutesAndDates(routeUids, listOf(today)),
+                    ) { st, vs -> visitRepo.stopsWithDateStatus(st, vs) }.map { stops ->
                         // routeCounts: cuántas rutas tiene cada userId hoy
                         val routeCounts = todayRoutes.groupBy { it.userId }.mapValues { it.value.size }
                         // done / pending stops por userId

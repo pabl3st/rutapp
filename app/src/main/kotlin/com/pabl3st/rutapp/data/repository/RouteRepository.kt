@@ -116,7 +116,7 @@ class RouteRepository @Inject constructor(
 
     /** Conteo de paradas (total/completadas) por ruta, indexado por routeUid. */
     fun observeStopCounts(): Flow<Map<String, RouteStopCount>> =
-        routeDao.observeStopCounts().map { list -> list.associateBy { it.routeUid } }
+        routeDao.observeStopCounts(java.time.LocalDate.now().toString()).map { list -> list.associateBy { it.routeUid } }
 
     suspend fun getByNameAndUser(name: String, userId: Int): RouteEntity? =
         routeDao.getByNameAndUser(name, userId)

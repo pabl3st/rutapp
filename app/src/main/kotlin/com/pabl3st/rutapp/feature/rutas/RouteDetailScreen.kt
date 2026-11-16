@@ -484,7 +484,7 @@ private fun StopCard(
     // con los campos espejo del stop (lastVisitMirror).
     // En modo fecha (hay fecha seleccionada) NUNCA se usa el espejo del stop:
     // una visita hecha en agosto no puede marcar como completada la de noviembre.
-    val effectiveStatus      = if (dateMode) (visit?.status ?: "pending") else (visit?.status ?: stop.status)
+    val effectiveStatus      = if (dateMode) (visit?.status ?: "pending") else (visit?.status ?: "pending")
     val effectiveVisitedAt   = if (dateMode) visit?.visitedAt   else (visit?.visitedAt   ?: stop.visitedAt)
     val effectiveVisitResult = if (dateMode) visit?.visitResult else (visit?.visitResult ?: stop.visitResult)
     val effectiveNextAction  = if (dateMode) visit?.nextAction  else (visit?.nextAction  ?: stop.nextAction)
