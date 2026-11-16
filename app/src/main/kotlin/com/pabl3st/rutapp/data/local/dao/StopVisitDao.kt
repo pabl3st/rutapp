@@ -30,6 +30,13 @@ interface StopVisitDao {
     """)
     fun observeByRoutesAndDates(routeUids: List<String>, dates: List<String>): Flow<List<StopVisitEntity>>
 
+    /** Visitas de varias rutas dentro de un rango de fechas (KPIs por periodo) */
+    @Query("""
+        SELECT * FROM stop_visits
+        WHERE routeUid IN (:routeUids) AND visitDate BETWEEN :fromDate AND :toDate AND deletedAt IS NULL
+    """)
+    suspend fun getByRoutesInRange(routeUids: List<String>, fromDate: String, toDate: String): List<StopVisitEntity>
+
     /** Visitas de una ruta en una fecha (lectura puntual) */
     @Query("""
         SELECT * FROM stop_visits

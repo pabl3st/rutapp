@@ -48,6 +48,25 @@ class StopVisitRepository @Inject constructor(
     fun observeByRoutesAndDates(routeUids: List<String>, dates: List<String>): Flow<List<StopVisitEntity>> =
         visitDao.observeByRoutesAndDates(routeUids, dates)
 
+    /** Stops con estado/resultado de la visita de UNA fecha (nunca el espejo del stop). */
+    fun stopsWithDateStatus(
+        stops: List<com.pabl3st.rutapp.data.local.entity.StopEntity>,
+        visits: List<StopVisitEntity>,
+    ): List<com.pabl3st.rutapp.data.local.entity.StopEntity> {
+        val byStop = visits.associateBy { it.stopUid }
+        return stops.map { s ->
+            val v = byStop[s.uid]
+            s.copy(
+                status      = v?.status ?: "pending",
+                visitResult = v?.visitResult,
+                visitedAt   = v?.visitedAt,
+            )
+        }
+    }
+
+    suspend fun getByRoutesInRange(routeUids: List<String>, from: String, to: String): List<StopVisitEntity> =
+        routeUids.chunked(400).flatMap { visitDao.getByRoutesInRange(it, from, to) }
+
     suspend fun getByRouteAndDate(routeUid: String, date: String): List<StopVisitEntity> =
         visitDao.getByRouteAndDate(routeUid, date)
 

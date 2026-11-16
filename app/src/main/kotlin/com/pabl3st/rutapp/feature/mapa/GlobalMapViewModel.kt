@@ -94,6 +94,7 @@ data class GlobalMapUiState(
 class GlobalMapViewModel @Inject constructor(
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
+    private val visitRepo:   com.pabl3st.rutapp.data.repository.StopVisitRepository,
     private val teamRepo:    TeamRepository,
     private val locationMgr: LocationManager,
     private val prefsRepo:   UserPrefsRepository,
@@ -130,7 +131,11 @@ class GlobalMapViewModel @Inject constructor(
     private fun resubscribeStops(routeUids: List<String>) {
         stopsJob?.cancel()
         stopsJob = viewModelScope.launch {
-            stopRepo.observeByRouteUids(routeUids)
+            val today = java.time.LocalDate.now().toString()
+            kotlinx.coroutines.flow.combine(
+                stopRepo.observeByRouteUids(routeUids),
+                visitRepo.observeByRoutesAndDates(routeUids, listOf(today)),
+            ) { stops, visits -> visitRepo.stopsWithDateStatus(stops, visits) }
                 .catch { e -> _ui.update { it.copy(error = e.message, isLoading = false) } }
                 .collect { stops -> processStops(stops) }
         }

@@ -119,6 +119,7 @@ class KpisViewModel @Inject constructor(
     private val stopRepo:     StopRepository,
     private val teamRepo:     TeamRepository,
     private val kpiValueDao:  KpiValueDao,
+    private val visitRepo:    com.pabl3st.rutapp.data.repository.StopVisitRepository,
     private val profileRepo:  BusinessProfileRepository,
     private val api:          RutasApiService,
     private val session:      SessionManager,
@@ -313,6 +314,54 @@ class KpisViewModel @Inject constructor(
                 KpiPeriod.MONTH      -> selMonth.atDay(1) to selMonth.atEndOfMonth()
                 KpiPeriod.SIX_MONTHS -> today.minusDays(179) to today
             }
+            // ── Visitas del periodo: visitadas/pendientes salen de stop_visits por FECHA ──
+            // (el estado del stop es un espejo de la ultima visita de cualquier fecha:
+            // contaba como visitadas las de meses anteriores).
+            val fromS = rFrom.format(fmt)
+            val toS   = rTo.format(fmt)
+            val histFrom = minOf(today.minusDays(200), selMonth.atDay(1)).format(fmt)
+            val histTo   = maxOf(today, rTo).format(fmt)
+            val allVisits = visitRepo.getByRoutesInRange(allRoutes.map { it.uid }, histFrom, histTo)
+            val selRoute  = _ui.value.selectedRouteUid
+            val scoped    = if (selRoute != null) allVisits.filter { it.routeUid == selRoute } else allVisits
+            val pv        = scoped.filter { it.routeUid in routeUids && it.visitDate in fromS..toS }
+            fun doneOn(a: String, b: String) = scoped.count { it.status == "done" && it.visitDate in a..b }
+            val prevDelta: Int? = when (period) {
+                KpiPeriod.TODAY -> pv.count { it.status == "done" } - doneOn(today.minusDays(1).format(fmt), today.minusDays(1).format(fmt))
+                KpiPeriod.WEEK  -> pv.count { it.status == "done" } - doneOn(today.minusDays(13).format(fmt), today.minusDays(7).format(fmt))
+                else -> null
+            }
+            val vDone = pv.count { it.status == "done" }
+            val vTotal = pv.size
+            val doneRoutesN = filteredRoutes.count { r ->
+                val rv = pv.filter { it.routeUid == r.uid }
+                rv.isNotEmpty() && rv.none { it.status == "pending" || it.status == "visiting" }
+            }
+            _ui.update { st -> st.copy(metrics = st.metrics.copy(
+                totalStops     = vTotal,
+                doneStops      = vDone,
+                pendingStops   = pv.count { it.status == "pending" },
+                skippedStops   = pv.count { it.status == "skipped" },
+                visitingStops  = pv.count { it.status == "visiting" },
+                completionRate = if (vTotal > 0) vDone.toFloat() / vTotal else 0f,
+                contactRate    = if (vTotal > 0) pv.count { it.status == "done" && it.visitResult == "contactado" }.toFloat() / vTotal else 0f,
+                doneStopsTrend = prevDelta,
+                resultContacted = pv.count { it.status == "done" && it.visitResult == "contactado" },
+                resultNotHome   = pv.count { it.status == "done" && it.visitResult == "no_estaba" },
+                resultReturn    = pv.count { it.status == "done" && it.visitResult == "volvemos" },
+                resultRejected  = pv.count { it.status == "done" && it.visitResult == "rechazado" },
+                doneRoutes      = doneRoutesN,
+                weeklyTrend  = (6 downTo 0).map { d ->
+                    val ds = today.minusDays(d.toLong()).format(fmt); ds to doneOn(ds, ds)
+                },
+                monthlyTrend = (5 downTo 0).map { m ->
+                    val mo = today.minusMonths(m.toLong())
+                    val label = mo.format(java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale("es")))
+                        .replaceFirstChar { it.uppercase() }
+                    label to doneOn(mo.withDayOfMonth(1).format(fmt), mo.withDayOfMonth(mo.lengthOfMonth()).format(fmt))
+                },
+            )) }
+
             val latest = monthlyLatest(stopUids, rFrom.format(fmt), rTo.format(fmt))
             val sectorKpis = buildSectorKpis(latest)
             val (plusCount, plusLlCount, totalTelco) = calcPlusMetrics(latest)

@@ -36,6 +36,7 @@ class RouteMapViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val routeRepo:   RouteRepository,
     private val stopRepo:    StopRepository,
+    private val visitRepo:   com.pabl3st.rutapp.data.repository.StopVisitRepository,
     private val locationMgr: LocationManager,
     val mapProvider: MapProvider,     // expuesto para que Screen lo use directamente
     val mapConfig: MapConfig,
@@ -61,7 +62,11 @@ class RouteMapViewModel @Inject constructor(
 
     private fun observeStops() {
         viewModelScope.launch {
-            stopRepo.observeByRoute(routeUid)
+            val today = java.time.LocalDate.now().toString()
+            combine(
+                stopRepo.observeByRoute(routeUid),
+                visitRepo.observeByRoutesAndDates(listOf(routeUid), listOf(today)),
+            ) { stops, visits -> visitRepo.stopsWithDateStatus(stops, visits) }
                 .catch { e -> _ui.update { it.copy(error = e.message) } }
                 .collect { stops -> recalculate(stops) }
         }
