@@ -481,8 +481,8 @@ fun RutasNavGraph(
                 popEnterTransition = { enterPop },
                 popExitTransition  = { exitPop },
             ) {
-                // Guardia: solo owner/admin pueden configurar el perfil de negocio
-                if (!UserRole.from(userRole).canAccessAdmin) {
+                // Guardia: misma regla que el acceso desde Perfil (admin+ y god)
+                if (!UserRole.from(userRole).canEditBusinessProfile) {
                     navController.popBackStack()
                     return@composable
                 }
